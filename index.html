@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Board to Life</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">Board to Life</span>
+      <label class="stub">
+        Stub mode
+        <select id="stub-mode" aria-label="Stub mode">
+          <option value="ok">ok</option>
+          <option value="error">error</option>
+          <option value="timeout">timeout</option>
+          <option value="invalid">invalid scene</option>
+          <option value="ungrounded">ungrounded draft</option>
+        </select>
+      </label>
+    </header>
+    <main id="app"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
