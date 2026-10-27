@@ -84,7 +84,7 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | `src/present/interpolate.spec.ts` | blending body states between physics steps |
 | `src/present/redraw.spec.ts` | drawing every frame while moving, one final frame once still, and again after a resize |
 | `server/stub.spec.ts` | stub endpoints, including rejection of invalid scenes and ungrounded drafts |
-| `src/checks/*.spec.ts` | drawing check set: pinned outcomes and their controls, drawings match their scenes, item matching (renamed, nudged, misread, rescaled, reversed ramps, ropes, unflagged and invented marks), replay with a perfect reader, the stub, a changed outcome, an invalid scene and a failing reader |
+| `src/checks/*.spec.ts` | drawing check set: pinned outcomes and their controls, drawings match their scenes, photo versions keep the same expectations and carry erased strokes, the HTTP reader (request shape, server errors, missing scene), item matching (renamed, nudged, misread, rescaled, reversed ramps, ropes, unflagged and invented marks), replay with a perfect reader, the stub, a changed outcome, an invalid scene and a failing reader |
 | `src/api.spec.ts` | client timeout, server error, network failure, and non-JSON error bodies become clear, retryable messages |
 
 ## Drawing check set
@@ -98,13 +98,20 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | `pendulum-knock` (pulley, rope, ball) | the swinging ball knocks all three dominoes over |
 | `wall-in-the-way` (with an unrecognised zigzag) | a short wall stops the ball, so the domino stays up |
 
-The three new drawings are sketched from their expected scenes by `src/checks/sketch.ts` (`npm run drawings:draw`, which
-needs `rsvg-convert`), so a drawing and its expected scene cannot disagree. A spec fails if a committed drawing no
-longer matches its scene. The pinned outcomes are what the physics computes for each expected scene. Two controls show
-they are not accidents: without the wall the domino falls, and without the rope the dominoes stay up.
+Each drawing also has a **photo-style** version (`*-photo`, a 1600 × 1067 JPEG, the size the app sends after
+downscaling). It adds uneven classroom light, a glare patch that washes out part of the drawing, a warm cast, slight
+blur, sensor noise and phone-grade compression. The three sketched photos also carry faint, offset strokes of a
+different, half-erased drawing under them. A reader that turns those strokes into bodies fails on extra items.
+
+The three new drawings are sketched from their expected scenes by `src/checks/sketch.ts`, so a drawing and its
+expected scene cannot disagree. A spec fails if a committed drawing no longer matches its scene. The pinned outcomes
+are what the physics computes for each expected scene. Two controls show they are not accidents: without the wall the
+domino falls, and without the rope the dominoes stay up. `npm run drawings:draw` redraws everything (it needs
+`rsvg-convert` and ImageMagick 7), and gives byte-identical files on a rerun.
 
 ```bash
-npm run drawings
+npm run drawings                                                   # the stub reader, in-process
+npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
 ```
 
 This sends each drawing to a scene reader, then reports, for each drawing:
@@ -114,9 +121,18 @@ This sends each drawing to a scene reader, then reports, for each drawing:
 - **Unknown marks:** marks the reader did not flag, and bodies it invented inside an unknown mark.
 - **Outcome:** whether the scene as read gives the expected outcome when played.
 
-It exits with 1 unless every drawing passes. The only reader so far is the stub. It always returns the sample scene, so
-it reads 1 of the 4 drawings correctly. That shows the check can tell a wrong reading from a right one. The real scene
-reader will be added as another reader.
+It exits with 1 unless every drawing passes. The `http` reader posts each image to a running `/api/understand`. That
+checks the whole endpoint, including upload handling and validation, so the real scene reader needs no change to the
+check set once it sits behind that endpoint. Today both readers reach the stub. It always returns the sample scene, so
+it reads 2 of the 8 drawings correctly: the sample and its photo. That shows the check can tell a wrong reading from a
+right one.
+
+What the check set still does not cover:
+
+- **Photos taken at an angle.** A real phone photo has perspective. Covering it needs a decision about which frame the
+  reader reports coordinates in, and the physics would also need the scene straightened first.
+- **Real handwriting.** The sketches are generated, and the only hand-drawn input is the clean sample. A pass here
+  does not prove a reader copes with real boards.
 
 ## Scene schema v1
 

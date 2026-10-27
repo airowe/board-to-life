@@ -53,6 +53,16 @@ describe('sketchScene', () => {
     expect(attribute(sketchScene(sample, SEED), 'data-mark')).toEqual(['mark-1']);
   });
 
+  it('draws an erased drawing underneath as faint ghost strokes, not as items', () => {
+    const svg = sketchScene(sample, SEED, withRope);
+    expect(attribute(svg, 'data-ghost').sort()).toEqual(withRope.items.map((item) => item.id).sort());
+    expect(attribute(svg, 'data-item').sort()).toEqual(sample.items.map((item) => item.id).sort());
+  });
+
+  it('draws nothing extra without a ghost', () => {
+    expect(attribute(sketchScene(sample, SEED), 'data-ghost')).toEqual([]);
+  });
+
   it('writes the labels, escaping markup', () => {
     const scene = sceneFrom({ ...rampBallDominoes, labels: [{ id: 'l', text: 'a < b & c', x: 10, y: 10, confidence: 1 }] });
     expect(sketchScene(scene, SEED)).toContain('>a &lt; b &amp; c</text>');

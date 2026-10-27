@@ -7,6 +7,9 @@ const INK = '#1d2433';
 const MARKER = '#1f4fbf';
 const RED = '#c0392b';
 const ORANGE = '#d68910';
+const GHOST = '#8a8f99';
+const GHOST_OFFSET = { x: 23, y: -14 };
+const GHOST_SEED_SHIFT = 101;
 const ARROW_LENGTH = 80;
 const SCRIBBLE_TURNS = 7;
 
@@ -58,8 +61,8 @@ const corners = (centre: Point, width: number, height: number, angle: number): P
 const wobblyPolygon = (jitter: Jitter, points: Point[]): string =>
   points.map((point, i) => wobblyLine(jitter, point, points[(i + 1) % points.length] ?? point, 2)).join(' ');
 
-const stroke = (d: string, colour: string, width: number, data: string): string =>
-  `<path ${data} d="${d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>`;
+const stroke = (d: string, colour: string, width: number, data: string, opacity = 0.92): string =>
+  `<path ${data} d="${d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`;
 
 const escapeText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -129,11 +132,22 @@ const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string =
 const label = (entry: Scene['labels'][number]): string =>
   `<text x="${entry.x}" y="${entry.y}" fill="${INK}" font-family="Marker Felt, Comic Sans MS, cursive" font-size="34">${escapeText(entry.text)}</text>`;
 
-export const sketchScene = (scene: Scene, seed: number): string => {
+// Marker that was wiped off but not cleaned: faint, smeared, slightly off from where it was.
+const ghostStrokes = (ghost: Scene, seed: number): string[] => {
+  const jitter = seededJitter(seed + GHOST_SEED_SHIFT);
+  const byId = new Map(ghost.items.map((item) => [item.id, item]));
+  return ghost.items.map(
+    (item) =>
+      `<g transform="translate(${GHOST_OFFSET.x} ${GHOST_OFFSET.y})">${stroke(itemPath(jitter, item, byId), GHOST, 9, `data-ghost="${item.id}"`, 0.16)}</g>`,
+  );
+};
+
+export const sketchScene = (scene: Scene, seed: number, ghost?: Scene): string => {
   const jitter = seededJitter(seed);
   const byId = new Map(scene.items.map((item) => [item.id, item]));
   const { width, height } = scene.drawing;
   const parts = [
+    ...(ghost ? ghostStrokes(ghost, seed) : []),
     ...scene.items.map((item) => stroke(itemPath(jitter, item, byId), itemColour(item), itemWidth(item), `data-item="${item.id}"`)),
     ...scene.items.flatMap((item) => arrow(jitter, item) ?? []),
     ...scene.unknownMarks.map((mark) => scribble(jitter, mark)),

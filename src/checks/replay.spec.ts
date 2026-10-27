@@ -24,10 +24,10 @@ describe('replayCase', () => {
     expect(results.map((result) => [result.caseId, result.passed])).toEqual(DRAWING_CASES.map((c) => [c.id, true]));
   });
 
-  it('passes only the sample drawing for the stub, which always returns the sample scene', async () => {
+  it('passes only the sample drawing and its photo for the stub, which always returns the sample scene', async () => {
     const results = await replayAll(() => stubReader);
     const passed = results.filter((result) => result.passed).map((result) => result.caseId);
-    expect(passed).toEqual(['ramp-ball-dominoes']);
+    expect(passed).toEqual(['ramp-ball-dominoes', 'ramp-ball-dominoes-photo']);
   });
 
   it('fails a case whose items all match but whose outcome changes', async () => {
@@ -67,7 +67,7 @@ describe('formatReport', () => {
   it('summarises how many drawings were read correctly and says why the others failed', async () => {
     const results = await replayAll(() => stubReader);
     const report = formatReport(results);
-    expect(report).toContain(`1 of ${DRAWING_CASES.length} drawings read correctly`);
+    expect(report).toContain(`2 of ${DRAWING_CASES.length} drawings read correctly`);
     expect(report).toMatch(/pendulum-knock\s+FAIL/);
     expect(report).toContain('missing: pulley');
   });

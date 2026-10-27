@@ -3,16 +3,24 @@ import { validateScene, type Scene } from '../scene/schema';
 
 export type ExpectedOutcome = { item: string; fallen: boolean };
 
+export type Sketch = { svg: string; ghostOf: string | null };
+
 export type DrawingCase = {
   id: string;
   title: string;
   image: string;
-  sketched: boolean;
+  contentType: 'image/png' | 'image/jpeg';
+  // How the image is made: sketched from the scene, or (for a photo of a hand-made drawing) taken from photoSource.
+  sketch: Sketch | null;
+  photo: boolean;
+  photoSource: string | null;
   scene: Scene;
   outcomes: ExpectedOutcome[];
 };
 
 export const SKETCH_SEED = 11;
+// A phone photo after the app's downscale to a 1600 px long edge.
+export const PHOTO_SIZE = { width: 1600, height: 1067 };
 
 const checked = (id: string, input: unknown): Scene => {
   const result = validateScene(input);
@@ -20,7 +28,7 @@ const checked = (id: string, input: unknown): Scene => {
   return result.scene;
 };
 
-const sketchedImage = (id: string): string => `src/checks/drawings/${id}.png`;
+const DRAWINGS = 'src/checks/drawings';
 
 const floor = { id: 'floor', kind: 'floor', x: 600, y: 770, width: 1200, height: 60, confidence: 0.97 };
 const domino = (id: string, x: number) => ({ id, kind: 'domino', x, y: 685, width: 18, height: 110, angle: 0, confidence: 0.9 });
@@ -72,20 +80,20 @@ const wallInTheWay = sceneOf({
   predictPoints: [{ id: 'pp-1', trigger: { kind: 'contact', a: 'ball', b: 'wall' } }],
 });
 
-export const DRAWING_CASES: readonly DrawingCase[] = [
+type CleanCase = Pick<DrawingCase, 'id' | 'title' | 'scene' | 'outcomes'> & { handDrawn: string | null };
+
+const CLEAN_CASES: readonly CleanCase[] = [
   {
     id: 'ramp-ball-dominoes',
     title: 'Ball down a ramp into five dominoes',
-    image: 'public/samples/ramp-ball-dominoes.png',
-    sketched: false,
+    handDrawn: 'public/samples/ramp-ball-dominoes.png',
     scene: checked('ramp-ball-dominoes', rampBallDominoes),
     outcomes: [{ item: 'domino-5', fallen: true }],
   },
   {
     id: 'dominoes-wide-gap',
     title: 'The same row with a gap too wide to cross',
-    image: sketchedImage('dominoes-wide-gap'),
-    sketched: true,
+    handDrawn: null,
     scene: checked('dominoes-wide-gap', dominoesWideGap),
     outcomes: [
       { item: 'domino-3', fallen: true },
@@ -95,17 +103,42 @@ export const DRAWING_CASES: readonly DrawingCase[] = [
   {
     id: 'pendulum-knock',
     title: 'A ball on a rope swings into three dominoes',
-    image: sketchedImage('pendulum-knock'),
-    sketched: true,
+    handDrawn: null,
     scene: checked('pendulum-knock', pendulumKnock),
     outcomes: [{ item: 'domino-3', fallen: true }],
   },
   {
     id: 'wall-in-the-way',
     title: 'A short wall stops the ball before the domino',
-    image: sketchedImage('wall-in-the-way'),
-    sketched: true,
+    handDrawn: null,
     scene: checked('wall-in-the-way', wallInTheWay),
     outcomes: [{ item: 'domino-1', fallen: false }],
   },
 ];
+
+const asDrawn = ({ handDrawn, ...rest }: CleanCase): DrawingCase => ({
+  ...rest,
+  image: handDrawn ?? `${DRAWINGS}/${rest.id}.png`,
+  contentType: 'image/png',
+  sketch: handDrawn ? null : { svg: `${DRAWINGS}/${rest.id}.svg`, ghostOf: null },
+  photo: false,
+  photoSource: null,
+});
+
+// The photo of each drawing has old, half-erased strokes of the next drawing under it.
+const asPhoto = ({ handDrawn, ...rest }: CleanCase, index: number): DrawingCase => {
+  const id = `${rest.id}-photo`;
+  const ghost = CLEAN_CASES[(index + 1) % CLEAN_CASES.length]?.id ?? null;
+  return {
+    ...rest,
+    id,
+    title: `${rest.title} (photo)`,
+    image: `${DRAWINGS}/${id}.jpg`,
+    contentType: 'image/jpeg',
+    sketch: handDrawn ? null : { svg: `${DRAWINGS}/${id}.svg`, ghostOf: ghost },
+    photo: true,
+    photoSource: handDrawn,
+  };
+};
+
+export const DRAWING_CASES: readonly DrawingCase[] = [...CLEAN_CASES.map(asDrawn), ...CLEAN_CASES.map(asPhoto)];
