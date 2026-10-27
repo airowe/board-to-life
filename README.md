@@ -84,7 +84,39 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | `src/present/interpolate.spec.ts` | blending body states between physics steps |
 | `src/present/redraw.spec.ts` | drawing every frame while moving, one final frame once still, and again after a resize |
 | `server/stub.spec.ts` | stub endpoints, including rejection of invalid scenes and ungrounded drafts |
+| `src/checks/*.spec.ts` | drawing check set: pinned outcomes and their controls, drawings match their scenes, item matching (renamed, nudged, misread, rescaled, reversed ramps, ropes, unflagged and invented marks), replay with a perfect reader, the stub, a changed outcome, an invalid scene and a failing reader |
 | `src/api.spec.ts` | client timeout, server error, network failure, and non-JSON error bodies become clear, retryable messages |
+
+## Drawing check set
+
+`src/checks/` holds four drawings with the scene each one should be read as, and what should happen when it plays:
+
+| Drawing | Expected outcome |
+| --- | --- |
+| `ramp-ball-dominoes` (the sample) | the last domino falls |
+| `dominoes-wide-gap` | the third domino falls; the last one stays up because the gap is too wide |
+| `pendulum-knock` (pulley, rope, ball) | the swinging ball knocks all three dominoes over |
+| `wall-in-the-way` (with an unrecognised zigzag) | a short wall stops the ball, so the domino stays up |
+
+The three new drawings are sketched from their expected scenes by `src/checks/sketch.ts` (`npm run drawings:draw`, which
+needs `rsvg-convert`), so a drawing and its expected scene cannot disagree. A spec fails if a committed drawing no
+longer matches its scene. The pinned outcomes are what the physics computes for each expected scene. Two controls show
+they are not accidents: without the wall the domino falls, and without the rope the dominoes stay up.
+
+```bash
+npm run drawings
+```
+
+This sends each drawing to a scene reader, then reports, for each drawing:
+
+- **Items:** each item is matched by kind and position, scaled to the drawing size. The report shows the worst
+  position error and lists missing and extra items.
+- **Unknown marks:** marks the reader did not flag, and bodies it invented inside an unknown mark.
+- **Outcome:** whether the scene as read gives the expected outcome when played.
+
+It exits with 1 unless every drawing passes. The only reader so far is the stub. It always returns the sample scene, so
+it reads 1 of the 4 drawings correctly. That shows the check can tell a wrong reading from a right one. The real scene
+reader will be added as another reader.
 
 ## Scene schema v1
 

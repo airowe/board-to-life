@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <radialGradient id="board" cx="45%" cy="40%" r="80%">
+      <stop offset="0" stop-color="#fbfbf8"/>
+      <stop offset="0.7" stop-color="#eeeeea"/>
+      <stop offset="1" stop-color="#d9d9d3"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#board)"/>
+  <path data-item="floor" d="M18.8,739.9 L59.2,738.2 L101.4,739.6 L140.1,739.9 L179.9,739.1 L218.9,740.9 L258.6,739.5 L300.4,741.3 L339.5,738.3 L378.9,740.9 L420.4,740.2 L459.9,738.9 L499.2,741.2 L538.0,738.8 L580.3,740.9 L618.1,739.5 L661.5,740.1 L698.4,740.4 L741.8,739.3 L781.6,738.1 L820.9,741.2 L861.8,739.1 L898.7,741.2 L941.8,740.9 L982.0,741.2 L1019.7,739.0 L1060.5,738.1 L1101.8,741.3 L1139.4,741.5 L1178.8,740.4" fill="none" stroke="#1d2433" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="ramp" d="M61.1,330.1 L90.0,358.5 L120.0,386.6 L149.6,417.3 L176.8,445.0 L206.5,471.0 L233.9,498.8 L266.3,527.4 L293.7,557.6 L323.1,585.7 L351.3,613.8 L380.8,643.0 L411.6,672.8 L439.1,701.5 L471.2,728.7" fill="none" stroke="#1d2433" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="ball" d="M132.8,321.1 L133.5,327.8 L134.7,334.6 L132.3,341.1 L128.8,346.9 L124.0,351.5 L119.1,356.1 L112.6,358.0 L106.4,361.3 L99.5,359.9 L92.6,359.1 L87.7,353.9 L82.8,349.7 L76.8,345.7 L74.8,339.0 L74.7,332.2 L73.4,325.4 L76.4,319.2 L78.3,312.5 L83.6,308.1 L89.0,304.0 L95.4,302.1 L101.8,301.3 L108.6,299.4 L115.3,301.0 L120.5,305.8 L126.5,309.1 L129.6,315.2 L133.7,320.8 L133.7,327.7" fill="none" stroke="#1f4fbf" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="wall" d="M547.4,599.4 L553.1,600.1 L559.6,600.6 L565.6,600.3 L572.6,600.0 M572.3,599.6 L572.3,635.0 L571.5,669.5 L572.0,705.2 L572.0,739.8 M572.0,740.0 L565.2,740.3 L560.6,740.0 L554.1,739.4 L548.3,739.8 M547.5,740.1 L547.8,704.4 L548.0,670.8 L547.8,634.3 L548.4,600.4" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="domino-1" d="M671.3,629.7 L675.1,629.5 L679.6,630.8 L684.9,630.1 L688.9,630.0 M688.9,630.3 L688.0,658.1 L689.6,684.0 L689.6,712.5 L689.1,739.4 M689.4,740.6 L685.3,739.5 L679.3,739.7 L675.5,741.0 L671.3,740.0 M670.6,740.1 L671.2,713.5 L670.6,684.2 L670.9,658.4 L671.4,629.5" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-arrow="ball" d="M150.1,288.3 L170.7,288.0 L189.7,287.4 L210.8,288.3 L229.6,288.1 M209.9,300.1 L215.3,296.5 L220.1,294.4 L225.3,291.3 L229.8,287.8 M210.1,276.2 L214.6,279.2 L220.3,281.9 L224.8,285.0 L229.8,287.7" fill="none" stroke="#c0392b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-mark="mark-1" d="M815.1,384.7 L823.4,457.2 L829.7,385.3 L833.8,459.4 L840.6,384.0 L847.9,459.0 L852.1,385.2 L858.1,456.0 L868.4,384.1 L874.6,458.7 L877.3,380.1 L885.7,454.0 L892.2,383.6 L898.6,456.9 L904.0,381.2" fill="none" stroke="#d68910" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+</svg>
