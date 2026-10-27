@@ -1,5 +1,7 @@
 import { STEPS_PER_SECOND, type BodySnapshot } from '../physics/simulation';
+import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
+import { createRedrawGate } from '../present/redraw';
 import type { Scene, SceneItem } from '../scene/schema';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
@@ -121,6 +123,8 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Physics animation of the approved scene' });
   const caption = h('div', { class: 'caption', role: 'status', 'aria-live': 'polite' });
   const controls = h('div', { class: 'controls' });
+  const redraw = createRedrawGate();
+  const resizeObserver = new ResizeObserver(() => redraw.invalidate());
   let shownPhase: Phase | null = null;
   let frame = 0;
   let last = performance.now();
@@ -132,6 +136,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
   const replay = (): void => {
     playback.replay();
     carry = 0;
+    redraw.invalidate();
   };
 
   const showPhase = (phase: Phase): void => {
@@ -174,10 +179,14 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
       const steps = Math.floor(carry / STEP_MS);
       carry -= steps * STEP_MS;
       playback.tick(steps);
-    } else {
-      carry = 0;
     }
-    drawScene(canvas, lesson.scene, playback.simulation().snapshot());
+    const moving = playback.phase().kind === 'running';
+    if (!moving) carry = 0;
+    if (redraw.shouldDraw(moving)) {
+      const sim = playback.simulation();
+      const alpha = moving ? carry / STEP_MS : 1;
+      drawScene(canvas, lesson.scene, interpolate(sim.previousSnapshot(), sim.snapshot(), alpha));
+    }
     showPhase(playback.phase());
     frame = requestAnimationFrame(loop);
   };
@@ -210,10 +219,12 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
   root.replaceChildren(stage);
   stage.requestFullscreen?.().catch(() => undefined);
   window.addEventListener('keydown', onKey);
+  resizeObserver.observe(canvas);
   frame = requestAnimationFrame(loop);
 
   return () => {
     cancelAnimationFrame(frame);
+    resizeObserver.disconnect();
     window.removeEventListener('keydown', onKey);
   };
 };

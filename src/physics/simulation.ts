@@ -2,7 +2,11 @@ import Matter from 'matter-js';
 import type { Scene, SceneItem, Trigger } from '../scene/schema';
 
 export const STEPS_PER_SECOND = 60;
-const STEP_MS = 1000 / STEPS_PER_SECOND;
+const DEFAULT_SUBSTEPS = 4;
+// Drawing units are roughly millimetres on the board, so gravity is scaled up
+// from Matter's default; at the default the domino chain creeps at its friction
+// limit and the outcome depends on the timestep.
+const GRAVITY_SCALE = 0.006;
 const FALLEN_RADIANS = Math.PI / 4;
 
 export type BodySnapshot = { id: string; x: number; y: number; angle: number };
@@ -12,6 +16,7 @@ export type Simulation = {
   readonly stepIndex: number;
   step: () => void;
   snapshot: () => BodySnapshot[];
+  previousSnapshot: () => BodySnapshot[];
   isTriggered: (trigger: Trigger) => boolean;
   observe: (observation: Observation) => boolean;
 };
@@ -22,11 +27,11 @@ const bodyFor = (item: Exclude<SceneItem, { kind: 'rope' }>): Matter.Body => {
   const label = item.id;
   switch (item.kind) {
     case 'ball':
-      return Bodies.circle(item.x, item.y, item.radius, { label, friction: 0.05, frictionAir: 0.001, restitution: 0.1, density: 0.004 });
+      return Bodies.circle(item.x, item.y, item.radius, { label, friction: 0.05, frictionAir: 0.001, restitution: 0.1, density: 0.0015 });
     case 'block':
     case 'domino':
     case 'lever':
-      return Bodies.rectangle(item.x, item.y, item.width, item.height, { label, angle: item.angle, friction: 0.4, density: 0.002 });
+      return Bodies.rectangle(item.x, item.y, item.width, item.height, { label, angle: item.angle, friction: 0.6, density: 0.002 });
     case 'ramp': {
       const length = Math.hypot(item.x2 - item.x1, item.y2 - item.y1);
       const angle = Math.atan2(item.y2 - item.y1, item.x2 - item.x1);
@@ -49,8 +54,11 @@ const bodyFor = (item: Exclude<SceneItem, { kind: 'rope' }>): Matter.Body => {
 
 const pairKey = (a: string, b: string): string => [a, b].sort().join('|');
 
-export const createSimulation = (scene: Scene): Simulation => {
-  const engine = Engine.create({ enableSleeping: false });
+export type SimulationOptions = { substeps?: number };
+
+export const createSimulation = (scene: Scene, { substeps = DEFAULT_SUBSTEPS }: SimulationOptions = {}): Simulation => {
+  const substepMs = 1000 / STEPS_PER_SECOND / substeps;
+  const engine = Engine.create({ enableSleeping: false, gravity: { x: 0, y: 1, scale: GRAVITY_SCALE } });
   const bodies = new Map<string, Matter.Body>();
   for (const item of scene.items) {
     if (item.kind === 'rope') continue;
@@ -94,17 +102,22 @@ export const createSimulation = (scene: Scene): Simulation => {
     for (const pair of event.pairs) contacts.add(pairKey(pair.bodyA.label, pair.bodyB.label));
   });
 
+  const snapshot = (): BodySnapshot[] =>
+    [...bodies].map(([id, body]) => ({ id, x: body.position.x, y: body.position.y, angle: body.angle }));
+
   let stepIndex = 0;
+  let previous = snapshot();
   return {
     get stepIndex() {
       return stepIndex;
     },
     step: () => {
-      Engine.update(engine, STEP_MS);
+      previous = snapshot();
+      for (let i = 0; i < substeps; i += 1) Engine.update(engine, substepMs);
       stepIndex += 1;
     },
-    snapshot: () =>
-      [...bodies].map(([id, body]) => ({ id, x: body.position.x, y: body.position.y, angle: body.angle })),
+    snapshot,
+    previousSnapshot: () => previous,
     isTriggered: (trigger) =>
       trigger.kind === 'time'
         ? stepIndex >= Math.round(trigger.seconds * STEPS_PER_SECOND)

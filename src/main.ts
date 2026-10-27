@@ -1,9 +1,10 @@
 import { requestJson, type ApiFailure } from './api';
+import { preparePhoto } from './capture/downscale';
 import { checkGrounding } from './scene/questions';
-import { validateScene } from './scene/schema';
+import { validateScene, type Scene } from './scene/schema';
 import { createSession } from './session/store';
 import { renderCapture } from './ui/capture';
-import { renderCheck } from './ui/check';
+import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 
@@ -22,10 +23,13 @@ const noop = (): void => undefined;
 const session = createSession();
 let cleanup: () => void = noop;
 let photoUrl: string | null = null;
+let checkScreen: CheckScreen | null = null;
+let activeDraftId = 0;
 
 const leaveScreen = (): void => {
   cleanup();
   cleanup = noop;
+  checkScreen = null;
 };
 
 const stubHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value });
@@ -49,6 +53,26 @@ const showError = (failure: Pick<ApiFailure, 'message' | 'details'>, retry: () =
   );
 };
 
+const draftQuestions = async (draftId: number, scene: Scene): Promise<void> => {
+  const retry = (): void => void draftQuestions(draftId, scene);
+  const report = (status: QuestionsStatus): void => {
+    if (draftId === activeDraftId) checkScreen?.setQuestionsStatus(status);
+  };
+  report({ kind: 'drafting' });
+  const drafted = await requestJson(
+    '/api/draft-questions',
+    { method: 'POST', body: JSON.stringify({ scene }), headers: { 'content-type': 'application/json', ...stubHeaders() } },
+    { timeoutMs: REQUEST_TIMEOUT_MS },
+  );
+  if (!drafted.ok) return report({ kind: 'failed', failure: drafted, retry });
+
+  const questions = checkGrounding((drafted.data as { questions?: unknown } | null)?.questions, scene);
+  if (!questions.ok) {
+    return report({ kind: 'failed', failure: { message: 'A drafted question cited something not in the scene.', details: questions.errors }, retry });
+  }
+  if (session.setDraftQuestions(draftId, questions.questions)) report({ kind: 'ready' });
+};
+
 const readDrawing = async (photo: Blob): Promise<void> => {
   const retry = (): void => void readDrawing(photo);
   showLoading('Reading the drawing…');
@@ -62,28 +86,24 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   const scene = validateScene((understood.data as { scene?: unknown } | null)?.scene);
   if (!scene.ok) return showError({ message: 'The scene that came back failed validation.', details: scene.errors }, retry);
 
-  showLoading('Drafting predict questions…');
-  const drafted = await requestJson(
-    '/api/draft-questions',
-    { method: 'POST', body: JSON.stringify({ scene: scene.scene }), headers: { 'content-type': 'application/json', ...stubHeaders() } },
-    { timeoutMs: REQUEST_TIMEOUT_MS },
-  );
-  if (!drafted.ok) return showError(drafted, retry);
-
-  const questions = checkGrounding((drafted.data as { questions?: unknown } | null)?.questions, scene.scene);
-  if (!questions.ok) return showError({ message: 'A drafted question cited something not in the scene.', details: questions.errors }, retry);
-
-  session.setDraft({ scene: scene.scene, questions: questions.questions });
+  const draftId = session.startDraft(scene.scene);
+  activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(photo);
   showCheck();
+  void draftQuestions(draftId, scene.scene);
+};
+
+const receivePhoto = async (photo: Blob): Promise<void> => {
+  showLoading('Preparing the photo…');
+  await readDrawing(await preparePhoto(photo));
 };
 
 function showCheck(): void {
   const url = photoUrl;
   if (!url) return showCapture();
   leaveScreen();
-  renderCheck(root, session, url, { onPresent: showPresent, onRestart: showCapture });
+  checkScreen = renderCheck(root, session, url, { onPresent: showPresent, onRestart: showCapture });
 }
 
 function showPresent(): void {
@@ -95,7 +115,7 @@ function showPresent(): void {
 
 function showCapture(): void {
   leaveScreen();
-  cleanup = renderCapture(root, { onPhoto: (photo) => void readDrawing(photo) });
+  cleanup = renderCapture(root, { onPhoto: (photo) => void receivePhoto(photo) });
 }
 
 showCapture();

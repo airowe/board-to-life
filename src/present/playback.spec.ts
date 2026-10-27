@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STEPS_PER_SECOND } from '../physics/simulation';
+import { createSimulation, runUntil } from '../physics/simulation';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../scene/fixtures';
 import { checkGrounding } from '../scene/questions';
 import { validateScene } from '../scene/schema';
@@ -7,7 +7,6 @@ import type { Lesson } from '../session/store';
 import { createPlayback } from './playback';
 
 const SETTLE_SECONDS = 8;
-const PREDICT_STEP = 0.75 * STEPS_PER_SECOND;
 const PLENTY = 10_000;
 
 const lesson = (): Lesson => {
@@ -35,13 +34,15 @@ describe('createPlayback', () => {
   });
 
   it('stops exactly at the predict point even when asked for more steps', () => {
+    const contactStep = runUntil(createSimulation(lesson().scene), { kind: 'contact', a: 'ball', b: 'domino-1' }, PLENTY);
+    expect(contactStep).toBeGreaterThan(0);
     const playback = createPlayback(lesson(), SETTLE_SECONDS);
     playback.play();
     playback.tick(PLENTY);
-    expect(playback.stepIndex()).toBe(PREDICT_STEP);
+    expect(playback.stepIndex()).toBe(contactStep);
     expect(playback.phase()).toEqual({ kind: 'predict', question: rampBallDominoesQuestions[0] });
     playback.tick(PLENTY);
-    expect(playback.stepIndex()).toBe(PREDICT_STEP);
+    expect(playback.stepIndex()).toBe(contactStep);
   });
 
   it('resumes on reveal and reports the computed outcome when settled', () => {

@@ -452,3 +452,27 @@ button:disabled {
   top: 16px;
   right: 16px;
 }
+
+.drafting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+}
+
+.spinner.small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
+.inline-error {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--red);
+  background: var(--red-soft);
+}
+
+.inline-error p {
+  margin: 0 0 8px;
+}

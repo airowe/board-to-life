@@ -53,6 +53,19 @@ describe('createSimulation', () => {
     expect(runUntil(createSimulation(scene), trigger, 1)).toBeNull();
   });
 
+  it.each([
+    [1, 'the full row', scene, true],
+    [2, 'the full row', scene, true],
+    [4, 'the full row', scene, true],
+    [1, 'the row with a gap', withoutItem('domino-3'), false],
+    [2, 'the row with a gap', withoutItem('domino-3'), false],
+    [4, 'the row with a gap', withoutItem('domino-3'), false],
+  ])('with %i substeps per step, %s gives the same outcome', (substeps, _row, input, lastFalls) => {
+    const sim = createSimulation(input, { substeps });
+    for (let i = 0; i < settleSteps; i += 1) sim.step();
+    expect(sim.observe({ kind: 'fallen', item: 'domino-5' })).toBe(lastFalls);
+  });
+
   it('knocks over the last domino in the test drawing', () => {
     const sim = settle(scene);
     for (const n of [1, 2, 3, 4, 5]) expect(sim.observe({ kind: 'fallen', item: `domino-${n}` })).toBe(true);
@@ -62,6 +75,33 @@ describe('createSimulation', () => {
     const sim = settle(withoutItem('domino-3'));
     expect(sim.observe({ kind: 'fallen', item: 'domino-2' })).toBe(true);
     expect(sim.observe({ kind: 'fallen', item: 'domino-5' })).toBe(false);
+  });
+
+  it.each([2600, 2900, 3200, 3500])('stops a fast ball at %i units/s instead of letting it pass through a thin wall', (speed) => {
+    const fastBall = parse({
+      ...rampBallDominoes,
+      items: [
+        { id: 'ball', kind: 'ball', x: 100, y: 400, radius: 8, velocity: { x: speed, y: 0 }, confidence: 1 },
+        { id: 'wall', kind: 'wall', x: 600, y: 400, width: 6, height: 700, confidence: 1 },
+      ],
+      labels: [],
+      unknownMarks: [],
+      predictPoints: [],
+    });
+    const sim = createSimulation(fastBall);
+    for (let i = 0; i < STEPS_PER_SECOND; i += 1) sim.step();
+    const ball = sim.snapshot().find((body) => body.id === 'ball');
+    expect(ball?.x).toBeLessThan(600);
+  });
+
+  it('records the state before the latest step for smooth rendering', () => {
+    const sim = createSimulation(scene);
+    expect(sim.previousSnapshot()).toEqual(sim.snapshot());
+    sim.step();
+    const before = sim.snapshot();
+    sim.step();
+    expect(sim.previousSnapshot()).toEqual(before);
+    expect(sim.snapshot()).not.toEqual(before);
   });
 
   it('keeps static bodies where they were drawn', () => {

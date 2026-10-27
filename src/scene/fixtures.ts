@@ -20,7 +20,7 @@ export const rampBallDominoes = {
   unknownMarks: [
     { id: 'mark-1', x: 1060, y: 145, width: 130, height: 130, note: 'Unrecognised mark (looks like a sun)', confidence: 0.31 },
   ],
-  predictPoints: [{ id: 'pp-1', trigger: { kind: 'time', seconds: 0.75 } }],
+  predictPoints: [{ id: 'pp-1', trigger: { kind: 'contact', a: 'ball', b: 'domino-1' } }],
 } as const;
 
 export const rampBallDominoesQuestions = [

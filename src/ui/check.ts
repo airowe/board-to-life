@@ -1,11 +1,19 @@
 import type { PredictQuestion } from '../scene/questions';
 import type { Scene, SceneItem } from '../scene/schema';
-import type { LabelledLesson, Session } from '../session/store';
+import type { ApiFailure } from '../api';
+import type { ApprovedLesson, Draft, Session } from '../session/store';
 import { h, s } from './dom';
 
 export const LOW_CONFIDENCE = 0.7;
 
 type CheckHandlers = { onPresent: () => void; onRestart: () => void };
+
+export type QuestionsStatus =
+  | { kind: 'drafting' }
+  | { kind: 'ready' }
+  | { kind: 'failed'; failure: Pick<ApiFailure, 'message' | 'details'>; retry: () => void };
+
+export type CheckScreen = { setQuestionsStatus: (status: QuestionsStatus) => void };
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
@@ -97,8 +105,26 @@ const questionCard = (question: PredictQuestion, status: 'draft' | 'approved'): 
     h('p', { class: 'cites' }, 'Cites: ', ...question.cites.map((cited) => h('code', {}, cited))),
   );
 
-const lessonQuestions = (lesson: LabelledLesson<'draft' | 'approved'> | null): HTMLElement[] =>
-  lesson ? lesson.questions.map((question) => questionCard(question, lesson.status)) : [];
+const lessonQuestions = (lesson: Draft | ApprovedLesson | null): HTMLElement[] =>
+  lesson?.questions ? lesson.questions.map((question) => questionCard(question, lesson.status)) : [];
+
+const questionsPlaceholder = (status: QuestionsStatus): HTMLElement | null => {
+  if (status.kind === 'drafting') {
+    return h('p', { class: 'drafting', role: 'status' }, h('span', { class: 'spinner small' }), 'Drafting predict questions…');
+  }
+  if (status.kind === 'failed') {
+    return h(
+      'div',
+      { class: 'inline-error', role: 'alert' },
+      h('p', {}, status.failure.message),
+      status.failure.details && status.failure.details.length > 0
+        ? h('ul', { class: 'details' }, ...status.failure.details.map((detail) => h('li', {}, detail)))
+        : null,
+      h('button', { onclick: status.retry }, 'Draft again'),
+    );
+  }
+  return null;
+};
 
 const linkHighlights = (root: HTMLElement): void => {
   root.querySelectorAll<HTMLElement>('.item-row').forEach((row) => {
@@ -108,21 +134,25 @@ const linkHighlights = (root: HTMLElement): void => {
   });
 };
 
-export const renderCheck = (root: HTMLElement, session: Session, photoUrl: string, handlers: CheckHandlers): void => {
+export const renderCheck = (root: HTMLElement, session: Session, photoUrl: string, handlers: CheckHandlers): CheckScreen => {
   const draft = session.draft();
   if (!draft) throw new Error('nothing to check');
   const { scene } = draft;
   const lowItems = scene.items.filter((item) => item.confidence < LOW_CONFIDENCE);
 
+  const draftSlot = h('div', { class: 'draft-slot' });
   const approvedSlot = h('div', { class: 'approved-slot' });
+  let questionsStatus: QuestionsStatus = draft.questions ? { kind: 'ready' } : { kind: 'drafting' };
   const presentButton = h('button', { class: 'primary', disabled: true, onclick: handlers.onPresent }, 'Present to the class');
   const approveButton = h('button', {}, 'Approve scene and questions');
 
   const refreshApproval = (): void => {
     const approved = session.presentable();
+    const ready = questionsStatus.kind === 'ready';
+    draftSlot.replaceChildren(...(ready ? lessonQuestions(session.draft()) : [questionsPlaceholder(questionsStatus) ?? '']));
     approvedSlot.replaceChildren(...lessonQuestions(approved));
     presentButton.disabled = approved === null;
-    approveButton.disabled = approved !== null;
+    approveButton.disabled = approved !== null || !ready;
     approveButton.textContent = approved ? 'Approved' : 'Approve scene and questions';
   };
   approveButton.addEventListener('click', () => {
@@ -156,7 +186,7 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
           ...scene.unknownMarks.map((mark) => itemRow(mark.id, 'unknown', mark.confidence, 'unknown')),
         ),
         h('h2', {}, 'Predict questions'),
-        ...lessonQuestions(draft),
+        draftSlot,
         approvedSlot,
         h('div', { class: 'panel-actions' }, approveButton, presentButton),
         h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'),
@@ -165,4 +195,10 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
   );
   linkHighlights(root);
   refreshApproval();
+  return {
+    setQuestionsStatus: (status) => {
+      questionsStatus = status;
+      refreshApproval();
+    },
+  };
 };

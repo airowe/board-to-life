@@ -40,13 +40,17 @@ npm run dev
 
 Open http://127.0.0.1:5173.
 
-1. **Capture**: upload a photo, use the webcam, or click "Use the sample drawing".
-2. **Check**: the scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
+1. **Capture**: upload a photo, use the webcam, or click "Use the sample drawing". The photo is turned upright using
+   its EXIF orientation and scaled so its long edge is at most 1600 px, then sent as JPEG.
+2. **Check**: the check screen opens as soon as the scene is read; the predict questions are drafted while the teacher
+   looks it over, and Approve stays disabled until they arrive. The scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
    did not understand are boxed in red and will not be animated. The drafted question is labelled *Draft · not shown to
    the class*.
 3. **Approve**: this stores a separate, labelled approved copy. "Present to the class" stays disabled until then.
 4. **Present**: full screen. Press Play (or Space). Playback pauses at the predict point; Reveal resumes it. The result
    is computed from the simulation ("Yes: domino-5 fell over"). Replay (or R) restarts from the same approved scene.
+   The canvas redraws only while something moves, and positions are blended between physics steps so motion stays
+   smooth on displays faster than 60 Hz.
 
 ### Stub modes (error states)
 
@@ -58,7 +62,7 @@ The "Stub mode" menu in the header makes the stubs misbehave so the error screen
 | `error` | `/understand` returns 503 | message and Try again |
 | `timeout` | `/understand` waits 30 s; the client gives up at 8 s | "did not answer within 8 seconds" and Try again |
 | `invalid scene` | the scene contains a `spring`, which is outside the vocabulary | validation errors and Try again |
-| `ungrounded draft` | the draft cites `domino-9`, which is not in the scene | grounding error and Try again |
+| `ungrounded draft` | the draft cites `domino-9`, which is not in the scene | the check screen with a grounding error in place of the questions, and Draft again |
 
 ## Quality gates
 
@@ -73,9 +77,12 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | --- | --- |
 | `src/scene/schema.spec.ts` | scene schema v1: the full body vocabulary, out-of-vocabulary kinds rejected, confidence range, bounds, duplicate ids, dangling references, unknown marks kept |
 | `src/scene/questions.spec.ts` | grounding: a draft citing a missing item, observing a missing item, using a missing predict point, or naming a body kind the scene lacks is rejected |
-| `src/physics/simulation.spec.ts` | determinism (two runs give identical states), exact pause step, the test drawing knocks over all five dominoes, and a negative control: remove `domino-3` and the last domino stays standing |
+| `src/physics/simulation.spec.ts` | determinism (two runs give identical states), exact pause step, the test drawing knocks over all five dominoes, a negative control (remove `domino-3` and the last domino stays standing), the same outcome with 1, 2 or 4 substeps, and a fast ball that does not pass through a thin wall |
 | `src/present/playback.spec.ts` | play, pause exactly at the predict point, reveal, computed outcome, replay to the same outcome |
-| `src/session/store.spec.ts` | nothing is presentable before approval; draft and approved copies are separate; a new draft clears the approval |
+| `src/session/store.spec.ts` | nothing is presentable before approval; no approval while questions are still drafting; questions drafted for a replaced scene are ignored; draft and approved copies are separate |
+| `src/capture/downscale.spec.ts` | photo sizing: long edge capped at 1600 px, aspect kept, small photos untouched |
+| `src/present/interpolate.spec.ts` | blending body states between physics steps |
+| `src/present/redraw.spec.ts` | drawing every frame while moving, one final frame once still, and again after a resize |
 | `server/stub.spec.ts` | stub endpoints, including rejection of invalid scenes and ungrounded drafts |
 | `src/api.spec.ts` | client timeout, server error, network failure, and non-JSON error bodies become clear, retryable messages |
 
@@ -95,6 +102,15 @@ Defined in `src/scene/schema.ts`. All positions are in the drawing's own coordin
 Predict questions (`src/scene/questions.ts`) cite scene item ids. Each one observes an item (for example "fallen")
 whose outcome the simulation decides.
 
+## Physics settings
+
+Matter.js steps 60 times per second, with 4 substeps per step, so a fast ball cannot pass through a thin domino
+between steps. Gravity is scaled up from Matter's default (drawing units are treated as roughly millimetres). At
+Matter's default gravity the domino chain crept along at its friction limit and its outcome changed with the step size.
+The ball is light, like a hollow ball, and dominoes have a friction of 0.6. With these settings, the test drawing gives
+the same outcome with 1, 2 or 4 substeps, and so does the version with a gap in the chain. The predict point is the
+moment the ball first touches the first domino.
+
 ## Known limitations
 
 - Webcam capture could not be tested with a real camera here. The capture-to-check path was exercised with a
@@ -103,3 +119,7 @@ whose outcome the simulation decides.
   differently, so the same scene is not guaranteed to give bit-identical motion on two different browsers.
 - A rope is a distance constraint between two items. It does not yet wrap over a pulley.
 - The physics rendering is plain canvas strokes, not yet the hand-inked style.
+- Frame rate and the smoothness gained from blending between steps have not been measured on a real display: the
+  development browser pane throttles animation frames whenever it is hidden.
+- The ball shoves domino-1 about 60–130 drawing units along the floor before the chain topples. That is what the engine
+  computes for this drawing, but it has not been checked against a real ball and real dominoes.
