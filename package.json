@@ -12,7 +12,8 @@
     "drawings": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-drawings.mjs",
     "drawings:draw": "node scripts/draw-checks.mjs",
     "questions": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-questions.mjs",
-    "photos": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-photos.mjs"
+    "photos": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-photos.mjs",
+    "photos:mock": "node scripts/mock-photos.mjs"
   },
   "keywords": [],
   "author": "",

@@ -65,6 +65,12 @@ own photos from `check-photos/` (ignored by git; its `SHOT-LIST.md` says what to
 each kind, what happens to items picked by position, and whether doodles are flagged. Next to each read it saves the
 photo beside the scene as read.
 
+Until real photos are taken, `npm run photos:mock` makes stand-ins for the shot list: each check scene sketched with a
+new hand, on a framed whiteboard filling about 60% of the shot, at 4032 × 3024, tilted slightly or (for `01-chain-angle`)
+about 30 degrees off to the side, in uneven light. They test framing, angle and scale; they are still generated drawings,
+not real handwriting. Meta on the 10 mocks (Oct 28): **10 of 10** correct, including both stays-up outcomes and the
+flagged doodle. Typical read 18 s; the pendulum took 71 s, close to the app's 75 s limit. $0.27 for the run.
+
 After adding springs, ropes over pulleys, carts and written masses, the check set has 16 drawings: 4 new scenes, one
 for each, plus a photo-style version of every scene. Each new scene has a negative control in its tests: the same swing
 on a rope misses, the same push on a block stops short, and the seesaw's domino stays up with the masses swapped or
@@ -181,6 +187,7 @@ npm run drawings -- --reader meta                                  # Muse Spark 
 npm run drawings -- --reader baseten                               # Muse Spark Open on Baseten (paid)
 npm run questions                                                  # draft questions for the check scenes with Meta (paid)
 npm run photos                                                     # read real photos from check-photos/ with Meta (paid)
+npm run photos:mock                                                # make stand-in phone photos in check-photos/mock/
 npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
 ```
 
