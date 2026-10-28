@@ -1,4 +1,4 @@
-import { STEPS_PER_SECOND, type BodySnapshot } from '../physics/simulation';
+import { SETTLE_SECONDS, STEPS_PER_SECOND, type BodySnapshot } from '../physics/simulation';
 import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
 import { createRedrawGate } from '../present/redraw';
@@ -6,7 +6,6 @@ import type { Scene, SceneItem } from '../scene/schema';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
 
-const SETTLE_SECONDS = 7;
 const STEP_MS = 1000 / STEPS_PER_SECOND;
 const MAX_FRAME_MS = 100;
 

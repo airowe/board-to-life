@@ -1,13 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import { UNDERSTAND_TIMEOUT_MS } from '../src/reading';
+import { MODEL_REQUEST_TIMEOUT_MS } from '../src/reading';
 import { isProviderName, parseEffort, providerFromEnv, readSceneWithModel } from './sceneReader';
 import { handleDraftQuestions, handleUnderstand, parseStubMode, type StubMode, type StubResponse } from './stub';
+import { handleDraftQuestionsWithModel, type ModelDraft } from './draft';
+import { draftQuestionsWithModel } from './questionDrafter';
 import { handleUnderstandWithModel, type ModelRead } from './understand';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STUB_LATENCY_MS = 700;
-export const STUB_TIMEOUT_DELAY_MS = UNDERSTAND_TIMEOUT_MS + 15_000;
+export const STUB_TIMEOUT_DELAY_MS = MODEL_REQUEST_TIMEOUT_MS + 15_000;
 export const MODEL_TIMEOUT_MS = 60_000;
 
 const delayFor = (mode: StubMode): number => (mode === 'timeout' ? STUB_TIMEOUT_DELAY_MS : STUB_LATENCY_MS);
@@ -50,20 +52,25 @@ const header = (request: IncomingMessage, name: string): string | undefined => {
 
 type ApiOptions = { env: Record<string, string | undefined> };
 
-// SCENE_READER=meta or baseten sends photos to that model (paid); anything else keeps the stub.
-const modelReaderFrom = (env: ApiOptions['env']): { name: string; read: ModelRead } | null => {
+// SCENE_READER=meta or baseten sends photos and question drafts to that model (paid); anything else keeps the stub.
+const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; draft: ModelDraft } | null => {
   const name = env.SCENE_READER ?? 'stub';
   if (!isProviderName(name)) return null;
   const provider = providerFromEnv(name, env);
   const effort = parseEffort(env.READER_EFFORT);
-  return { name, read: (photo) => readSceneWithModel(photo, provider, { timeoutMs: MODEL_TIMEOUT_MS, ...(effort ? { effort } : {}) }) };
+  const options = { timeoutMs: MODEL_TIMEOUT_MS, ...(effort ? { effort } : {}) };
+  return {
+    name,
+    read: (photo) => readSceneWithModel(photo, provider, options),
+    draft: (scene) => draftQuestionsWithModel(scene, provider, options),
+  };
 };
 
 export const stubApi = ({ env }: ApiOptions): Plugin => ({
   name: 'board-to-life-stub-api',
   configureServer(server) {
-    const model = modelReaderFrom(env);
-    server.config.logger.info(`scene reader: ${model ? `${model.name} (paid model calls)` : 'stub'}`);
+    const model = modelFrom(env);
+    server.config.logger.info(`scene reader and question drafter: ${model ? `${model.name} (paid model calls)` : 'stub'}`);
     server.middlewares.use(async (request, response, next) => {
       const route = request.url?.split('?')[0];
       if (request.method !== 'POST' || (route !== '/api/understand' && route !== '/api/draft-questions')) {
@@ -88,7 +95,12 @@ export const stubApi = ({ env }: ApiOptions): Plugin => ({
       }
       const parsed = parseJson(body);
       const scene = typeof parsed === 'object' && parsed !== null && 'scene' in parsed ? parsed.scene : null;
-      send(response, await handleDraftQuestions({ mode, delayMs: delayFor(mode), scene }));
+      send(
+        response,
+        model
+          ? await handleDraftQuestionsWithModel({ scene, drafter: model.name, draft: model.draft })
+          : await handleDraftQuestions({ mode, delayMs: delayFor(mode), scene }),
+      );
     });
   },
 });

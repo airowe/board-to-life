@@ -1,0 +1,31 @@
+import { checkGrounding } from '../src/scene/questions';
+import { validateScene, type Scene } from '../src/scene/schema';
+import { outcomesOf } from './questionDrafter';
+import type { StubResponse } from './stub';
+
+export type ModelDraft = (scene: Scene) => Promise<unknown>;
+export type ModelDraftRequest = { scene: unknown; drafter: string; draft: ModelDraft };
+
+const failure = (status: number, error: string, details: string[] = []): StubResponse => ({ status, body: { error, details } });
+
+export const handleDraftQuestionsWithModel = async (request: ModelDraftRequest): Promise<StubResponse> => {
+  const validated = validateScene(request.scene);
+  if (!validated.ok) return failure(400, 'The scene sent for drafting failed validation.', validated.errors);
+  const scene = validated.scene;
+  if (scene.predictPoints.length === 0) {
+    return failure(422, 'The reading has no moment to pause at, so there is nothing to ask the class to predict.');
+  }
+  if (outcomesOf(scene).length === 0) {
+    return failure(422, 'The drawing has nothing that can tip over (a domino, block or lever) for the class to predict.');
+  }
+
+  let drafted: unknown;
+  try {
+    drafted = await request.draft(scene);
+  } catch (error) {
+    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const grounded = checkGrounding(drafted, scene);
+  if (!grounded.ok) return failure(422, 'A drafted question cited something not in the scene.', grounded.errors);
+  return { status: 200, body: { stub: false, drafter: request.drafter, questions: grounded.questions } };
+};

@@ -134,7 +134,7 @@ const linkHighlights = (root: HTMLElement): void => {
   });
 };
 
-export const renderCheck = (root: HTMLElement, session: Session, photoUrl: string, handlers: CheckHandlers): CheckScreen => {
+export const renderCheck = (root: HTMLElement, session: Session, photoUrl: string, note: string, handlers: CheckHandlers): CheckScreen => {
   const draft = session.draft();
   if (!draft) throw new Error('nothing to check');
   const { scene } = draft;
@@ -177,7 +177,7 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
         'aside',
         { class: 'panel' },
         h('h1', {}, 'Check the reading'),
-        h('p', { class: 'note' }, 'Stub reading: a fixed, hand-written scene for the test drawing. No AI was called.'),
+        h('p', { class: 'note' }, note),
         warnings.length > 0 ? h('ul', { class: 'warnings' }, ...warnings) : null,
         h(
           'ul',

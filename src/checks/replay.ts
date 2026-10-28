@@ -1,9 +1,9 @@
-import { createSimulation, STEPS_PER_SECOND } from '../physics/simulation';
+import { createSimulation, SETTLE_SECONDS, STEPS_PER_SECOND } from '../physics/simulation';
 import { validateScene, type Scene } from '../scene/schema';
 import type { DrawingCase } from './cases';
 import { compareScenes, type SceneComparison } from './compare';
 
-export const SETTLE_SECONDS = 7;
+export { SETTLE_SECONDS };
 const ERRORS_SHOWN = 3;
 
 export type Photo = { bytes: Uint8Array; contentType: string };

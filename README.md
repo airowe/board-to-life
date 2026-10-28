@@ -16,9 +16,9 @@ started on Oct 26, 2026, the event's kickoff day. No code was carried over from 
 
 ## Scene readers
 
-`/api/understand` uses the **stub** unless `.env.local` says otherwise. The stub always returns the same hand-written
-scene for the test drawing (`src/scene/fixtures.ts`) and does not look at the photo. `/api/draft-questions` is still
-always a stub, returning fixed questions for that scene.
+`/api/understand` and `/api/draft-questions` use the **stub** unless `.env` or `.env.local` says otherwise. The stub
+always returns the same hand-written scene for the test drawing (`src/scene/fixtures.ts`), and fixed questions for it,
+without looking at the photo. The check screen says which reader produced the scene.
 
 The real reader (`server/sceneReader.ts`) sends the photo to Muse Spark with a prompt listing the body vocabulary and a
 JSON schema the reply must follow. Two providers serve it through the same OpenAI-compatible interface:
@@ -64,6 +64,24 @@ and the ball. These are clean, generated drawings; real whiteboard photos have n
 Each paid run saves every reply, its token usage and its cost under `check-runs/` (ignored by git) and adds the cost
 to `check-runs/ledger.jsonl`.
 
+### Question drafting
+
+With `SCENE_READER` set to a model, `/api/draft-questions` asks the same model for the predict questions
+(`server/questionDrafter.ts`). The physics decides the answer, and the model only writes the question:
+
+- Before asking, the server runs the scene to rest and gives the model what happened, in order ("0.6 s: ball touches
+  domino-1", "2.2 s: domino-5 falls over"), plus which items end up fallen. The explanation is told from those events
+  rather than guessed. Without the event list, one draft had the dominoes falling from the wrong end.
+- The reply's schema only allows ids that are in the scene: real predict points, items that can tip over, and real
+  items to cite. The prompt lists the words for body kinds the drawing does not have, which grounding rejects.
+- Every question is yes or no on whether one item falls over, and is checked for grounding before it reaches the
+  teacher, who approves it as before.
+
+Measured with `npm run questions` (the 4 expected check scenes) and on the 8 scenes Meta read in its last check-set
+run (Oct 28): all 12 drafts grounded, and every explanation agreed with the physics. Each draft takes 5 to 18 s and
+costs about a cent. One explanation on a photo read was clumsy, naming dominoes in the wrong order of position. In the
+app with the Meta reader, the sample took about 16 s to read and 6 s to draft.
+
 ## Run it
 
 Requires Node 22 or later (developed on Node 26).
@@ -78,7 +96,8 @@ Open http://127.0.0.1:5173.
 1. **Capture**: upload a photo, use the webcam, or click "Use the sample drawing". The photo is turned upright using
    its EXIF orientation and scaled so its long edge is at most 1600 px, then sent as JPEG.
 2. **Check**: the check screen opens as soon as the scene is read; the predict questions are drafted while the teacher
-   looks it over, and Approve stays disabled until they arrive. The scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
+   looks it over, and Approve stays disabled until they arrive. While the scene is read, the screen shows the seconds
+   elapsed against the usual 20 s, and Cancel goes back to capture; the browser gives up after 75 s. The scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
    did not understand are boxed in red and will not be animated. The drafted question is labelled *Draft · not shown to
    the class*.
 3. **Approve**: this stores a separate, labelled approved copy. "Present to the class" stays disabled until then.
@@ -148,6 +167,7 @@ domino falls, and without the rope the dominoes stay up. `npm run drawings:draw`
 npm run drawings                                                   # the stub reader, in-process
 npm run drawings -- --reader meta                                  # Muse Spark on Meta Model API (paid)
 npm run drawings -- --reader baseten                               # Muse Spark Open on Baseten (paid)
+npm run questions                                                  # draft questions for the check scenes with Meta (paid)
 npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
 ```
 

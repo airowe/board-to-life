@@ -253,7 +253,7 @@ export const EFFORTS = ['minimal', 'low', 'medium', 'high'] as const;
 export type Effort = (typeof EFFORTS)[number];
 export const parseEffort = (value: string | undefined): Effort | undefined => EFFORTS.find((effort) => effort === value);
 
-type CallOptions = { timeoutMs: number; fetchImpl?: typeof fetch; onCall?: (record: CallRecord) => void; effort?: Effort };
+export type CallOptions = { timeoutMs: number; fetchImpl?: typeof fetch; onCall?: (record: CallRecord) => void; effort?: Effort };
 
 const usageOf = (body: unknown): Usage | null => {
   const usage = typeof body === 'object' && body !== null && 'usage' in body ? body.usage : null;
@@ -273,14 +273,21 @@ const completionText = (body: unknown): string | null => {
   return typeof content === 'string' ? content : null;
 };
 
-export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWithKey, options: CallOptions): Promise<unknown> => {
+export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+export type JsonSchema = { name: string; schema: Record<string, unknown> };
+
+export const requestModelJson = async (
+  content: ContentPart[],
+  responseSchema: JsonSchema,
+  provider: ProviderWithKey,
+  options: CallOptions,
+): Promise<object> => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
   const started = performance.now();
   const record = { provider: provider.name, status: null as number | null, content: null as string | null, usage: null as Usage | null };
   const report = (error: string | null): void => options.onCall?.({ ...record, ms: Math.round(performance.now() - started), error });
-  const image = `data:${photo.contentType};base64,${Buffer.from(photo.bytes).toString('base64')}`;
   try {
     const response = await fetchImpl(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -289,16 +296,8 @@ export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWi
       body: JSON.stringify({
         model: provider.model,
         ...(options.effort ? { reasoning_effort: options.effort } : {}),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: READER_PROMPT },
-              { type: 'image_url', image_url: { url: image } },
-            ],
-          },
-        ],
-        response_format: { type: 'json_schema', json_schema: { name: 'whiteboard_scene', schema: MODEL_SCENE_SCHEMA } },
+        messages: [{ role: 'user', content }],
+        response_format: { type: 'json_schema', json_schema: responseSchema },
       }),
     });
     record.status = response.status;
@@ -313,9 +312,8 @@ export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWi
       parsed = null;
     }
     if (typeof parsed !== 'object' || parsed === null) throw new Error(`${provider.name} did not return JSON`);
-    const scene = toScene(parsed as ModelScene, photo.size);
     report(null);
-    return scene;
+    return parsed;
   } catch (cause) {
     const error =
       cause instanceof DOMException && cause.name === 'AbortError'
@@ -326,4 +324,18 @@ export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWi
   } finally {
     clearTimeout(timer);
   }
+};
+
+export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWithKey, options: CallOptions): Promise<unknown> => {
+  const image = `data:${photo.contentType};base64,${Buffer.from(photo.bytes).toString('base64')}`;
+  const parsed = await requestModelJson(
+    [
+      { type: 'text', text: READER_PROMPT },
+      { type: 'image_url', image_url: { url: image } },
+    ],
+    { name: 'whiteboard_scene', schema: MODEL_SCENE_SCHEMA },
+    provider,
+    options,
+  );
+  return toScene(parsed as ModelScene, photo.size);
 };

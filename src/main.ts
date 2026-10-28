@@ -1,6 +1,6 @@
 import { requestJson, type ApiFailure } from './api';
 import { preparePhoto } from './capture/downscale';
-import { describeReading, UNDERSTAND_TIMEOUT_MS } from './reading';
+import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote } from './reading';
 import { checkGrounding } from './scene/questions';
 import { validateScene, type Scene } from './scene/schema';
 import { createSession } from './session/store';
@@ -9,7 +9,6 @@ import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check'
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 
-const REQUEST_TIMEOUT_MS = 8000;
 const PROGRESS_TICK_MS = 1000;
 
 const requireElement = <T extends Element>(selector: string): T => {
@@ -25,6 +24,7 @@ const noop = (): void => undefined;
 const session = createSession();
 let cleanup: () => void = noop;
 let photoUrl: string | null = null;
+let photoNote = '';
 let checkScreen: CheckScreen | null = null;
 let activeDraftId = 0;
 let activeRead: AbortController | null = null;
@@ -92,7 +92,7 @@ const draftQuestions = async (draftId: number, scene: Scene): Promise<void> => {
   const drafted = await requestJson(
     '/api/draft-questions',
     { method: 'POST', body: JSON.stringify({ scene }), headers: { 'content-type': 'application/json', ...stubHeaders() } },
-    { timeoutMs: REQUEST_TIMEOUT_MS },
+    { timeoutMs: MODEL_REQUEST_TIMEOUT_MS },
   );
   if (!drafted.ok) return report({ kind: 'failed', failure: drafted, retry });
 
@@ -110,7 +110,7 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   const understood = await requestJson(
     '/api/understand',
     { method: 'POST', body: photo, headers: { 'content-type': photo.type || 'application/octet-stream', ...stubHeaders() } },
-    { timeoutMs: UNDERSTAND_TIMEOUT_MS, signal: read.signal },
+    { timeoutMs: MODEL_REQUEST_TIMEOUT_MS, signal: read.signal },
   );
   if (read.signal.aborted) return;
   activeRead = null;
@@ -123,6 +123,7 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(photo);
+  photoNote = readingNote(understood.data);
   showCheck();
   void draftQuestions(draftId, scene.scene);
 };
@@ -136,7 +137,7 @@ function showCheck(): void {
   const url = photoUrl;
   if (!url) return showCapture();
   leaveScreen();
-  checkScreen = renderCheck(root, session, url, { onPresent: showPresent, onRestart: showCapture });
+  checkScreen = renderCheck(root, session, url, photoNote, { onPresent: showPresent, onRestart: showCapture });
 }
 
 function showPresent(): void {

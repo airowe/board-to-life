@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { MODEL_TIMEOUT_MS, STUB_TIMEOUT_DELAY_MS } from '../server/plugin';
-import { describeReading, TYPICAL_READ_MS, UNDERSTAND_TIMEOUT_MS } from './reading';
+import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote, TYPICAL_READ_MS } from './reading';
 
 const SECOND = 1000;
 
 describe('reading timeouts', () => {
   it('waits longer than the server waits for the model, so the server error reaches the teacher', () => {
-    expect(UNDERSTAND_TIMEOUT_MS).toBeGreaterThan(MODEL_TIMEOUT_MS);
+    expect(MODEL_REQUEST_TIMEOUT_MS).toBeGreaterThan(MODEL_TIMEOUT_MS);
   });
 
   it('still lets the stub timeout mode outlast the browser', () => {
-    expect(STUB_TIMEOUT_DELAY_MS).toBeGreaterThan(UNDERSTAND_TIMEOUT_MS);
+    expect(STUB_TIMEOUT_DELAY_MS).toBeGreaterThan(MODEL_REQUEST_TIMEOUT_MS);
   });
 });
 
@@ -31,12 +31,23 @@ describe('describeReading', () => {
     const elapsedMs = TYPICAL_READ_MS + 5 * SECOND;
     expect(describeReading(elapsedMs)).toEqual({
       headline: 'Still reading — this one is taking longer than usual',
-      detail: `${elapsedMs / SECOND} s · gives up at ${UNDERSTAND_TIMEOUT_MS / SECOND} s`,
+      detail: `${elapsedMs / SECOND} s · gives up at ${MODEL_REQUEST_TIMEOUT_MS / SECOND} s`,
       late: true,
     });
   });
 
   it('never counts past the timeout', () => {
-    expect(describeReading(UNDERSTAND_TIMEOUT_MS + 3 * SECOND).detail).toMatch(new RegExp(`^${UNDERSTAND_TIMEOUT_MS / SECOND} s`));
+    expect(describeReading(MODEL_REQUEST_TIMEOUT_MS + 3 * SECOND).detail).toMatch(new RegExp(`^${MODEL_REQUEST_TIMEOUT_MS / SECOND} s`));
+  });
+});
+
+describe('readingNote', () => {
+  it.each([
+    [{ stub: true }, 'Stub reading: a fixed, hand-written scene for the test drawing. No AI was called.'],
+    [{ stub: false, reader: 'meta' }, 'Read by Muse Spark on the Meta Model API. Check each item against the photo.'],
+    [{ stub: false, reader: 'baseten' }, 'Read by Muse Spark Open on Baseten. Check each item against the photo.'],
+    [null, 'Check each item against the photo.'],
+  ])('says who read the drawing for %j', (body, note) => {
+    expect(readingNote(body)).toBe(note);
   });
 });
