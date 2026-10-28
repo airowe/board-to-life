@@ -71,6 +71,27 @@ describe('validateScene', () => {
     expect(errorsFor(scene).join('\n')).toMatch(/"ghost"/);
   });
 
+  it.each([
+    ['a rope tied to another rope', (s: Record<string, unknown> & { items: Record<string, unknown>[] }) => {
+      s.items.push(
+        { id: 'r1', kind: 'rope', from: 'ball', to: 'domino-1', length: 10, confidence: 0.9 },
+        { id: 'r2', kind: 'rope', from: 'ball', to: 'r1', length: 10, confidence: 0.9 },
+      );
+    }],
+    ['a joint on a rope', (s: Record<string, unknown> & { items: Record<string, unknown>[] }) => {
+      s.items.push({ id: 'r1', kind: 'rope', from: 'ball', to: 'domino-1', length: 10, confidence: 0.9 });
+      s.joints = [{ id: 'j', kind: 'pin', a: 'ball', b: 'r1', x: 1, y: 1 }];
+    }],
+    ['a contact with a rope', (s: Record<string, unknown> & { items: Record<string, unknown>[] }) => {
+      s.items.push({ id: 'r1', kind: 'rope', from: 'ball', to: 'domino-1', length: 10, confidence: 0.9 });
+      s.predictPoints = [{ id: 'p', trigger: { kind: 'contact', a: 'ball', b: 'r1' } }];
+    }],
+  ])('rejects %s, because the physics needs a body at each end', (_where, mutate) => {
+    const scene = clone();
+    mutate(scene);
+    expect(errorsFor(scene).join('\n')).toMatch(/"r1" is a rope, not a body/);
+  });
+
   it('keeps unknown marks flagged rather than dropping them', () => {
     const result = validateScene(rampBallDominoes);
     if (!result.ok) throw new Error(result.errors.join('\n'));

@@ -1,8 +1,11 @@
+import { imageSize } from '../../server/imageSize';
+import { isProviderName, providerFromEnv, readSceneWithModel, type CallRecord, type Effort, type ProviderWithKey } from '../../server/sceneReader';
 import { handleUnderstand } from '../../server/stub';
 import { requestJson } from '../api';
 import type { SceneReader } from './replay';
 
 const HTTP_TIMEOUT_MS = 60_000;
+const MODEL_TIMEOUT_MS = 120_000;
 
 const field = (body: unknown, name: string): unknown =>
   typeof body === 'object' && body !== null && name in body ? (body as Record<string, unknown>)[name] : undefined;
@@ -30,11 +33,29 @@ export const httpReader =
     return scene;
   };
 
-export type ReaderOptions = { url?: string };
-export const READER_NAMES = ['stub', 'http'] as const;
+// Calls the model directly, without the server, so a model can be checked on its own.
+export const modelReader =
+  (provider: ProviderWithKey, extra: { onCall?: (record: CallRecord) => void; effort?: Effort } = {}): SceneReader =>
+  async (photo) => {
+    const size = imageSize(photo.bytes);
+    if (!size) throw new Error('the drawing is not a PNG or JPEG');
+    return readSceneWithModel({ ...photo, size }, provider, { timeoutMs: MODEL_TIMEOUT_MS, ...extra });
+  };
+
+export type ReaderOptions = {
+  url?: string;
+  env?: Record<string, string | undefined>;
+  onCall?: (record: CallRecord) => void;
+  effort?: Effort;
+};
+export const READER_NAMES = ['stub', 'http', 'meta', 'baseten'] as const;
 
 export const readerFor = (name: string, options: ReaderOptions): SceneReader | null => {
   if (name === 'stub') return stubReader;
+  if (isProviderName(name)) {
+    const { onCall, effort } = options;
+    return modelReader(providerFromEnv(name, options.env ?? {}), { ...(onCall ? { onCall } : {}), ...(effort ? { effort } : {}) });
+  }
   if (name !== 'http') return null;
   if (!options.url) throw new Error('The http reader needs --url, for example --url http://127.0.0.1:5173/api/understand');
   return httpReader(options.url, { timeoutMs: HTTP_TIMEOUT_MS });

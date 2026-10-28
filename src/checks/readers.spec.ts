@@ -47,6 +47,14 @@ describe('readerFor', () => {
     expect(readerFor('http', { url: URL_UNDER_TEST })).not.toBeNull();
   });
 
+  it.each([
+    ['meta', 'MODEL_API_KEY'],
+    ['baseten', 'BASETEN_API_KEY'],
+  ])('builds the %s model reader only when %s is set', (name, variable) => {
+    expect(() => readerFor(name, { env: {} })).toThrow(variable);
+    expect(readerFor(name, { env: { [variable]: 'test-key' } })).not.toBeNull();
+  });
+
   it('returns null for an unknown reader', () => {
     expect(readerFor('psychic', {})).toBeNull();
   });

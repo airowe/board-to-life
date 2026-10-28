@@ -16,6 +16,7 @@ export type CaseResult = {
   comparison: SceneComparison | null;
   outcomes: OutcomeResult[];
   passed: boolean;
+  readScene: Scene | null;
 };
 
 export const observeFallen = (scene: Scene, items: string[], seconds: number): Map<string, boolean> => {
@@ -31,6 +32,7 @@ const failed = (drawingCase: DrawingCase, error: string): CaseResult => ({
   comparison: null,
   outcomes: drawingCase.outcomes.map((outcome) => ({ item: outcome.item, expected: outcome.fallen, actual: null })),
   passed: false,
+  readScene: null,
 });
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -61,13 +63,18 @@ export const replayCase = async (drawingCase: DrawingCase, read: SceneReader, ph
     comparison,
     outcomes,
     passed: sceneMatches && outcomes.every((outcome) => outcome.actual === outcome.expected),
+    readScene: validated.scene,
   };
 };
+
+const ERROR_SHOWN = 200;
+const shorten = (text: string): string =>
+  text.length <= ERROR_SHOWN ? text : `${text.slice(0, ERROR_SHOWN)}… [${text.length - ERROR_SHOWN} more characters]`;
 
 const describeFall = (fallen: boolean | null): string => (fallen === null ? 'not read' : fallen ? 'falls' : 'stays up');
 
 const caseDetails = (result: CaseResult): string[] => {
-  if (result.error) return [result.error];
+  if (result.error) return [shorten(result.error)];
   const comparison = result.comparison;
   const details: string[] = [];
   if (comparison) {

@@ -1,0 +1,329 @@
+import { BODY_KINDS } from '../src/scene/schema';
+import type { ImageSize } from './imageSize';
+
+// The model reports positions on a 0-1000 grid over the photo it was sent.
+const GRID = 1000;
+// Scenes are this many units on their long edge whatever the photo's resolution, the
+// scale the physics is tuned at, so the same drawing plays the same from any camera.
+const DRAWING_LONG_EDGE = 1200;
+const RAMP_THICKNESS = 16;
+// A floor is drawn as a line: the line is the top of the ground, which gets this thickness below it.
+export const FLOOR_THICKNESS = 60;
+// A push arrow becomes a starting speed in proportion to its drawn length: the
+// sample's 80-unit arrow gives 180 units per second.
+export const ARROW_TO_SPEED = 2.25;
+
+export type Provider = { name: 'meta' | 'baseten'; baseUrl: string; model: string; keyVariable: string };
+export type ProviderWithKey = Provider & { apiKey: string };
+export type ProviderName = Provider['name'];
+
+export const PROVIDERS: Record<ProviderName, Provider> = {
+  meta: { name: 'meta', baseUrl: 'https://api.meta.ai/v1', model: 'muse-spark-1.3', keyVariable: 'MODEL_API_KEY' },
+  baseten: { name: 'baseten', baseUrl: 'https://inference.baseten.co/v1', model: 'meta-models/muse-spark-open', keyVariable: 'BASETEN_API_KEY' },
+};
+
+// Standard-mode prices per million tokens, from each provider's pricing page (Oct 2026).
+const PRICES: Record<ProviderName, { input: number; cachedInput: number; output: number }> = {
+  meta: { input: 1.25, cachedInput: 0.15, output: 4.25 },
+  baseten: { input: 1.25, cachedInput: 0.15, output: 4.25 },
+};
+
+export type Usage = { prompt_tokens: number; completion_tokens: number; prompt_tokens_details?: { cached_tokens?: number } };
+
+export const costOf = (name: ProviderName, usage: Usage | null): number => {
+  if (!usage) return 0;
+  const price = PRICES[name];
+  const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
+  return ((usage.prompt_tokens - cached) * price.input + cached * price.cachedInput + usage.completion_tokens * price.output) / 1_000_000;
+};
+
+export const isProviderName = (name: string): name is ProviderName => name in PROVIDERS;
+
+export const providerFromEnv = (name: ProviderName, env: Record<string, string | undefined>): ProviderWithKey => {
+  const provider = PROVIDERS[name];
+  const apiKey = env[provider.keyVariable];
+  if (!apiKey) throw new Error(`Set ${provider.keyVariable} in .env or .env.local to use the ${name} reader.`);
+  return { ...provider, apiKey };
+};
+
+type Push = { dx: number; dy: number };
+type ModelItem = {
+  id: string;
+  kind: string;
+  confidence: number;
+  x?: number;
+  y?: number;
+  x2?: number;
+  y2?: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  angleDegrees?: number;
+  push?: Push;
+  from?: string;
+  to?: string;
+};
+
+export type ModelScene = {
+  lineWidth?: number;
+  items: ModelItem[];
+  joints: { id: string; a: string; b: string; x: number; y: number }[];
+  labels: { id: string; text: string; x: number; y: number; attachesTo?: string; confidence: number }[];
+  unknownMarks: { id: string; x: number; y: number; width: number; height: number; note: string; confidence: number }[];
+  predictPoints: { id: string; a: string; b: string }[];
+};
+
+const number = { type: 'number' };
+// Bounded strings: an id is short and plain, and no text field may run on.
+const text = { type: 'string', maxLength: 40, pattern: '^[A-Za-z0-9_-]+$' };
+const prose = { type: 'string', maxLength: 120 };
+const confidence = { type: 'number', minimum: 0, maximum: 1 };
+const objectOf = (properties: Record<string, unknown>, required: string[]) => ({
+  type: 'object',
+  properties,
+  required,
+  additionalProperties: false,
+});
+
+export const MODEL_SCENE_SCHEMA = objectOf(
+  {
+    lineWidth: number,
+    items: {
+      type: 'array',
+      items: objectOf(
+        {
+          id: text,
+          kind: { type: 'string', enum: BODY_KINDS },
+          x: number,
+          y: number,
+          x2: number,
+          y2: number,
+          width: number,
+          height: number,
+          radius: number,
+          angleDegrees: number,
+          push: objectOf({ dx: number, dy: number }, ['dx', 'dy']),
+          from: text,
+          to: text,
+          confidence,
+        },
+        ['id', 'kind', 'confidence'],
+      ),
+    },
+    joints: { type: 'array', items: objectOf({ id: text, a: text, b: text, x: number, y: number }, ['id', 'a', 'b', 'x', 'y']) },
+    labels: {
+      type: 'array',
+      items: objectOf({ id: text, text: prose, x: number, y: number, attachesTo: text, confidence }, ['id', 'text', 'x', 'y', 'confidence']),
+    },
+    unknownMarks: {
+      type: 'array',
+      items: objectOf({ id: text, x: number, y: number, width: number, height: number, note: prose, confidence }, [
+        'id',
+        'x',
+        'y',
+        'width',
+        'height',
+        'note',
+        'confidence',
+      ]),
+    },
+    predictPoints: { type: 'array', items: objectOf({ id: text, a: text, b: text }, ['id', 'a', 'b']) },
+  },
+  ['lineWidth', 'items', 'joints', 'labels', 'unknownMarks', 'predictPoints'],
+);
+
+export const READER_PROMPT = `This is a photo of a whiteboard drawing of a physics setup that a class will watch play out.
+Read it into the JSON format you are given. Give every position and size on a 0-1000 grid over this image: (0,0) is the top-left corner, x grows to the right and y grows downwards.
+
+Items may only be these kinds:
+- floor, wall, block, domino, lever: x, y is the centre; width and height; angleDegrees if drawn tilted (clockwise positive).
+- ball: x, y is the centre; radius.
+- ramp: a straight line from (x, y) to (x2, y2).
+- pivot: x, y is the point something turns on.
+- pulley: x, y is the centre; radius.
+- rope: from and to are the ids of the two items it ties together.
+The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A circle with a dot at its centre is a pulley; a small triangle is a pivot.
+Something drawn standing on the floor or on another item rests on it: put its bottom edge exactly on that surface.
+Ignore faint, faded or smudged grey marks: they are left over from an erased drawing and are not part of this one.
+If an arrow is drawn next to a ball or block to show a push, give that item push: dx, dy, the arrow from tail to head on the same grid.
+
+Do not invent anything. Any mark that is not one of these kinds goes in unknownMarks, with a box around it and a short note of what it looks like. Handwritten words go in labels, with attachesTo set when a word names an item.
+Add one predict point: the first contact between two items that the motion leads to, which is the moment just before the interesting part. Use a and b for the two item ids.
+Measure each shape to the outer edge of its drawn lines, and give lineWidth: how thick a typical marker line is, on the same grid.
+Use short ids such as ball, ramp, domino-1, domino-2 (numbered left to right). For each item, label and mark, give confidence from 0 to 1 for how sure you are it is really there as described.`;
+
+const clamp = (value: number, max: number): number => Math.min(max, Math.max(0, value));
+
+const NOT_GIVEN = new Set(['', 'null', 'none', 'undefined']);
+const given = (reference: string | undefined): string | undefined =>
+  reference === undefined || NOT_GIVEN.has(reference.trim().toLowerCase()) ? undefined : reference;
+const withReference = (name: string, reference: string | undefined): Record<string, string> => {
+  const value = given(reference);
+  return value === undefined ? {} : { [name]: value };
+};
+
+export const drawingSize = (photo: ImageSize): ImageSize => {
+  const scale = DRAWING_LONG_EDGE / Math.max(photo.width, photo.height);
+  return { width: Math.round(photo.width * scale), height: Math.round(photo.height * scale) };
+};
+
+export const toScene = (model: ModelScene, photo: ImageSize): unknown => {
+  const size = drawingSize(photo);
+  const sx = size.width / GRID;
+  const sy = size.height / GRID;
+  const px = (x: number | undefined) => (x === undefined ? undefined : clamp(x * sx, size.width));
+  const py = (y: number | undefined) => (y === undefined ? undefined : clamp(y * sy, size.height));
+  const spanX = (w: number | undefined) => (w === undefined ? undefined : w * sx);
+  const spanY = (h: number | undefined) => (h === undefined ? undefined : h * sy);
+  // The model measures outlined shapes to the outer edge of the marker line; the
+  // object is what the line encloses, so take one line width off.
+  const line = model.lineWidth ?? 0;
+  const inner = (size: number | undefined, by: number) => (size === undefined ? undefined : Math.max(size - by, size / 2));
+  const radius = (r: number | undefined) => (r === undefined ? undefined : ((inner(r, line / 2) ?? r) * (sx + sy)) / 2);
+
+  const bodies = model.items.map((item): Record<string, unknown> => {
+    const base = { id: item.id, kind: item.kind, confidence: item.confidence };
+    const velocity = item.push ? { velocity: { x: item.push.dx * sx * ARROW_TO_SPEED, y: item.push.dy * sy * ARROW_TO_SPEED } } : {};
+    const angle = item.angleDegrees === undefined ? {} : { angle: (item.angleDegrees * Math.PI) / 180 };
+    switch (item.kind) {
+      case 'ramp':
+        return { ...base, x1: px(item.x), y1: py(item.y), x2: px(item.x2), y2: py(item.y2), thickness: RAMP_THICKNESS };
+      case 'ball':
+        return { ...base, x: px(item.x), y: py(item.y), radius: radius(item.radius), ...velocity };
+      case 'pulley':
+        return { ...base, x: px(item.x), y: py(item.y), radius: radius(item.radius) };
+      case 'pivot':
+        return { ...base, x: px(item.x), y: py(item.y) };
+      case 'rope':
+        return { ...base, ...withReference('from', item.from), ...withReference('to', item.to) };
+      case 'floor': {
+        const y = py(item.y);
+        const thickness = y === undefined ? 0 : Math.max(2, Math.min(FLOOR_THICKNESS, 2 * (size.height - y)));
+        return item.height === undefined && y !== undefined
+          ? { ...base, x: px(item.x), y: Math.min(size.height, y + thickness / 2), width: spanX(item.width), height: thickness }
+          : { ...base, x: px(item.x), y, width: spanX(item.width), height: spanY(item.height) };
+      }
+      case 'wall':
+        return { ...base, x: px(item.x), y: py(item.y), width: spanX(inner(item.width, line)), height: spanY(inner(item.height, line)) };
+      default:
+        return {
+          ...base,
+          x: px(item.x),
+          y: py(item.y),
+          width: spanX(inner(item.width, line)),
+          height: spanY(inner(item.height, line)),
+          ...angle,
+          ...velocity,
+        };
+    }
+  });
+
+  const centreOf = (id: unknown): { x: number; y: number } | null => {
+    const found = bodies.find((body) => body.id === id);
+    if (!found) return null;
+    const [x, y] = found.kind === 'ramp' ? [((found.x1 as number) + (found.x2 as number)) / 2, ((found.y1 as number) + (found.y2 as number)) / 2] : [found.x, found.y];
+    return typeof x === 'number' && typeof y === 'number' ? { x, y } : null;
+  };
+  const items = bodies.map((body) => {
+    if (body.kind !== 'rope') return body;
+    const [from, to] = [centreOf(body.from), centreOf(body.to)];
+    return { ...body, length: from && to ? Math.max(1, Math.hypot(from.x - to.x, from.y - to.y)) : 1 };
+  });
+
+  return {
+    version: 1,
+    drawing: { width: size.width, height: size.height },
+    items,
+    joints: model.joints.map((joint) => ({ id: joint.id, kind: 'pin', a: joint.a, b: joint.b, x: px(joint.x), y: py(joint.y) })),
+    labels: model.labels.map(({ attachesTo, ...label }) => ({ ...label, x: px(label.x), y: py(label.y), ...withReference('attachesTo', attachesTo) })),
+    unknownMarks: model.unknownMarks.map((mark) => ({
+      ...mark,
+      x: px(mark.x),
+      y: py(mark.y),
+      width: spanX(mark.width),
+      height: spanY(mark.height),
+    })),
+    predictPoints: model.predictPoints.map((point) => ({ id: point.id, trigger: { kind: 'contact', a: point.a, b: point.b } })),
+  };
+};
+
+export type ModelPhoto = { bytes: Uint8Array; contentType: string; size: ImageSize };
+export type CallRecord = { provider: ProviderName; status: number | null; ms: number; content: string | null; usage: Usage | null; error: string | null };
+export const EFFORTS = ['minimal', 'low', 'medium', 'high'] as const;
+export type Effort = (typeof EFFORTS)[number];
+export const parseEffort = (value: string | undefined): Effort | undefined => EFFORTS.find((effort) => effort === value);
+
+type CallOptions = { timeoutMs: number; fetchImpl?: typeof fetch; onCall?: (record: CallRecord) => void; effort?: Effort };
+
+const usageOf = (body: unknown): Usage | null => {
+  const usage = typeof body === 'object' && body !== null && 'usage' in body ? body.usage : null;
+  return typeof usage === 'object' && usage !== null && 'prompt_tokens' in usage && 'completion_tokens' in usage ? (usage as Usage) : null;
+};
+
+const errorMessage = (body: unknown): string | null => {
+  const error = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') return error.message;
+  return null;
+};
+
+const completionText = (body: unknown): string | null => {
+  const choices = typeof body === 'object' && body !== null && 'choices' in body && Array.isArray(body.choices) ? body.choices : [];
+  const content: unknown = choices[0]?.message?.content;
+  return typeof content === 'string' ? content : null;
+};
+
+export const readSceneWithModel = async (photo: ModelPhoto, provider: ProviderWithKey, options: CallOptions): Promise<unknown> => {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  const started = performance.now();
+  const record = { provider: provider.name, status: null as number | null, content: null as string | null, usage: null as Usage | null };
+  const report = (error: string | null): void => options.onCall?.({ ...record, ms: Math.round(performance.now() - started), error });
+  const image = `data:${photo.contentType};base64,${Buffer.from(photo.bytes).toString('base64')}`;
+  try {
+    const response = await fetchImpl(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { authorization: `Bearer ${provider.apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: provider.model,
+        ...(options.effort ? { reasoning_effort: options.effort } : {}),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: READER_PROMPT },
+              { type: 'image_url', image_url: { url: image } },
+            ],
+          },
+        ],
+        response_format: { type: 'json_schema', json_schema: { name: 'whiteboard_scene', schema: MODEL_SCENE_SCHEMA } },
+      }),
+    });
+    record.status = response.status;
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(`${provider.name} answered ${response.status}: ${errorMessage(body) ?? 'no error message'}`);
+    record.usage = usageOf(body);
+    record.content = completionText(body);
+    let parsed: unknown;
+    try {
+      parsed = record.content === null ? null : JSON.parse(record.content);
+    } catch {
+      parsed = null;
+    }
+    if (typeof parsed !== 'object' || parsed === null) throw new Error(`${provider.name} did not return JSON`);
+    const scene = toScene(parsed as ModelScene, photo.size);
+    report(null);
+    return scene;
+  } catch (cause) {
+    const error =
+      cause instanceof DOMException && cause.name === 'AbortError'
+        ? new Error(`${provider.name} did not answer within ${Math.round(options.timeoutMs / 1000)} seconds`, { cause })
+        : cause;
+    report(error instanceof Error ? error.message : String(error));
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};

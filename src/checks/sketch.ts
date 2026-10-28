@@ -12,6 +12,7 @@ const GHOST_OFFSET = { x: 23, y: -14 };
 const GHOST_SEED_SHIFT = 101;
 const ARROW_LENGTH = 80;
 const SCRIBBLE_TURNS = 7;
+const HATCH_SPACING = 14;
 
 const seededJitter = (seed: number): Jitter => {
   let state = seed;
@@ -121,6 +122,18 @@ const arrow = (jitter: Jitter, item: SceneItem): string | null => {
   return stroke(d, RED, 5, `data-arrow="${item.id}"`);
 };
 
+// The board legend: fixed things are hatched, so a wall never reads as a domino.
+const hatch = (jitter: Jitter, item: SceneItem): string | null => {
+  if (item.kind !== 'wall') return null;
+  const [left, right, top, bottom] = [item.x - item.width / 2, item.x + item.width / 2, item.y - item.height / 2, item.y + item.height / 2];
+  const lines: string[] = [];
+  for (let k = left - bottom + HATCH_SPACING; k < right - top; k += HATCH_SPACING) {
+    const [y1, y2] = [Math.max(top, left - k), Math.min(bottom, right - k)];
+    if (y2 - y1 > 2) lines.push(wobblyLine(jitter, { x: y1 + k, y: y1 }, { x: y2 + k, y: y2 }, 1));
+  }
+  return stroke(lines.join(' '), INK, 3, `data-hatch="${item.id}"`);
+};
+
 const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string => {
   const points = Array.from({ length: SCRIBBLE_TURNS * 2 + 1 }, (_, i) => ({
     x: mark.x - mark.width / 2 + (mark.width * i) / (SCRIBBLE_TURNS * 2) + jitter(4),
@@ -149,6 +162,7 @@ export const sketchScene = (scene: Scene, seed: number, ghost?: Scene): string =
   const parts = [
     ...(ghost ? ghostStrokes(ghost, seed) : []),
     ...scene.items.map((item) => stroke(itemPath(jitter, item, byId), itemColour(item), itemWidth(item), `data-item="${item.id}"`)),
+    ...scene.items.flatMap((item) => hatch(jitter, item) ?? []),
     ...scene.items.flatMap((item) => arrow(jitter, item) ?? []),
     ...scene.unknownMarks.map((mark) => scribble(jitter, mark)),
     ...scene.labels.map(label),

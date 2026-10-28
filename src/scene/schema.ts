@@ -78,8 +78,13 @@ const crossReferenceErrors = (scene: Scene): string[] => {
   }
 
   const itemIds = new Set(scene.items.map((entry) => entry.id));
+  const ropeIds = new Set(scene.items.filter((entry) => entry.kind === 'rope').map((entry) => entry.id));
   const requireItem = (ref: string, where: string): void => {
     if (!itemIds.has(ref)) errors.push(`${where} references missing item "${ref}"`);
+  };
+  const requireBody = (ref: string, where: string): void => {
+    if (ropeIds.has(ref)) errors.push(`${where}: "${ref}" is a rope, not a body`);
+    else requireItem(ref, where);
   };
 
   const { width, height } = scene.drawing;
@@ -88,21 +93,21 @@ const crossReferenceErrors = (scene: Scene): string[] => {
   for (const entry of scene.items) {
     if (!anchorPoints(entry).every(inside)) errors.push(`item "${entry.id}" is outside the drawing`);
     if (entry.kind === 'rope') {
-      requireItem(entry.from, `rope "${entry.id}"`);
-      requireItem(entry.to, `rope "${entry.id}"`);
+      requireBody(entry.from, `rope "${entry.id}"`);
+      requireBody(entry.to, `rope "${entry.id}"`);
     }
   }
   for (const entry of scene.joints) {
-    requireItem(entry.a, `joint "${entry.id}"`);
-    requireItem(entry.b, `joint "${entry.id}"`);
+    requireBody(entry.a, `joint "${entry.id}"`);
+    requireBody(entry.b, `joint "${entry.id}"`);
   }
   for (const entry of scene.labels) {
     if (entry.attachesTo !== undefined) requireItem(entry.attachesTo, `label "${entry.id}"`);
   }
   for (const point of scene.predictPoints) {
     if (point.trigger.kind === 'contact') {
-      requireItem(point.trigger.a, `predict point "${point.id}"`);
-      requireItem(point.trigger.b, `predict point "${point.id}"`);
+      requireBody(point.trigger.a, `predict point "${point.id}"`);
+      requireBody(point.trigger.b, `predict point "${point.id}"`);
     }
   }
   return errors;

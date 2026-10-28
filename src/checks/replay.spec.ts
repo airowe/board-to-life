@@ -55,6 +55,14 @@ describe('replayCase', () => {
     expect(result.error).toBe('reader failed: reader offline');
   });
 
+  it('shortens a very long error in the report', async () => {
+    const ramble = `reader failed: ${'-1'.repeat(5000)}`;
+    const result = await replayCase(caseById('pendulum-knock'), () => Promise.reject(new Error(ramble)), PHOTO);
+    const report = formatReport([result]);
+    expect(report.length).toBeLessThan(600);
+    expect(report).toContain('characters]');
+  });
+
   it('marks an outcome as unknown when its item was not read', async () => {
     const sample = caseById('ramp-ball-dominoes');
     const withoutLast = { ...sample.scene, items: sample.scene.items.filter((item) => item.id !== 'domino-5') };

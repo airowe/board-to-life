@@ -50,6 +50,11 @@ const parts = [
   stroke(wobblyLine(212, 276, 232, 288, 1) + ' ' + wobblyLine(212, 300, 232, 288, 1), red, 5),
   ...[640, 712, 784, 856, 928].map((x) => stroke(wobblyRect(x, 685, 18, 110), black, 5)),
   stroke(wobblyRect(1150, 590, 24, 300), black, 6),
+  // The board legend: fixed things are hatched.
+  ...Array.from({ length: 22 }, (_, i) => {
+    const y = 448 + i * 13;
+    return stroke(wobblyLine(1140, Math.min(y + 20, 738), 1160, y, 1), black, 3);
+  }),
   stroke(wobblyCircle(1060, 145, 32), '#d68910', 5),
   ...Array.from({ length: 8 }, (_, i) => {
     const a = (i / 8) * Math.PI * 2;

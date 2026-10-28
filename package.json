@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test",
-    "drawings": "node scripts/check-drawings.mjs",
+    "drawings": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-drawings.mjs",
     "drawings:draw": "node scripts/draw-checks.mjs"
   },
   "keywords": [],

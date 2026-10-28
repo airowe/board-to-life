@@ -45,6 +45,10 @@ describe('sketchScene', () => {
     expect(drawn.sort()).toEqual(withRope.items.map((item) => item.id).sort());
   });
 
+  it('hatches walls, and only walls, so they read as fixed', () => {
+    expect(attribute(sketchScene(sample, SEED), 'data-hatch')).toEqual(sample.items.filter((item) => item.kind === 'wall').map((item) => item.id));
+  });
+
   it('draws an arrow for each initial velocity', () => {
     expect(attribute(sketchScene(sample, SEED), 'data-arrow')).toEqual(['ball']);
   });
