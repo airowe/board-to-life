@@ -1,5 +1,7 @@
 import type { PredictQuestion } from '../scene/questions';
-import type { Scene, SceneItem } from '../scene/schema';
+import { isLink, type Scene, type SceneItem } from '../scene/schema';
+import { cartWheels } from '../scene/cart';
+import { linkPoints } from '../scene/linkPoints';
 import type { ApiFailure } from '../api';
 import type { ApprovedLesson, Draft, Session } from '../session/store';
 import { h, s } from './dom';
@@ -19,7 +21,7 @@ const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
 const centre = (item: SceneItem, scene: Scene): { x: number; y: number } => {
   if (item.kind === 'ramp') return { x: (item.x1 + item.x2) / 2, y: (item.y1 + item.y2) / 2 };
-  if (item.kind === 'rope') {
+  if (isLink(item)) {
     const from = scene.items.find((other) => other.id === item.from);
     return from ? centre(from, scene) : { x: 0, y: 0 };
   }
@@ -35,14 +37,28 @@ const shapeFor = (item: SceneItem, scene: Scene): SVGElement => {
       return s('circle', { cx: item.x, cy: item.y, r: 8 });
     case 'ramp':
       return s('line', { x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2 });
-    case 'rope': {
-      const from = scene.items.find((other) => other.id === item.from);
-      const to = scene.items.find((other) => other.id === item.to);
-      if (!from || !to) return s('g');
-      const a = centre(from, scene);
-      const b = centre(to, scene);
-      return s('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    case 'rope':
+    case 'spring': {
+      const at = (id: string) => {
+        const found = scene.items.find((other) => other.id === id);
+        return found ? centre(found, scene) : null;
+      };
+      const points = linkPoints(item, at);
+      return points.length === 0 ? s('g') : s('polyline', { points: points.map((point) => `${point.x},${point.y}`).join(' ') });
     }
+    case 'cart':
+      return s(
+        'g',
+        {},
+        s('rect', {
+          x: item.x - item.width / 2,
+          y: item.y - item.height / 2,
+          width: item.width,
+          height: item.height,
+          transform: `rotate(${(item.angle * 180) / Math.PI} ${item.x} ${item.y})`,
+        }),
+        ...cartWheels(item).map((wheel) => s('circle', { cx: wheel.x, cy: wheel.y, r: item.wheelRadius })),
+      );
     default: {
       const angle = 'angle' in item ? (item.angle * 180) / Math.PI : 0;
       return s('rect', {

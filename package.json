@@ -11,7 +11,8 @@
     "check": "npm run lint && npm run typecheck && npm test",
     "drawings": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-drawings.mjs",
     "drawings:draw": "node scripts/draw-checks.mjs",
-    "questions": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-questions.mjs"
+    "questions": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-questions.mjs",
+    "photos": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-photos.mjs"
   },
   "keywords": [],
   "author": "",

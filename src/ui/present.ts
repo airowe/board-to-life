@@ -3,6 +3,8 @@ import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
 import { createRedrawGate } from '../present/redraw';
 import type { Scene, SceneItem } from '../scene/schema';
+import { cartWheels } from '../scene/cart';
+import { linkPoints } from '../scene/linkPoints';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
 
@@ -59,17 +61,29 @@ const drawItem = (
       ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
       ctx.stroke();
       break;
-    case 'rope': {
-      const from = bodies.get(item.from);
-      const to = bodies.get(item.to);
-      if (!from || !to) break;
+    case 'rope':
+    case 'spring': {
+      const points = linkPoints(item, (id) => bodies.get(id) ?? null);
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+      for (const [index, point] of points.entries()) {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
       ctx.stroke();
       break;
     }
+    case 'cart':
+      if (!body) break;
+      ctx.translate(body.x, body.y);
+      ctx.rotate(body.angle);
+      ctx.strokeRect(-item.width / 2, -item.height / 2, item.width, item.height);
+      for (const wheel of cartWheels({ ...item, x: 0, y: 0, angle: 0 })) {
+        ctx.beginPath();
+        ctx.arc(wheel.x, wheel.y, item.wheelRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      break;
     default:
       if (!body) break;
       ctx.translate(body.x, body.y);

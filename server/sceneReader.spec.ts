@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateScene } from '../src/scene/schema';
-import { ARROW_TO_SPEED, costOf, FLOOR_THICKNESS, MODEL_SCENE_SCHEMA, PROVIDERS, providerFromEnv, readSceneWithModel, toScene, type CallRecord, type ModelScene } from './sceneReader';
+import { ARROW_TO_SPEED, costOf, FLOOR_THICKNESS, MODEL_SCENE_SCHEMA, PROVIDERS, providerFromEnv, READER_PROMPT, readSceneWithModel, toScene, type CallRecord, type ModelScene } from './sceneReader';
 
 const SIZE = { width: 1600, height: 800 };
 // The scene is always 1200 units on its long edge, whatever the photo's resolution.
@@ -96,6 +96,84 @@ describe('toScene', () => {
   it('measures a rope as the distance between what it ties together', () => {
     const [px, py, bx, by] = [300 * X_SCALE, 100 * Y_SCALE, 80 * X_SCALE, 380 * Y_SCALE];
     expect(itemOf(scene, 'rope').length).toBeCloseTo(Math.hypot(px - bx, py - by), 9);
+  });
+
+  it('gives a spring its drawn length as its rest length', () => {
+    const sprung = toScene({ ...modelScene, items: modelScene.items.map((item) => (item.kind === 'rope' ? { ...item, kind: 'spring' } : item)) }, SIZE);
+    const [px, py, bx, by] = [300 * X_SCALE, 100 * Y_SCALE, 80 * X_SCALE, 380 * Y_SCALE];
+    expect(itemOf(sprung, 'rope')).toMatchObject({ kind: 'spring', from: 'pulley', to: 'ball' });
+    expect(itemOf(sprung, 'rope').length).toBeCloseTo(Math.hypot(px - bx, py - by), 9);
+    expect(validateScene(sprung).ok).toBe(true);
+  });
+
+  it('measures a rope over a pulley along both sides, and keeps the pulley', () => {
+    const blockAt = (id: string, x: number) => ({ id, kind: 'block', x, y: 700, width: 60, height: 60, confidence: 0.9 });
+    const over = toScene(
+      {
+        ...modelScene,
+        items: [
+          ...modelScene.items.filter((item) => item.kind !== 'rope'),
+          blockAt('left', 200),
+          blockAt('right', 400),
+          { id: 'rope', kind: 'rope', from: 'left', to: 'right', over: 'pulley', confidence: 0.8 },
+        ],
+      },
+      SIZE,
+    );
+    const [px, py] = [300 * X_SCALE, 100 * Y_SCALE];
+    const side = (x: number) => Math.hypot(x * X_SCALE - px, 700 * Y_SCALE - py);
+    expect(itemOf(over, 'rope')).toMatchObject({ from: 'left', to: 'right', over: 'pulley' });
+    expect(itemOf(over, 'rope').length).toBeCloseTo(side(200) + side(400), 9);
+    expect(validateScene(over).ok).toBe(true);
+  });
+
+  it('reads a cart as a body with wheels, and never its wheels as balls', () => {
+    const carted = toScene(
+      { ...modelScene, items: [...modelScene.items, { id: 'cart', kind: 'cart', x: 700, y: 800, width: 150, height: 60, radius: 20, push: { dx: 40, dy: 0 }, confidence: 0.9 }] },
+      SIZE,
+    );
+    expect(itemOf(carted, 'cart')).toMatchObject({ kind: 'cart', x: 700 * X_SCALE, y: 800 * Y_SCALE, width: 150 * X_SCALE, height: 60 * Y_SCALE, angle: 0 });
+    expect(itemOf(carted, 'cart').wheelRadius).toBeCloseTo((20 * X_SCALE + 20 * Y_SCALE) / 2, 9);
+    expect(itemOf(carted, 'cart').velocity).toEqual({ x: 40 * X_SCALE * ARROW_TO_SPEED, y: 0 });
+    expect(validateScene(carted).ok).toBe(true);
+    expect(READER_PROMPT).toMatch(/rectangle sitting on two small circles is a cart/);
+  });
+
+  describe('written masses', () => {
+    const labelled = (text: string, attachesTo = 'ball') =>
+      toScene({ ...modelScene, labels: [{ id: 'label-mass', text, x: 100, y: 330, attachesTo, confidence: 0.9 }] }, SIZE);
+
+    it.each([
+      ['5 kg', 5],
+      ['2.5kg', 2.5],
+      ['3 kilograms', 3],
+      ['500 g', 0.5],
+      [' 1 KG ', 1],
+    ])('reads "%s" next to an item as its mass', (text, kg) => {
+      expect(itemOf(labelled(text), 'ball').mass).toBeCloseTo(kg, 9);
+      expect(validateScene(labelled(text)).ok).toBe(true);
+    });
+
+    it.each([['fast'], ['5 m'], ['kg'], ['-2 kg']])('ignores "%s", which is not a mass', (text) => {
+      expect(itemOf(labelled(text), 'ball').mass).toBeUndefined();
+    });
+
+    it('keeps the label for the teacher to see', () => {
+      expect((labelled('5 kg') as { labels: { text: string }[] }).labels.map((entry) => entry.text)).toEqual(['5 kg']);
+    });
+
+    it('gives no mass to things that cannot have one', () => {
+      expect(itemOf(labelled('5 kg', 'pulley'), 'pulley').mass).toBeUndefined();
+      expect(validateScene(labelled('5 kg', 'pulley')).ok).toBe(true);
+    });
+
+    it('teaches the model to attach written masses', () => {
+      expect(READER_PROMPT).toMatch(/A mass written next to an item, such as 5 kg/);
+    });
+  });
+
+  it('teaches the legend: a zigzag joining two things is a spring', () => {
+    expect(READER_PROMPT).toMatch(/zigzag line joining two items is a spring/);
   });
 
   it('keeps unknown marks and labels, and makes predict points contact triggers', () => {

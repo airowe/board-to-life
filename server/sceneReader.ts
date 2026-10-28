@@ -62,6 +62,7 @@ type ModelItem = {
   push?: Push;
   from?: string;
   to?: string;
+  over?: string;
 };
 
 export type ModelScene = {
@@ -105,6 +106,7 @@ export const MODEL_SCENE_SCHEMA = objectOf(
           push: objectOf({ dx: number, dy: number }, ['dx', 'dy']),
           from: text,
           to: text,
+          over: text,
           confidence,
         },
         ['id', 'kind', 'confidence'],
@@ -138,21 +140,33 @@ Read it into the JSON format you are given. Give every position and size on a 0-
 Items may only be these kinds:
 - floor, wall, block, domino, lever: x, y is the centre; width and height; angleDegrees if drawn tilted (clockwise positive).
 - ball: x, y is the centre; radius.
+- cart: x, y, width and height are the cart's body (not its wheels); radius is the radius of its wheels.
 - ramp: a straight line from (x, y) to (x2, y2).
 - pivot: x, y is the point something turns on.
 - pulley: x, y is the centre; radius.
-- rope: from and to are the ids of the two items it ties together.
-The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A circle with a dot at its centre is a pulley; a small triangle is a pivot.
+- rope, spring: from and to are the ids of the two items it joins. If a rope runs over a pulley, from and to are the things hanging on each end, and over is the pulley's id.
+The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A rectangle sitting on two small circles is a cart: the circles are its wheels, never balls. A circle with a dot at its centre is a pulley; a small triangle is a pivot. A straight line joining two items is a rope; a zigzag line joining two items is a spring. A zigzag that joins nothing is not a spring.
 Something drawn standing on the floor or on another item rests on it: put its bottom edge exactly on that surface.
 Ignore faint, faded or smudged grey marks: they are left over from an erased drawing and are not part of this one.
-If an arrow is drawn next to a ball or block to show a push, give that item push: dx, dy, the arrow from tail to head on the same grid.
+If an arrow is drawn next to a ball, block or cart to show a push, give that item push: dx, dy, the arrow from tail to head on the same grid.
 
-Do not invent anything. Any mark that is not one of these kinds goes in unknownMarks, with a box around it and a short note of what it looks like. Handwritten words go in labels, with attachesTo set when a word names an item.
+Do not invent anything. Any mark that is not one of these kinds goes in unknownMarks, with a box around it and a short note of what it looks like. Handwritten words go in labels, with attachesTo set when a word names an item. A mass written next to an item, such as 5 kg, is a label attached to that item.
 Add one predict point: the first contact between two items that the motion leads to, which is the moment just before the interesting part. Use a and b for the two item ids.
 Measure each shape to the outer edge of its drawn lines, and give lineWidth: how thick a typical marker line is, on the same grid.
 Use short ids such as ball, ramp, domino-1, domino-2 (numbered left to right). For each item, label and mark, give confidence from 0 to 1 for how sure you are it is really there as described.`;
 
 const clamp = (value: number, max: number): number => Math.min(max, Math.max(0, value));
+
+const MASS_KINDS = new Set(['ball', 'block', 'domino', 'lever', 'cart']);
+const WRITTEN_MASS = /^\s*(\d+(?:\.\d+)?)\s*(kg|kilograms?|g|grams?)\s*$/i;
+const KILOGRAMS: Record<string, number> = { kg: 1, kilogram: 1, kilograms: 1, g: 0.001, gram: 0.001, grams: 0.001 };
+
+export const writtenMass = (text: string): number | undefined => {
+  const match = WRITTEN_MASS.exec(text);
+  if (!match?.[1] || !match[2]) return undefined;
+  const kilograms = Number(match[1]) * (KILOGRAMS[match[2].toLowerCase()] ?? 0);
+  return kilograms > 0 ? kilograms : undefined;
+};
 
 const NOT_GIVEN = new Set(['', 'null', 'none', 'undefined']);
 const given = (reference: string | undefined): string | undefined =>
@@ -195,7 +209,13 @@ export const toScene = (model: ModelScene, photo: ImageSize): unknown => {
       case 'pivot':
         return { ...base, x: px(item.x), y: py(item.y) };
       case 'rope':
-        return { ...base, ...withReference('from', item.from), ...withReference('to', item.to) };
+      case 'spring':
+        return {
+          ...base,
+          ...withReference('from', item.from),
+          ...withReference('to', item.to),
+          ...(item.kind === 'rope' ? withReference('over', item.over) : {}),
+        };
       case 'floor': {
         const y = py(item.y);
         const thickness = y === undefined ? 0 : Math.max(2, Math.min(FLOOR_THICKNESS, 2 * (size.height - y)));
@@ -205,6 +225,18 @@ export const toScene = (model: ModelScene, photo: ImageSize): unknown => {
       }
       case 'wall':
         return { ...base, x: px(item.x), y: py(item.y), width: spanX(inner(item.width, line)), height: spanY(inner(item.height, line)) };
+      case 'cart':
+        return {
+          ...base,
+          x: px(item.x),
+          y: py(item.y),
+          width: spanX(inner(item.width, line)),
+          height: spanY(inner(item.height, line)),
+          wheelRadius: radius(item.radius),
+          angle: 0,
+          ...angle,
+          ...velocity,
+        };
       default:
         return {
           ...base,
@@ -224,10 +256,22 @@ export const toScene = (model: ModelScene, photo: ImageSize): unknown => {
     const [x, y] = found.kind === 'ramp' ? [((found.x1 as number) + (found.x2 as number)) / 2, ((found.y1 as number) + (found.y2 as number)) / 2] : [found.x, found.y];
     return typeof x === 'number' && typeof y === 'number' ? { x, y } : null;
   };
+  const masses = new Map(
+    model.labels.flatMap((entry) => {
+      const kilograms = writtenMass(entry.text);
+      const item = given(entry.attachesTo);
+      return kilograms !== undefined && item !== undefined ? [[item, kilograms] as const] : [];
+    }),
+  );
   const items = bodies.map((body) => {
-    if (body.kind !== 'rope') return body;
-    const [from, to] = [centreOf(body.from), centreOf(body.to)];
-    return { ...body, length: from && to ? Math.max(1, Math.hypot(from.x - to.x, from.y - to.y)) : 1 };
+    if (body.kind !== 'rope' && body.kind !== 'spring') {
+      const mass = typeof body.id === 'string' && MASS_KINDS.has(String(body.kind)) ? masses.get(body.id) : undefined;
+      return mass === undefined ? body : { ...body, mass };
+    }
+    const [from, to, over] = [centreOf(body.from), centreOf(body.to), centreOf(body.over)];
+    const span = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(a.x - b.x, a.y - b.y);
+    const drawn = from && to ? (over ? span(from, over) + span(over, to) : span(from, to)) : 1;
+    return { ...body, length: Math.max(1, drawn) };
   });
 
   return {

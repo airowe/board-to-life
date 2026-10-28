@@ -1,6 +1,6 @@
 import { createSimulation, SETTLE_SECONDS, STEPS_PER_SECOND } from '../src/physics/simulation';
 import type { PredictQuestion } from '../src/scene/questions';
-import { BODY_KINDS, type Scene, type Trigger } from '../src/scene/schema';
+import { BODY_KINDS, isLink, type Scene, type Trigger } from '../src/scene/schema';
 import { requestModelJson, type CallOptions, type ProviderWithKey } from './sceneReader';
 
 export type Outcome = { item: string; fallen: boolean };
@@ -25,7 +25,7 @@ export const outcomesOf = (scene: Scene): Outcome[] => {
 const pairsOf = (ids: string[]): [string, string][] => ids.flatMap((a, index) => ids.slice(index + 1).map((b): [string, string] => [a, b]));
 
 export const eventsOf = (scene: Scene): SceneEvent[] => {
-  const bodies = scene.items.filter((item) => item.kind !== 'rope');
+  const bodies = scene.items.filter((item) => !isLink(item));
   const tippable = new Set(bodies.filter((item) => TIPPABLE_KINDS.includes(item.kind)).map((item) => item.id));
   const simulation = createSimulation(scene);
   simulation.step();

@@ -32,6 +32,7 @@ const scaled = (scene: Scene, factor: number): Scene => ({
       case 'ramp':
         return { ...item, x1: item.x1 * factor, y1: item.y1 * factor, x2: item.x2 * factor, y2: item.y2 * factor };
       case 'rope':
+      case 'spring':
         return item;
       default:
         return { ...item, x: item.x * factor, y: item.y * factor };

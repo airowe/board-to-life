@@ -7,18 +7,23 @@ const size = z.number().positive();
 const vector = z.object({ x: coord, y: coord });
 
 const rect = { x: coord, y: coord, width: size, height: size };
+// In kilograms, when the teacher writes one next to the item; otherwise it comes from the item's size.
+const mass = size.optional();
 
 const item = z.discriminatedUnion('kind', [
-  z.object({ id, kind: z.literal('ball'), x: coord, y: coord, radius: size, velocity: vector.optional(), confidence }),
-  z.object({ id, kind: z.literal('block'), ...rect, angle: coord.default(0), velocity: vector.optional(), confidence }),
-  z.object({ id, kind: z.literal('domino'), ...rect, angle: coord.default(0), velocity: vector.optional(), confidence }),
-  z.object({ id, kind: z.literal('lever'), ...rect, angle: coord.default(0), confidence }),
+  z.object({ id, kind: z.literal('ball'), x: coord, y: coord, radius: size, velocity: vector.optional(), mass, confidence }),
+  z.object({ id, kind: z.literal('block'), ...rect, angle: coord.default(0), velocity: vector.optional(), mass, confidence }),
+  z.object({ id, kind: z.literal('domino'), ...rect, angle: coord.default(0), velocity: vector.optional(), mass, confidence }),
+  z.object({ id, kind: z.literal('lever'), ...rect, angle: coord.default(0), mass, confidence }),
+  // x, y and the rectangle are the cart's body; a wheel sits on each bottom corner.
+  z.object({ id, kind: z.literal('cart'), ...rect, wheelRadius: size, angle: coord.default(0), velocity: vector.optional(), mass, confidence }),
   z.object({ id, kind: z.literal('ramp'), x1: coord, y1: coord, x2: coord, y2: coord, thickness: size, confidence }),
   z.object({ id, kind: z.literal('wall'), ...rect, confidence }),
   z.object({ id, kind: z.literal('floor'), ...rect, confidence }),
   z.object({ id, kind: z.literal('pivot'), x: coord, y: coord, confidence }),
   z.object({ id, kind: z.literal('pulley'), x: coord, y: coord, radius: size, confidence }),
-  z.object({ id, kind: z.literal('rope'), from: id, to: id, length: size, confidence }),
+  z.object({ id, kind: z.literal('rope'), from: id, to: id, over: id.optional(), length: size, confidence }),
+  z.object({ id, kind: z.literal('spring'), from: id, to: id, length: size, confidence }),
 ]);
 
 const joint = z.object({ id, kind: z.literal('pin'), a: id, b: id, x: coord, y: coord });
@@ -49,17 +54,17 @@ export type Trigger = Scene['predictPoints'][number]['trigger'];
 
 export const BODY_KINDS = item.options.map((option) => option.shape.kind.value) as readonly BodyKind[];
 
+// Ropes and springs join two bodies rather than being bodies themselves.
+export type Link = Extract<SceneItem, { kind: 'rope' | 'spring' }>;
+export type Body = Exclude<SceneItem, Link>;
+export const LINK_KINDS: readonly BodyKind[] = ['rope', 'spring'];
+export const isLink = (entry: SceneItem): entry is Link => LINK_KINDS.includes(entry.kind);
+
 export type ValidationResult = { ok: true; scene: Scene } | { ok: false; errors: string[] };
 
 const anchorPoints = (entry: SceneItem): { x: number; y: number }[] => {
-  switch (entry.kind) {
-    case 'ramp':
-      return [{ x: entry.x1, y: entry.y1 }, { x: entry.x2, y: entry.y2 }];
-    case 'rope':
-      return [];
-    default:
-      return [{ x: entry.x, y: entry.y }];
-  }
+  if (isLink(entry)) return [];
+  return entry.kind === 'ramp' ? [{ x: entry.x1, y: entry.y1 }, { x: entry.x2, y: entry.y2 }] : [{ x: entry.x, y: entry.y }];
 };
 
 const crossReferenceErrors = (scene: Scene): string[] => {
@@ -78,12 +83,13 @@ const crossReferenceErrors = (scene: Scene): string[] => {
   }
 
   const itemIds = new Set(scene.items.map((entry) => entry.id));
-  const ropeIds = new Set(scene.items.filter((entry) => entry.kind === 'rope').map((entry) => entry.id));
+  const links = new Map(scene.items.filter(isLink).map((entry) => [entry.id, entry.kind]));
   const requireItem = (ref: string, where: string): void => {
     if (!itemIds.has(ref)) errors.push(`${where} references missing item "${ref}"`);
   };
   const requireBody = (ref: string, where: string): void => {
-    if (ropeIds.has(ref)) errors.push(`${where}: "${ref}" is a rope, not a body`);
+    const link = links.get(ref);
+    if (link) errors.push(`${where}: "${ref}" is a ${link}, not a body`);
     else requireItem(ref, where);
   };
 
@@ -92,9 +98,14 @@ const crossReferenceErrors = (scene: Scene): string[] => {
 
   for (const entry of scene.items) {
     if (!anchorPoints(entry).every(inside)) errors.push(`item "${entry.id}" is outside the drawing`);
-    if (entry.kind === 'rope') {
-      requireBody(entry.from, `rope "${entry.id}"`);
-      requireBody(entry.to, `rope "${entry.id}"`);
+    if (isLink(entry)) {
+      requireBody(entry.from, `${entry.kind} "${entry.id}"`);
+      requireBody(entry.to, `${entry.kind} "${entry.id}"`);
+    }
+    if (entry.kind === 'rope' && entry.over !== undefined) {
+      const wheel = scene.items.find((other) => other.id === entry.over);
+      if (!wheel) requireItem(entry.over, `rope "${entry.id}"`);
+      else if (wheel.kind !== 'pulley') errors.push(`rope "${entry.id}" runs over "${entry.over}", which is not a pulley`);
     }
   }
   for (const entry of scene.joints) {

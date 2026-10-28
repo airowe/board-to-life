@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <radialGradient id="board" cx="45%" cy="40%" r="80%">
+      <stop offset="0" stop-color="#fbfbf8"/>
+      <stop offset="0.7" stop-color="#eeeeea"/>
+      <stop offset="1" stop-color="#d9d9d3"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#board)"/>
+  <path data-item="floor" d="M18.8,739.9 L59.2,738.2 L101.4,739.6 L140.1,739.9 L179.9,739.1 L218.9,740.9 L258.6,739.5 L300.4,741.3 L339.5,738.3 L378.9,740.9 L420.4,740.2 L459.9,738.9 L499.2,741.2 L538.0,738.8 L580.3,740.9 L618.1,739.5 L661.5,740.1 L698.4,740.4 L741.8,739.3 L781.6,738.1 L820.9,741.2 L861.8,739.1 L898.7,741.2 L941.8,740.9 L982.0,741.2 L1019.7,739.0 L1060.5,738.1 L1101.8,741.3 L1139.4,741.5 L1178.8,740.4" fill="none" stroke="#1d2433" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="pivot" d="M600.5,580.1 L604.4,586.5 L608.7,592.9 L612.9,600.5 L615.9,606.4 M616.0,605.7 L607.1,605.1 L600.7,605.2 L591.7,606.1 L583.9,606.0 M583.5,605.9 L587.3,599.6 L592.1,593.8 L595.2,587.5 L600.6,580.3" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="lever" d="M260.1,563.8 L300.7,564.3 L340.0,563.6 L380.1,563.5 L420.9,564.1 L460.8,563.3 L499.3,564.9 L540.4,563.6 L580.7,563.7 L620.8,564.0 L660.0,563.5 L699.2,564.6 L740.7,563.5 L780.5,563.7 L820.7,563.9 L859.0,563.0 L899.1,564.1 L939.8,564.4 M939.8,564.2 L941.0,568.0 L940.5,571.3 L940.3,576.0 L939.7,579.7 M940.0,580.1 L899.9,579.6 L860.0,580.0 L819.2,580.3 L780.6,580.0 L740.1,579.4 L700.5,579.7 L659.2,580.1 L619.8,579.4 L580.0,580.8 L539.8,579.3 L500.7,580.7 L460.5,579.5 L419.6,579.5 L379.6,580.8 L340.4,580.1 L299.8,580.0 L259.9,580.3 M259.4,580.3 L260.6,575.0 L260.6,572.0 L260.2,567.0 L260.4,564.6" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="left-block" d="M270.5,503.7 L284.3,503.7 L300.0,505.0 L315.5,503.9 L329.6,504.1 M330.1,504.6 L329.6,518.2 L329.9,534.9 L330.7,548.1 L330.1,564.3 M330.4,564.0 L314.7,563.4 L300.8,564.3 L284.3,564.1 L269.8,564.2 M270.4,563.4 L270.1,549.7 L270.6,534.5 L269.3,518.4 L270.3,504.3" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="right-block" d="M869.5,504.3 L885.7,503.8 L899.7,504.0 L914.4,503.2 L930.0,504.3 M930.6,504.0 L930.9,519.8 L929.7,534.8 L929.9,549.3 L930.2,564.4 M929.6,564.4 L914.0,563.7 L901.0,564.4 L885.9,564.6 L869.4,563.4 M870.0,563.4 L870.0,549.2 L870.0,534.0 L869.5,518.4 L870.4,503.5" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <path data-item="domino-1" d="M250.4,630.5 L255.3,630.9 L259.7,629.7 L265.3,629.6 L269.0,629.9 M268.7,630.6 L269.2,656.7 L269.1,685.2 L269.3,711.7 L268.6,739.5 M268.5,740.4 L264.9,739.0 L260.0,739.8 L255.7,740.9 L250.5,740.3 M251.4,740.4 L251.1,711.7 L250.8,686.0 L251.3,658.0 L251.2,629.7" fill="none" stroke="#1d2433" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+  <text x="280" y="470" fill="#1d2433" font-family="Marker Felt, Comic Sans MS, cursive" font-size="34">5 kg</text>
+  <text x="870" y="470" fill="#1d2433" font-family="Marker Felt, Comic Sans MS, cursive" font-size="34">1 kg</text>
+</svg>

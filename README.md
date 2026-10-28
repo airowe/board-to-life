@@ -37,7 +37,8 @@ reply goes through the same validation as the stub's, and a reply that fails val
 What the reader does with the reply, each step added because a measured run needed it:
 
 - **Board legend.** The prompt teaches a legend: a hatched rectangle is a fixed wall, a plain one can move, a circle
-  with a dot is a pulley, and a triangle is a pivot. Without it, both models read every wall as a domino. The test
+  with a dot is a pulley, a triangle is a pivot, a straight line between two things is a rope, a zigzag between two
+  things is a spring, a rectangle on two small circles is a cart, and "5 kg" next to something is its mass. Without it, both models read every wall as a domino. The test
   drawings follow the legend.
 - **Marker line width.** The model measures shapes to the outer edge of the marker line and reports how thick the
   line is. The reader takes that off: dominoes measured with the line were wide enough to stop the chain toppling.
@@ -59,7 +60,18 @@ Measured on the 8 check drawings (Oct 27; `npm run drawings -- --reader <name>`)
 Meta's one miss is the same in both runs: one domino after the gap placed just outside the matching tolerance.
 Low effort is faster but unreliable: in one read it squeezed the vertical coordinates by about 15%, and in another it
 produced a garbled field name. Baseten is mostly right about what is in the drawing, but it often misplaces the ramp
-and the ball. These are clean, generated drawings; real whiteboard photos have not been measured yet.
+and the ball. These are clean, generated drawings; real whiteboard photos have not been measured yet. `npm run photos` reads your
+own photos from `check-photos/` (ignored by git; its `SHOT-LIST.md` says what to draw) and scores each on the count of
+each kind, what happens to items picked by position, and whether doodles are flagged. Next to each read it saves the
+photo beside the scene as read.
+
+After adding springs, ropes over pulleys, carts and written masses, the check set has 16 drawings: 4 new scenes, one
+for each, plus a photo-style version of every scene. Each new scene has a negative control in its tests: the same swing
+on a rope misses, the same push on a block stops short, and the seesaw's domino stays up with the masses swapped or
+left off. Meta on all 16 (Oct 28, default effort): **14 of 16** read correctly, and the outcome was right for all 16.
+The two misses were the clean spring and seesaw drawings, each with one item placed just past the matching tolerance.
+Typical call 21 s, slowest 40 s, $0.37 per run. The run before, with square dominoes and a single domino under the
+pulley swing, scored 9 of 16.
 
 Each paid run saves every reply, its token usage and its cost under `check-runs/` (ignored by git) and adds the cost
 to `check-runs/ledger.jsonl`.
@@ -168,6 +180,7 @@ npm run drawings                                                   # the stub re
 npm run drawings -- --reader meta                                  # Muse Spark on Meta Model API (paid)
 npm run drawings -- --reader baseten                               # Muse Spark Open on Baseten (paid)
 npm run questions                                                  # draft questions for the check scenes with Meta (paid)
+npm run photos                                                     # read real photos from check-photos/ with Meta (paid)
 npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
 ```
 
@@ -195,9 +208,11 @@ What the check set still does not cover:
 
 Defined in `src/scene/schema.ts`. All positions are in the drawing's own coordinates.
 
-- **items**: `ball`, `block`, `domino`, `ramp`, `wall`, `floor`, `lever`, `pivot`, `pulley` and `rope`. Each item has
-  an `id` and a `confidence` from 0 to 1. Balls and blocks may carry an initial `velocity` in drawing units per second,
-  taken from arrows in the drawing.
+- **items**: `ball`, `block`, `domino`, `ramp`, `wall`, `floor`, `lever`, `pivot`, `pulley`, `cart`, `rope` and
+  `spring`. Each item has an `id` and a `confidence` from 0 to 1. Balls, blocks and carts may carry an initial
+  `velocity` in drawing units per second, taken from arrows in the drawing. Movable items may carry a `mass` in
+  kilograms, read from a written label such as "5 kg"; otherwise their mass comes from their size.
+- **links**: a `rope` or `spring` joins two bodies and has the length it was drawn at. A rope can run `over` a pulley.
 - **joints**: `pin` joints between two items at a point.
 - **labels**: handwritten text, optionally attached to an item.
 - **unknownMarks**: anything outside the vocabulary. These marks are flagged with a note and are never turned into
@@ -216,13 +231,25 @@ The ball is light, like a hollow ball, and dominoes have a friction of 0.6. With
 the same outcome with 1, 2 or 4 substeps, and so does the version with a gap in the chain. The predict point is the
 moment the ball first touches the first domino.
 
+How each kind behaves:
+
+| Kind | Physics |
+| --- | --- |
+| rope | a rigid link the length it was drawn; over a pulley, the two sides together never get longer and it only pulls, so the heavier side goes down |
+| spring | a soft link (stiffness 0.004) at rest at its drawn length: a ball on it stretches it to about 1.7 times and bounces |
+| cart | a body with a wheel pinned at each bottom corner; the wheels have no friction. Matter.js loses a lot of energy on rolling contact under our strong gravity (a pushed ball stops within about 200 units), so ideal, gliding wheels stand in for real rolling |
+| mass | "1 kg" weighs about as much as a domino drawn at the usual size |
+| domino | rounded edges (3 units). With square ones, a domino read just a few units too wide was shoved along the floor by a flat push instead of tipping |
+
 ## Known limitations
 
 - Webcam capture could not be tested with a real camera here. The capture-to-check path was exercised with a
   synthetic canvas stream in place of the camera.
 - Determinism is tested within one JavaScript engine. Different browsers may compute floating-point maths slightly
   differently, so the same scene is not guaranteed to give bit-identical motion on two different browsers.
-- A rope is a distance constraint between two items. It does not yet wrap over a pulley.
+- A rope over a pulley is drawn as two straight lines through the pulley's centre, not around its rim.
+- The cart's wheels glide rather than roll, and the new kinds' physics has not been checked against real carts,
+  springs or pulleys.
 - The physics rendering is plain canvas strokes, not yet the hand-inked style.
 - Frame rate and the smoothness gained from blending between steps have not been measured on a real display: the
   development browser pane throttles animation frames whenever it is hidden.

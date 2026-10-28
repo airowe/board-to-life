@@ -1,4 +1,4 @@
-import type { Scene, SceneItem } from '../scene/schema';
+import { isLink, type Body, type Link, type Scene } from '../scene/schema';
 
 // Fraction of the drawing's diagonal an item may be read away from where it was drawn.
 export const DEFAULT_TOLERANCE = 0.04;
@@ -16,10 +16,6 @@ export type SceneComparison = {
 
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; width: number; height: number };
-type Body = Exclude<SceneItem, { kind: 'rope' }>;
-type Rope = Extract<SceneItem, { kind: 'rope' }>;
-
-const isRope = (item: SceneItem): item is Rope => item.kind === 'rope';
 
 const anchors = (item: Body): Point[] =>
   item.kind === 'ramp' ? [{ x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }] : [{ x: item.x, y: item.y }];
@@ -50,8 +46,8 @@ export const compareScenes = (expected: Scene, actual: Scene, tolerance = DEFAUL
   const toExpectedRect = (rect: Rect): Rect => ({ x: rect.x * sx, y: rect.y * sy, width: rect.width * sx, height: rect.height * sy });
   const diagonal = Math.hypot(expected.drawing.width, expected.drawing.height);
 
-  const expectedBodies = expected.items.filter((item): item is Body => !isRope(item));
-  const actualBodies = actual.items.filter((item): item is Body => !isRope(item));
+  const expectedBodies = expected.items.filter((item): item is Body => !isLink(item));
+  const actualBodies = actual.items.filter((item): item is Body => !isLink(item));
 
   const candidates = expectedBodies
     .flatMap((want) =>
@@ -72,10 +68,10 @@ export const compareScenes = (expected: Scene, actual: Scene, tolerance = DEFAUL
     matched.push(candidate);
   }
 
-  const actualRopes = actual.items.filter(isRope);
-  for (const want of expected.items.filter(isRope)) {
+  const actualLinks = actual.items.filter(isLink);
+  for (const want of expected.items.filter(isLink)) {
     const ends = new Set([idMap.get(want.from), idMap.get(want.to)]);
-    const got = actualRopes.find((rope) => !taken.has(rope.id) && ends.has(rope.from) && ends.has(rope.to) && rope.from !== rope.to);
+    const got = actualLinks.find((link: Link) => link.kind === want.kind && !taken.has(link.id) && ends.has(link.from) && ends.has(link.to) && link.from !== link.to);
     if (!got) continue;
     idMap.set(want.id, got.id);
     taken.add(got.id);

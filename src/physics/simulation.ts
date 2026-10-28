@@ -1,5 +1,6 @@
 import Matter from 'matter-js';
-import type { Scene, SceneItem, Trigger } from '../scene/schema';
+import { cartWheels } from '../scene/cart';
+import { isLink, type Body as SceneBody, type Link, type Scene, type Trigger } from '../scene/schema';
 
 export const STEPS_PER_SECOND = 60;
 // Long enough for every check drawing to come to rest.
@@ -10,6 +11,16 @@ const DEFAULT_SUBSTEPS = 4;
 // limit and the outcome depends on the timestep.
 const GRAVITY_SCALE = 0.006;
 const FALLEN_RADIANS = Math.PI / 4;
+const ROPE_STIFFNESS = 0.9;
+// Soft enough that a ball visibly stretches a spring and bounces on it.
+const SPRING_STIFFNESS = 0.004;
+const SPRING_DAMPING = 0.01;
+// Matter.js loses a lot of energy on rolling contact under our strong gravity (a pushed ball stops
+// within about 200 units), so wheels glide without friction instead: an ideal wheel.
+const WHEEL_FRICTION = 0;
+const DOMINO_ROUNDING = 3;
+// A written "1 kg" weighs about as much as a domino drawn at the usual size.
+const MASS_PER_KG = 4;
 
 export type BodySnapshot = { id: string; x: number; y: number; angle: number };
 export type Observation = { kind: 'fallen'; item: string };
@@ -25,15 +36,20 @@ export type Simulation = {
 
 const { Bodies, Body, Composite, Constraint, Engine, Events } = Matter;
 
-const bodyFor = (item: Exclude<SceneItem, { kind: 'rope' }>): Matter.Body => {
+const bodyFor = (item: SceneBody): Matter.Body => {
   const label = item.id;
   switch (item.kind) {
     case 'ball':
       return Bodies.circle(item.x, item.y, item.radius, { label, friction: 0.05, frictionAir: 0.001, restitution: 0.1, density: 0.0015 });
-    case 'block':
+    // Rounded edges, like a real domino. With square ones, a domino read even a few units too wide
+    // was shoved along the floor by a flat push instead of tipping over.
     case 'domino':
+      return Bodies.rectangle(item.x, item.y, item.width, item.height, { label, angle: item.angle, friction: 0.6, density: 0.002, chamfer: { radius: DOMINO_ROUNDING } });
+    case 'block':
     case 'lever':
       return Bodies.rectangle(item.x, item.y, item.width, item.height, { label, angle: item.angle, friction: 0.6, density: 0.002 });
+    case 'cart':
+      return Bodies.rectangle(item.x, item.y, item.width, item.height, { label, angle: item.angle, friction: 0.6, frictionAir: 0.001, density: 0.002 });
     case 'ramp': {
       const length = Math.hypot(item.x2 - item.x1, item.y2 - item.y1);
       const angle = Math.atan2(item.y2 - item.y1, item.x2 - item.x1);
@@ -56,6 +72,39 @@ const bodyFor = (item: Exclude<SceneItem, { kind: 'rope' }>): Matter.Body => {
 
 const pairKey = (a: string, b: string): string => [a, b].sort().join('|');
 
+type Vector = { x: number; y: number };
+const minus = (a: Vector, b: Vector): Vector => ({ x: a.x - b.x, y: a.y - b.y });
+const dot = (a: Vector, b: Vector): number => a.x * b.x + a.y * b.y;
+const unit = (v: Vector): Vector => {
+  const length = Math.hypot(v.x, v.y) || 1;
+  return { x: v.x / length, y: v.y / length };
+};
+
+// A rope over a pulley: the two sides together are never longer than the rope, and it only
+// pulls. Matter.js has no such constraint, so it is enforced after every substep: the ends are
+// moved back toward the pulley in proportion to how light they are, and any speed that would
+// lengthen the rope is taken out as an impulse shared the same way.
+const holdRopeOverPulley = (a: Matter.Body, b: Matter.Body, wheel: Vector, length: number): void => {
+  const [toA, toB] = [unit(minus(a.position, wheel)), unit(minus(b.position, wheel))];
+  const [weightA, weightB] = [a.isStatic ? 0 : a.inverseMass, b.isStatic ? 0 : b.inverseMass];
+  const total = weightA + weightB;
+  if (total === 0) return;
+  const used = Math.hypot(a.position.x - wheel.x, a.position.y - wheel.y) + Math.hypot(b.position.x - wheel.x, b.position.y - wheel.y);
+  if (used <= length) return;
+  const excess = used - length;
+  const pull = (body: Matter.Body, direction: Vector, weight: number, amount: number): void => {
+    if (weight === 0) return;
+    Body.setPosition(body, { x: body.position.x - direction.x * amount * (weight / total), y: body.position.y - direction.y * amount * (weight / total) });
+  };
+  pull(a, toA, weightA, excess);
+  pull(b, toB, weightB, excess);
+  const lengthening = dot(a.velocity, toA) + dot(b.velocity, toB);
+  if (lengthening <= 0) return;
+  const impulse = lengthening / total;
+  if (weightA > 0) Body.setVelocity(a, { x: a.velocity.x - toA.x * impulse * weightA, y: a.velocity.y - toA.y * impulse * weightA });
+  if (weightB > 0) Body.setVelocity(b, { x: b.velocity.x - toB.x * impulse * weightB, y: b.velocity.y - toB.y * impulse * weightB });
+};
+
 export type SimulationOptions = { substeps?: number };
 
 export const createSimulation = (scene: Scene, { substeps = DEFAULT_SUBSTEPS }: SimulationOptions = {}): Simulation => {
@@ -63,12 +112,34 @@ export const createSimulation = (scene: Scene, { substeps = DEFAULT_SUBSTEPS }: 
   const engine = Engine.create({ enableSleeping: false, gravity: { x: 0, y: 1, scale: GRAVITY_SCALE } });
   const bodies = new Map<string, Matter.Body>();
   for (const item of scene.items) {
-    if (item.kind === 'rope') continue;
+    if (isLink(item)) continue;
     const body = bodyFor(item);
+    if ('mass' in item && item.mass !== undefined) Body.setMass(body, item.mass * MASS_PER_KG);
     bodies.set(item.id, body);
     Composite.add(engine.world, body);
     if ('velocity' in item && item.velocity) {
       Body.setVelocity(body, { x: item.velocity.x / STEPS_PER_SECOND, y: item.velocity.y / STEPS_PER_SECOND });
+    }
+  }
+
+  // A cart's wheels share its label, so a wheel touching something counts as the cart touching it.
+  for (const item of scene.items) {
+    if (item.kind !== 'cart') continue;
+    const cart = bodies.get(item.id);
+    if (!cart) continue;
+    const group = Body.nextGroup(true);
+    cart.collisionFilter.group = group;
+    for (const centre of cartWheels(item)) {
+      const wheel = Bodies.circle(centre.x, centre.y, item.wheelRadius, {
+        label: item.id,
+        friction: WHEEL_FRICTION,
+        frictionStatic: WHEEL_FRICTION,
+        frictionAir: 0.001,
+        density: 0.002,
+        collisionFilter: { group },
+      });
+      if (item.velocity) Body.setVelocity(wheel, { x: item.velocity.x / STEPS_PER_SECOND, y: item.velocity.y / STEPS_PER_SECOND });
+      Composite.add(engine.world, [wheel, Constraint.create({ bodyA: cart, pointA: { x: centre.x - item.x, y: centre.y - item.y }, bodyB: wheel, length: 0, stiffness: 1 })]);
     }
   }
 
@@ -78,9 +149,21 @@ export const createSimulation = (scene: Scene, { substeps = DEFAULT_SUBSTEPS }: 
     return body;
   };
 
-  for (const item of scene.items) {
-    if (item.kind !== 'rope') continue;
-    Composite.add(engine.world, Constraint.create({ bodyA: bodyById(item.from), bodyB: bodyById(item.to), length: item.length, stiffness: 0.9 }));
+  const overPulley = (item: Link): item is Extract<Link, { kind: 'rope' }> & { over: string } => item.kind === 'rope' && item.over !== undefined;
+  const wrapped = scene.items.filter(isLink).filter(overPulley);
+  for (const item of scene.items.filter(isLink)) {
+    if (overPulley(item)) continue;
+    const spring = item.kind === 'spring';
+    Composite.add(
+      engine.world,
+      Constraint.create({
+        bodyA: bodyById(item.from),
+        bodyB: bodyById(item.to),
+        length: item.length,
+        stiffness: spring ? SPRING_STIFFNESS : ROPE_STIFFNESS,
+        damping: spring ? SPRING_DAMPING : 0,
+      }),
+    );
   }
   for (const joint of scene.joints) {
     const a = bodyById(joint.a);
@@ -115,7 +198,10 @@ export const createSimulation = (scene: Scene, { substeps = DEFAULT_SUBSTEPS }: 
     },
     step: () => {
       previous = snapshot();
-      for (let i = 0; i < substeps; i += 1) Engine.update(engine, substepMs);
+      for (let i = 0; i < substeps; i += 1) {
+        Engine.update(engine, substepMs);
+        for (const rope of wrapped) holdRopeOverPulley(bodyById(rope.from), bodyById(rope.to), bodyById(rope.over).position, rope.length);
+      }
       stepIndex += 1;
     },
     snapshot,

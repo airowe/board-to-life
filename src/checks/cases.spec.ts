@@ -51,11 +51,41 @@ describe('drawing check cases', () => {
   it.each([
     ['wall-in-the-way', 'wall', 'domino-1'],
     ['pendulum-knock', 'rope', 'domino-3'],
+    ['table-pulley', 'rope', 'domino-1'],
   ])('%s: the outcome flips without the %s, so it is what decides the result', (caseId, removed, observed) => {
     const drawingCase = caseById(caseId);
     const expected = drawingCase.outcomes.find((outcome) => outcome.item === observed)?.fallen;
     const without = { ...drawingCase.scene, items: drawingCase.scene.items.filter((item) => item.id !== removed), predictPoints: [] };
     expect(observeFallen(without, [observed], SETTLE_SECONDS).get(observed)).toBe(!expected);
+  });
+
+  it('spring-swing: the same swing on a rope misses the dominoes, so the stretch is what decides the result', () => {
+    const drawingCase = caseById('spring-swing');
+    const roped = { ...drawingCase.scene, items: drawingCase.scene.items.map((item) => (item.kind === 'spring' ? { ...item, kind: 'rope' as const } : item)) };
+    expect(observeFallen(roped, ['domino-3'], SETTLE_SECONDS).get('domino-3')).toBe(false);
+  });
+
+  it('cart-roll: a block given the same push stops short, so the wheels are what decide the result', () => {
+    const drawingCase = caseById('cart-roll');
+    const blocked = {
+      ...drawingCase.scene,
+      items: drawingCase.scene.items.map((item) =>
+        item.kind === 'cart' ? { id: item.id, kind: 'block' as const, x: item.x, y: item.y + item.wheelRadius, width: item.width, height: item.height, angle: 0, velocity: item.velocity, confidence: item.confidence } : item,
+      ),
+    };
+    expect(observeFallen(blocked, ['domino-3'], SETTLE_SECONDS).get('domino-3')).toBe(false);
+  });
+
+  it.each([
+    ['swapped', { 'left-block': 1, 'right-block': 5 }],
+    ['left off', {}],
+  ])('seesaw-masses: with the masses %s the domino stays up, so the written masses decide the result', (_how, masses: Record<string, number>) => {
+    const drawingCase = caseById('seesaw-masses');
+    const reweighed = {
+      ...drawingCase.scene,
+      items: drawingCase.scene.items.map((item) => (item.kind === 'block' ? { ...item, mass: masses[item.id] } : item)),
+    };
+    expect(observeFallen(reweighed, ['domino-1'], SETTLE_SECONDS).get('domino-1')).toBe(false);
   });
 
   it('has a photo-style variant of every clean drawing', () => {

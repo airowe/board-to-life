@@ -1,4 +1,6 @@
-import type { Scene, SceneItem } from '../scene/schema';
+import { isLink, type Scene, type SceneItem } from '../scene/schema';
+import { cartWheels } from '../scene/cart';
+import { linkPoints } from '../scene/linkPoints';
 
 type Point = { x: number; y: number };
 type Jitter = (amount: number) => number;
@@ -11,7 +13,8 @@ const GHOST = '#8a8f99';
 const GHOST_OFFSET = { x: 23, y: -14 };
 const GHOST_SEED_SHIFT = 101;
 const ARROW_LENGTH = 80;
-const SCRIBBLE_TURNS = 7;
+const SPIRAL_TURNS = 3;
+const SPIRAL_STEPS = 60;
 const HATCH_SPACING = 14;
 
 const seededJitter = (seed: number): Jitter => {
@@ -85,6 +88,8 @@ const itemPath =(jitter: Jitter, item: SceneItem, byId: Map<string, SceneItem>):
     case 'domino':
     case 'lever':
       return wobblyPolygon(jitter, corners(item, item.width, item.height, item.angle));
+    case 'cart':
+      return [wobblyPolygon(jitter, corners(item, item.width, item.height, item.angle)), ...cartWheels(item).map((wheel) => wobblyCircle(jitter, wheel, item.wheelRadius))].join(' ');
     case 'wall':
       return wobblyPolygon(jitter, corners(item, item.width, item.height, 0));
     case 'floor': {
@@ -97,17 +102,26 @@ const itemPath =(jitter: Jitter, item: SceneItem, byId: Map<string, SceneItem>):
       return wobblyPolygon(jitter, [item, { x: item.x + 16, y: item.y + 26 }, { x: item.x - 16, y: item.y + 26 }]);
     case 'pulley':
       return `${wobblyCircle(jitter, item, item.radius)} ${wobblyCircle(jitter, item, 2)}`;
-    case 'rope': {
+    case 'rope':
+    case 'spring': {
+      // Start and end at the edge of what the link joins, not its centre.
       const [fromItem, toItem] = [byId.get(item.from), byId.get(item.to)];
       const [from, to] = [centreOf(fromItem), centreOf(toItem)];
+      const over = item.kind === 'rope' && item.over !== undefined ? centreOf(byId.get(item.over)) : null;
       if (!from || !to) return '';
-      return wobblyLine(jitter, towards(from, to, radiusOf(fromItem)), towards(to, from, radiusOf(toItem)), 2);
+      const ends = new Map([
+        [item.from, towards(from, over ?? to, radiusOf(fromItem))],
+        [item.to, towards(to, over ?? from, radiusOf(toItem))],
+      ]);
+      const points = linkPoints(item, (id) => ends.get(id) ?? centreOf(byId.get(id)));
+      if (item.kind === 'spring') return pathOf(points.map((point) => ({ x: point.x + jitter(2), y: point.y + jitter(2) })));
+      return points.slice(1).map((point, index) => wobblyLine(jitter, points[index] ?? point, point, 2)).join(' ');
     }
   }
 };
 
 const itemColour = (item: SceneItem): string => (item.kind === 'ball' ? MARKER : INK);
-const itemWidth = (item: SceneItem): number => (item.kind === 'rope' ? 4 : item.kind === 'floor' || item.kind === 'ramp' ? 7 : 5);
+const itemWidth = (item: SceneItem): number => (isLink(item) ? 4 : item.kind === 'floor' || item.kind === 'ramp' ? 7 : 5);
 
 const arrow = (jitter: Jitter, item: SceneItem): string | null => {
   if (!('velocity' in item) || !item.velocity) return null;
@@ -134,11 +148,13 @@ const hatch = (jitter: Jitter, item: SceneItem): string | null => {
   return stroke(lines.join(' '), INK, 3, `data-hatch="${item.id}"`);
 };
 
+// Doodles are spirals: a zigzag would read as a spring.
 const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string => {
-  const points = Array.from({ length: SCRIBBLE_TURNS * 2 + 1 }, (_, i) => ({
-    x: mark.x - mark.width / 2 + (mark.width * i) / (SCRIBBLE_TURNS * 2) + jitter(4),
-    y: mark.y + (i % 2 === 0 ? -1 : 1) * (mark.height / 2 - 8) + jitter(6),
-  }));
+  const points = Array.from({ length: SPIRAL_STEPS + 1 }, (_, i) => {
+    const t = i / SPIRAL_STEPS;
+    const angle = t * SPIRAL_TURNS * Math.PI * 2;
+    return { x: mark.x + Math.cos(angle) * t * (mark.width / 2 - 6) + jitter(3), y: mark.y + Math.sin(angle) * t * (mark.height / 2 - 6) + jitter(3) };
+  });
   return stroke(pathOf(points), ORANGE, 4, `data-mark="${mark.id}"`);
 };
 
