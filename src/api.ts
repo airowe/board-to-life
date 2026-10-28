@@ -1,7 +1,9 @@
 export type ApiFailure = { ok: false; retryable: boolean; message: string; details?: string[] };
 export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
 
-type Options = { timeoutMs: number; fetchImpl?: typeof fetch };
+type Options = { timeoutMs: number; fetchImpl?: typeof fetch; signal?: AbortSignal };
+
+const CANCELLED: ApiFailure = { ok: false, retryable: true, message: 'The request was cancelled.' };
 
 const readJson = async (response: Response): Promise<unknown> => {
   try {
@@ -15,9 +17,12 @@ const errorBody = (body: unknown): { error?: string; details?: string[] } =>
   typeof body === 'object' && body !== null ? (body as { error?: string; details?: string[] }) : {};
 
 export const requestJson = async (url: string, init: RequestInit, options: Options): Promise<ApiResult<unknown>> => {
+  if (options.signal?.aborted) return CANCELLED;
   const fetchImpl = options.fetchImpl ?? fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  const cancel = (): void => controller.abort();
+  options.signal?.addEventListener('abort', cancel);
   try {
     const response = await fetchImpl(url, { ...init, signal: controller.signal });
     const body = await readJson(response);
@@ -30,6 +35,7 @@ export const requestJson = async (url: string, init: RequestInit, options: Optio
     };
     return details && details.length > 0 ? { ...failure, details } : failure;
   } catch (cause) {
+    if (options.signal?.aborted) return CANCELLED;
     const timedOut = cause instanceof DOMException && cause.name === 'AbortError';
     return {
       ok: false,
@@ -40,5 +46,6 @@ export const requestJson = async (url: string, init: RequestInit, options: Optio
     };
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener('abort', cancel);
   }
 };

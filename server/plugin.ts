@@ -1,13 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { UNDERSTAND_TIMEOUT_MS } from '../src/reading';
 import { isProviderName, parseEffort, providerFromEnv, readSceneWithModel } from './sceneReader';
 import { handleDraftQuestions, handleUnderstand, parseStubMode, type StubMode, type StubResponse } from './stub';
 import { handleUnderstandWithModel, type ModelRead } from './understand';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STUB_LATENCY_MS = 700;
-const STUB_TIMEOUT_DELAY_MS = 30_000;
-const MODEL_TIMEOUT_MS = 60_000;
+export const STUB_TIMEOUT_DELAY_MS = UNDERSTAND_TIMEOUT_MS + 15_000;
+export const MODEL_TIMEOUT_MS = 60_000;
 
 const delayFor = (mode: StubMode): number => (mode === 'timeout' ? STUB_TIMEOUT_DELAY_MS : STUB_LATENCY_MS);
 

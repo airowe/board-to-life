@@ -22,6 +22,26 @@ describe('requestJson', () => {
     expect(result).toEqual({ ok: false, retryable: true, message: expect.stringMatching(/did not answer/) });
   });
 
+  it('stops when the caller cancels, and says so rather than blaming a timeout', async () => {
+    const caller = new AbortController();
+    const pending = requestJson('/x', {}, { timeoutMs: 60_000, fetchImpl: hangingFetch, signal: caller.signal });
+    caller.abort();
+    expect(await pending).toEqual({ ok: false, retryable: true, message: 'The request was cancelled.' });
+  });
+
+  it('does not start a request the caller already cancelled', async () => {
+    const caller = new AbortController();
+    caller.abort();
+    let called = false;
+    const fetchImpl: typeof fetch = (url, init) => {
+      called = true;
+      return hangingFetch(url, init);
+    };
+    const result = await requestJson('/x', {}, { timeoutMs: TIMEOUT_MS, fetchImpl, signal: caller.signal });
+    expect(result).toEqual({ ok: false, retryable: true, message: 'The request was cancelled.' });
+    expect(called).toBe(false);
+  });
+
   it('surfaces the server error and its details', async () => {
     const fetchImpl = respondWith(422, { error: 'Bad draft.', details: ['q-1 cites missing item "domino-9"'] });
     const result = await requestJson('/x', {}, { timeoutMs: TIMEOUT_MS, fetchImpl });

@@ -1,5 +1,6 @@
 import { requestJson, type ApiFailure } from './api';
 import { preparePhoto } from './capture/downscale';
+import { describeReading, UNDERSTAND_TIMEOUT_MS } from './reading';
 import { checkGrounding } from './scene/questions';
 import { validateScene, type Scene } from './scene/schema';
 import { createSession } from './session/store';
@@ -9,6 +10,7 @@ import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 
 const REQUEST_TIMEOUT_MS = 8000;
+const PROGRESS_TICK_MS = 1000;
 
 const requireElement = <T extends Element>(selector: string): T => {
   const element = document.querySelector<T>(selector);
@@ -25,8 +27,11 @@ let cleanup: () => void = noop;
 let photoUrl: string | null = null;
 let checkScreen: CheckScreen | null = null;
 let activeDraftId = 0;
+let activeRead: AbortController | null = null;
 
 const leaveScreen = (): void => {
+  activeRead?.abort();
+  activeRead = null;
   cleanup();
   cleanup = noop;
   checkScreen = null;
@@ -37,6 +42,31 @@ const stubHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.v
 const showLoading = (message: string): void => {
   leaveScreen();
   root.replaceChildren(h('section', { class: 'loading', role: 'status' }, h('div', { class: 'spinner' }), h('p', {}, message)));
+};
+
+const showReading = (read: AbortController): void => {
+  leaveScreen();
+  activeRead = read;
+  const startedAt = performance.now();
+  const headline = h('p', { class: 'reading-headline' });
+  const detail = h('p', { class: 'reading-detail' });
+  const section = h(
+    'section',
+    { class: 'loading reading', role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'spinner' }),
+    h('div', {}, headline, detail),
+    h('button', { class: 'quiet', onclick: showCapture }, 'Cancel'),
+  );
+  const tick = (): void => {
+    const progress = describeReading(performance.now() - startedAt);
+    if (headline.textContent !== progress.headline) headline.textContent = progress.headline;
+    detail.textContent = progress.detail;
+    section.classList.toggle('late', progress.late);
+  };
+  tick();
+  const timer = setInterval(tick, PROGRESS_TICK_MS);
+  cleanup = () => clearInterval(timer);
+  root.replaceChildren(section);
 };
 
 const showError = (failure: Pick<ApiFailure, 'message' | 'details'>, retry: () => void): void => {
@@ -75,12 +105,15 @@ const draftQuestions = async (draftId: number, scene: Scene): Promise<void> => {
 
 const readDrawing = async (photo: Blob): Promise<void> => {
   const retry = (): void => void readDrawing(photo);
-  showLoading('Reading the drawing…');
+  const read = new AbortController();
+  showReading(read);
   const understood = await requestJson(
     '/api/understand',
     { method: 'POST', body: photo, headers: { 'content-type': photo.type || 'application/octet-stream', ...stubHeaders() } },
-    { timeoutMs: REQUEST_TIMEOUT_MS },
+    { timeoutMs: UNDERSTAND_TIMEOUT_MS, signal: read.signal },
   );
+  if (read.signal.aborted) return;
+  activeRead = null;
   if (!understood.ok) return showError(understood, retry);
 
   const scene = validateScene((understood.data as { scene?: unknown } | null)?.scene);
