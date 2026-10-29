@@ -69,7 +69,7 @@ Until real photos are taken, `npm run photos:mock` makes stand-ins for the shot 
 new hand, on a framed whiteboard filling about 60% of the shot, at 4032 × 3024, tilted slightly or (for `01-chain-angle`)
 about 30 degrees off to the side, in uneven light. They test framing, angle and scale; they are still generated drawings,
 not real handwriting. Meta on the 10 mocks (Oct 28): **10 of 10** correct, including both stays-up outcomes and the
-flagged doodle. Typical read 18 s; the pendulum took 71 s, close to the app's 75 s limit. $0.27 for the run.
+flagged doodle. Typical read 18 s; the pendulum took 71 s, longer than the server's 60 s limit at the time, so the app would have failed it. $0.27 for the run.
 
 After adding springs, ropes over pulleys, carts and written masses, the check set has 16 drawings: 4 new scenes, one
 for each, plus a photo-style version of every scene. Each new scene has a negative control in its tests: the same swing
@@ -78,6 +78,10 @@ left off. Meta on all 16 (Oct 28, default effort): **14 of 16** read correctly, 
 The two misses were the clean spring and seesaw drawings, each with one item placed just past the matching tolerance.
 Typical call 21 s, slowest 40 s, $0.37 per run. The run before, with square dominoes and a single domino under the
 pulley swing, scored 9 of 16.
+
+Every model call, reading or drafting, has a budget of 120 s and tries once more after a dropped connection, a busy or
+failing server (429 or 5xx) or a reply that is not JSON. A rejected key or request is not retried, and neither is a call
+that used up the budget. The browser waits 130 s, longer than the server, so the server's own error reaches the teacher.
 
 Each paid run saves every reply, its token usage and its cost under `check-runs/` (ignored by git) and adds the cost
 to `check-runs/ledger.jsonl`.
@@ -115,7 +119,7 @@ Open http://127.0.0.1:5173.
    its EXIF orientation and scaled so its long edge is at most 1600 px, then sent as JPEG.
 2. **Check**: the check screen opens as soon as the scene is read; the predict questions are drafted while the teacher
    looks it over, and Approve stays disabled until they arrive. While the scene is read, the screen shows the seconds
-   elapsed against the usual 20 s, and Cancel goes back to capture; the browser gives up after 75 s. The scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
+   elapsed against the usual 20 s, and Cancel goes back to capture; the browser gives up after 130 s. The scene is drawn over the photo. Items below 70% confidence are dashed in amber, and marks the reader
    did not understand are boxed in red and will not be animated. The drafted question is labelled *Draft · not shown to
    the class*.
 3. **Approve**: this stores a separate, labelled approved copy. "Present to the class" stays disabled until then.
@@ -132,7 +136,7 @@ The "Stub mode" menu in the header makes the stubs misbehave so the error screen
 | --- | --- | --- |
 | `ok` | fixed scene and questions | check screen |
 | `error` | `/understand` returns 503 | message and Try again |
-| `timeout` | `/understand` waits 30 s; the client gives up at 8 s | "did not answer within 8 seconds" and Try again |
+| `timeout` | `/understand` waits 145 s; the client gives up at 130 s | "did not answer within 130 seconds" and Try again |
 | `invalid scene` | the scene contains a `spring`, which is outside the vocabulary | validation errors and Try again |
 | `ungrounded draft` | the draft cites `domino-9`, which is not in the scene | the check screen with a grounding error in place of the questions, and Draft again |
 

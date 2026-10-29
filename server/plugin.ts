@@ -10,7 +10,8 @@ import { handleUnderstandWithModel, type ModelRead } from './understand';
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STUB_LATENCY_MS = 700;
 export const STUB_TIMEOUT_DELAY_MS = MODEL_REQUEST_TIMEOUT_MS + 15_000;
-export const MODEL_TIMEOUT_MS = 60_000;
+// The whole budget for one read or draft, a retry included: the slowest read measured took 71 s.
+export const MODEL_TIMEOUT_MS = 120_000;
 
 const delayFor = (mode: StubMode): number => (mode === 'timeout' ? STUB_TIMEOUT_DELAY_MS : STUB_LATENCY_MS);
 

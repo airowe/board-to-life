@@ -297,7 +297,7 @@ export const EFFORTS = ['minimal', 'low', 'medium', 'high'] as const;
 export type Effort = (typeof EFFORTS)[number];
 export const parseEffort = (value: string | undefined): Effort | undefined => EFFORTS.find((effort) => effort === value);
 
-export type CallOptions = { timeoutMs: number; fetchImpl?: typeof fetch; onCall?: (record: CallRecord) => void; effort?: Effort };
+export type CallOptions = { timeoutMs: number; fetchImpl?: typeof fetch; onCall?: (record: CallRecord) => void; effort?: Effort; retryDelayMs?: number };
 
 const usageOf = (body: unknown): Usage | null => {
   const usage = typeof body === 'object' && body !== null && 'usage' in body ? body.usage : null;
@@ -320,33 +320,61 @@ const completionText = (body: unknown): string | null => {
 export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 export type JsonSchema = { name: string; schema: Record<string, unknown> };
 
-export const requestModelJson = async (
+// A failure worth one more try: a dropped connection, a busy or failing server, or a garbled reply.
+// A rejected key or request will fail the same way again, and a call that ran out of time has used
+// up the budget, so neither is retried.
+class ModelCallError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+const RETRIES = 1;
+const RETRY_DELAY_MS = 1000;
+const isRetryableStatus = (status: number): boolean => status === 429 || status >= 500;
+
+const callModelOnce = async (
   content: ContentPart[],
   responseSchema: JsonSchema,
   provider: ProviderWithKey,
   options: CallOptions,
+  timeoutMs: number,
 ): Promise<object> => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
   const record = { provider: provider.name, status: null as number | null, content: null as string | null, usage: null as Usage | null };
   const report = (error: string | null): void => options.onCall?.({ ...record, ms: Math.round(performance.now() - started), error });
   try {
-    const response = await fetchImpl(`${provider.baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { authorization: `Bearer ${provider.apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: provider.model,
-        ...(options.effort ? { reasoning_effort: options.effort } : {}),
-        messages: [{ role: 'user', content }],
-        response_format: { type: 'json_schema', json_schema: responseSchema },
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetchImpl(`${provider.baseUrl}/chat/completions`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { authorization: `Bearer ${provider.apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: provider.model,
+          ...(options.effort ? { reasoning_effort: options.effort } : {}),
+          messages: [{ role: 'user', content }],
+          response_format: { type: 'json_schema', json_schema: responseSchema },
+        }),
+      });
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === 'AbortError') {
+        throw new ModelCallError(`${provider.name} did not answer within ${Math.round(timeoutMs / 1000)} seconds`, false, { cause });
+      }
+      throw new ModelCallError(cause instanceof Error ? cause.message : String(cause), true, { cause });
+    }
     record.status = response.status;
     const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(`${provider.name} answered ${response.status}: ${errorMessage(body) ?? 'no error message'}`);
+    if (!response.ok) {
+      throw new ModelCallError(`${provider.name} answered ${response.status}: ${errorMessage(body) ?? 'no error message'}`, isRetryableStatus(response.status));
+    }
     record.usage = usageOf(body);
     record.content = completionText(body);
     let parsed: unknown;
@@ -355,18 +383,36 @@ export const requestModelJson = async (
     } catch {
       parsed = null;
     }
-    if (typeof parsed !== 'object' || parsed === null) throw new Error(`${provider.name} did not return JSON`);
+    if (typeof parsed !== 'object' || parsed === null) throw new ModelCallError(`${provider.name} did not return JSON`, true);
     report(null);
     return parsed;
-  } catch (cause) {
-    const error =
-      cause instanceof DOMException && cause.name === 'AbortError'
-        ? new Error(`${provider.name} did not answer within ${Math.round(options.timeoutMs / 1000)} seconds`, { cause })
-        : cause;
+  } catch (error) {
     report(error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
     clearTimeout(timer);
+  }
+};
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+// timeoutMs is the budget for the whole request, retry included.
+export const requestModelJson = async (
+  content: ContentPart[],
+  responseSchema: JsonSchema,
+  provider: ProviderWithKey,
+  options: CallOptions,
+): Promise<object> => {
+  const deadline = performance.now() + options.timeoutMs;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await callModelOnce(content, responseSchema, provider, options, Math.max(1, deadline - performance.now()));
+    } catch (error) {
+      const retry = error instanceof ModelCallError && error.retryable && attempt < RETRIES;
+      if (!retry) throw error;
+      await wait(options.retryDelayMs ?? RETRY_DELAY_MS);
+      if (performance.now() >= deadline) throw error;
+    }
   }
 };
 

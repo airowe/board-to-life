@@ -276,15 +276,68 @@ describe('readSceneWithModel', () => {
   });
 
   it('fails clearly when the model does not return JSON', async () => {
-    await expect(readSceneWithModel(PHOTO, provider, { timeoutMs: TIMEOUT_MS, fetchImpl: fakeFetch(200, completion('sorry, no')) })).rejects.toThrow(
-      'meta did not return JSON',
-    );
+    await expect(
+      readSceneWithModel(PHOTO, provider, { timeoutMs: TIMEOUT_MS, fetchImpl: fakeFetch(200, completion('sorry, no')), retryDelayMs: 0 }),
+    ).rejects.toThrow('meta did not return JSON');
   });
 
   it('gives up after the timeout', async () => {
     const never: typeof fetch = (_input, init) =>
       new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
     await expect(readSceneWithModel(PHOTO, provider, { timeoutMs: 10, fetchImpl: never })).rejects.toThrow('meta did not answer within 0 seconds');
+  });
+});
+
+describe('retrying a model call', () => {
+  type Answer = { status: number; body: string } | 'network' | 'hang';
+  const scripted = (answers: Answer[], calls: Call[] = []): typeof fetch =>
+    (input, init) => {
+      calls.push({ url: String(input), init: init ?? {} });
+      const answer = answers[Math.min(calls.length - 1, answers.length - 1)] ?? 'network';
+      if (answer === 'network') return Promise.reject(new TypeError('fetch failed'));
+      if (answer === 'hang') {
+        return new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+      }
+      return Promise.resolve(new Response(answer.body, { status: answer.status, headers: { 'content-type': 'application/json' } }));
+    };
+  const good = { status: 200, body: completion(JSON.stringify(modelScene)) };
+  const read = (answers: Answer[], calls: Call[], records: CallRecord[] = [], timeoutMs = TIMEOUT_MS) =>
+    readSceneWithModel(PHOTO, provider, { timeoutMs, fetchImpl: scripted(answers, calls), onCall: (record) => records.push(record), retryDelayMs: 0 });
+
+  it.each([
+    ['a dropped connection', 'network' as const],
+    ['a busy server', { status: 429, body: JSON.stringify({ error: 'rate limited' }) }],
+    ['a server error', { status: 503, body: JSON.stringify({ error: 'overloaded' }) }],
+    ['a reply that is not JSON', { status: 200, body: completion('sorry, no') }],
+  ])('tries once more after %s, and returns the second answer', async (_what, first) => {
+    const calls: Call[] = [];
+    const records: CallRecord[] = [];
+    await expect(read([first, good], calls, records)).resolves.toEqual(toScene(modelScene, SIZE));
+    expect(calls).toHaveLength(2);
+    expect(records.map((record) => record.error === null)).toEqual([false, true]);
+  });
+
+  it.each([
+    [400, 'Bad request'],
+    [401, 'Invalid API key'],
+  ])('does not retry a %i, which will not pass on a second try', async (status, message) => {
+    const calls: Call[] = [];
+    await expect(read([{ status, body: JSON.stringify({ error: { message } }) }, good], calls)).rejects.toThrow(`meta answered ${status}: ${message}`);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('tries only once more, and fails with the second error', async () => {
+    const calls: Call[] = [];
+    await expect(read(['network', { status: 503, body: JSON.stringify({ error: 'still overloaded' }) }, good], calls)).rejects.toThrow(
+      'meta answered 503: still overloaded',
+    );
+    expect(calls).toHaveLength(2);
+  });
+
+  it('does not start again after a call that used up the whole time budget', async () => {
+    const calls: Call[] = [];
+    await expect(read(['hang', good], calls, [], 30)).rejects.toThrow('did not answer within');
+    expect(calls).toHaveLength(1);
   });
 });
 

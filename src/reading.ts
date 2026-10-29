@@ -1,4 +1,4 @@
-export const MODEL_REQUEST_TIMEOUT_MS = 75_000;
+export const MODEL_REQUEST_TIMEOUT_MS = 130_000;
 export const TYPICAL_READ_MS = 20_000;
 
 const SECOND = 1000;
