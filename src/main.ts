@@ -1,3 +1,4 @@
+import { accessHeaders, rememberAccessCode } from './access';
 import { requestJson, type ApiFailure } from './api';
 import { preparePhoto } from './capture/downscale';
 import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote } from './reading';
@@ -37,7 +38,11 @@ const leaveScreen = (): void => {
   checkScreen = null;
 };
 
-const stubHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value });
+const accessCode = rememberAccessCode(location.search, {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+});
+const requestHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value, ...accessHeaders(accessCode) });
 
 const showLoading = (message: string): void => {
   leaveScreen();
@@ -91,7 +96,7 @@ const draftQuestions = async (draftId: number, scene: Scene): Promise<void> => {
   report({ kind: 'drafting' });
   const drafted = await requestJson(
     '/api/draft-questions',
-    { method: 'POST', body: JSON.stringify({ scene }), headers: { 'content-type': 'application/json', ...stubHeaders() } },
+    { method: 'POST', body: JSON.stringify({ scene }), headers: { 'content-type': 'application/json', ...requestHeaders() } },
     { timeoutMs: MODEL_REQUEST_TIMEOUT_MS },
   );
   if (!drafted.ok) return report({ kind: 'failed', failure: drafted, retry });
@@ -109,7 +114,7 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   showReading(read);
   const understood = await requestJson(
     '/api/understand',
-    { method: 'POST', body: photo, headers: { 'content-type': photo.type || 'application/octet-stream', ...stubHeaders() } },
+    { method: 'POST', body: photo, headers: { 'content-type': photo.type || 'application/octet-stream', ...requestHeaders() } },
     { timeoutMs: MODEL_REQUEST_TIMEOUT_MS, signal: read.signal },
   );
   if (read.signal.aborted) return;
@@ -144,7 +149,7 @@ function showPresent(): void {
   const lesson = session.presentable();
   if (!lesson) return showCheck();
   leaveScreen();
-  cleanup = renderPresent(root, lesson, showCheck);
+  cleanup = renderPresent(root, lesson, photoUrl, showCheck);
 }
 
 function showCapture(): void {

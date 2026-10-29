@@ -79,6 +79,11 @@ The two misses were the clean spring and seesaw drawings, each with one item pla
 Typical call 21 s, slowest 40 s, $0.37 per run. The run before, with square dominoes and a single domino under the
 pulley swing, scored 9 of 16.
 
+Muse Spark Open on Baseten on the same 16 (Oct 29): **5 of 16** read correctly. Of the other 11, nine named every item
+right and gave the right outcome but placed a ramp, ball, pulley or block past the matching tolerance, and two replies
+failed validation with a duplicate id (`block-1`, `predict-1`). Every outcome it could be scored on was right. Typical
+call 22 s, slowest 36 s, $0.49 per run. The live site uses Meta's Muse Spark.
+
 Every model call, reading or drafting, has a budget of 120 s and tries once more after a dropped connection, a busy or
 failing server (429 or 5xx) or a reply that is not JSON. A rejected key or request is not retried, and neither is a call
 that used up the budget. The browser waits 130 s, longer than the server, so the server's own error reaches the teacher.
@@ -127,6 +132,24 @@ Open http://127.0.0.1:5173.
    is computed from the simulation ("Yes: domino-5 fell over"). Replay (or R) restarts from the same approved scene.
    The canvas redraws only while something moves, and positions are blended between physics steps so motion stays
    smooth on displays faster than 60 Hz.
+
+   The scene plays **on the photo itself**. Each moving item's own strokes are painted over in the board colour where it
+   was drawn, and the item is drawn again wherever the physics puts it, so the class sees their own board come to life.
+   The patch colour is the median of a ring just around the item (`src/present/onPhoto.ts`), which follows uneven light
+   and ignores other strokes crossing the ring. Fixed items (floor, walls, ramps, pulleys) stay as the teacher drew them;
+   where a patch overlaps one, the photo is put back inside that item's outline. "Show the clean drawing" switches to
+   plain strokes on a blank board, with written labels such as "5 kg" riding along with their item.
+
+## Live site
+
+The app is deployed on Vercel at https://board-to-life.vercel.app. `npm run build:vercel` builds it in Vercel's Build
+Output format (`scripts/build-vercel.mjs`): the app as static files, and `/api/understand` and `/api/draft-questions`
+as Node functions bundled from `server/vercel.ts`, which runs the same middleware as the dev server.
+
+Because each photo is a paid model call, the API answers only requests that carry the access code when `ACCESS_CODE`
+is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
+it as the `x-access-code` header. Without it the API answers 401 and the app says to open the link from the submission
+page. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository.
 
 ### Stub modes (error states)
 
@@ -262,6 +285,10 @@ How each kind behaves:
 - The cart's wheels glide rather than roll, and the new kinds' physics has not been checked against real carts,
   springs or pulleys.
 - The physics rendering is plain canvas strokes, not yet the hand-inked style.
+- Playing on the photo assumes the photo is the drawing, square-on: a strongly angled photo puts patches and redrawn
+  items slightly off the teacher's strokes. Where a moving item overlaps a fixed one, such as a ball resting on a
+  ramp, a sliver of its original stroke stays on the photo. Labels attached to a moving item stay where they were
+  written on the photo; only the clean drawing moves them.
 - Frame rate and the smoothness gained from blending between steps have not been measured on a real display: the
   development browser pane throttles animation frames whenever it is hidden.
 - The ball shoves domino-1 about 60–130 drawing units along the floor before the chain topples. That is what the engine

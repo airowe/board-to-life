@@ -471,6 +471,12 @@ button:disabled {
   right: 16px;
 }
 
+.photo-toggle {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
 .drafting {
   display: flex;
   align-items: center;

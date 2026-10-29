@@ -1,8 +1,9 @@
 import { SETTLE_SECONDS, STEPS_PER_SECOND, type BodySnapshot } from '../physics/simulation';
 import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
+import { erasePatches, keepShapes, ringColour, type Patch, type PatchShape } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
-import type { Scene, SceneItem } from '../scene/schema';
+import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { linkPoints } from '../scene/linkPoints';
 import type { Lesson } from '../session/store';
@@ -105,7 +106,102 @@ const drawItem = (
   ctx.restore();
 };
 
-const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapshot[]): void => {
+// How far beyond a patch the board colour is sampled, in drawing units.
+const SAMPLE_MARGIN = 10;
+const LABEL_FONT = '600 30px system-ui, sans-serif';
+
+const tracePatch = (ctx: CanvasRenderingContext2D, patch: Patch): void => {
+  const { shape } = patch;
+  ctx.beginPath();
+  if (shape.kind === 'circle') {
+    ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (shape.kind === 'rect') {
+    ctx.save();
+    ctx.translate(shape.x, shape.y);
+    ctx.rotate(shape.angle);
+    ctx.fillRect(-shape.width / 2, -shape.height / 2, shape.width, shape.height);
+    ctx.restore();
+  } else {
+    ctx.lineWidth = shape.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const [index, point] of shape.points.entries()) {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+  }
+};
+
+const outline = (path: Path2D, shape: PatchShape): void => {
+  if (shape.kind === 'circle') {
+    path.moveTo(shape.x + shape.radius, shape.y);
+    path.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+  } else if (shape.kind === 'rect') {
+    const [cos, sin] = [Math.cos(shape.angle), Math.sin(shape.angle)];
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx = 0, sy = 0]) => {
+      const [dx, dy] = [(sx * shape.width) / 2, (sy * shape.height) / 2];
+      return { x: shape.x + dx * cos - dy * sin, y: shape.y + dx * sin + dy * cos };
+    });
+    for (const [index, corner] of corners.entries()) {
+      if (index === 0) path.moveTo(corner.x, corner.y);
+      else path.lineTo(corner.x, corner.y);
+    }
+    path.closePath();
+  }
+};
+
+// The photo with every moving item's own strokes painted out, in drawing units scaled to the photo's pixels.
+const boardFrom = (image: HTMLImageElement, scene: Scene): { canvas: HTMLCanvasElement; moving: Set<string> } | null => {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx || canvas.width === 0) return null;
+  ctx.drawImage(image, 0, 0);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const [sx, sy] = [canvas.width / scene.drawing.width, canvas.height / scene.drawing.height];
+  const patches = erasePatches(scene);
+  const colours = patches.map((patch) =>
+    ringColour(pixels, { x: patch.bounds.x * sx, y: patch.bounds.y * sy, width: patch.bounds.width * sx, height: patch.bounds.height * sy }, SAMPLE_MARGIN * sx),
+  );
+  ctx.scale(sx, sy);
+  for (const [index, patch] of patches.entries()) {
+    ctx.fillStyle = colours[index] ?? INK.board;
+    ctx.strokeStyle = colours[index] ?? INK.board;
+    tracePatch(ctx, patch);
+  }
+  // Fixed items win where a patch overlapped them, such as the floor line under a domino.
+  const keep = new Path2D();
+  for (const shape of keepShapes(scene)) outline(keep, shape);
+  ctx.save();
+  ctx.clip(keep);
+  ctx.drawImage(image, 0, 0, scene.drawing.width, scene.drawing.height);
+  ctx.restore();
+  return { canvas, moving: new Set(patches.map((patch) => patch.id)) };
+};
+
+type Board = ReturnType<typeof boardFrom>;
+
+// Written labels ride along with the item they are attached to, such as "5 kg" on a block.
+const drawLabels = (ctx: CanvasRenderingContext2D, scene: Scene, bodies: Map<string, BodySnapshot>): void => {
+  const start = new Map(scene.items.flatMap((item) => (isLink(item) || item.kind === 'ramp' ? [] : [[item.id, item] as const])));
+  ctx.save();
+  ctx.font = LABEL_FONT;
+  ctx.fillStyle = INK.blue;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const label of scene.labels) {
+    const from = label.attachesTo ? start.get(label.attachesTo) : undefined;
+    const now = label.attachesTo ? bodies.get(label.attachesTo) : undefined;
+    const [x, y] = from && now ? [now.x + label.x - from.x, now.y + label.y - from.y] : [label.x, label.y];
+    ctx.fillText(label.text, x, y);
+  }
+  ctx.restore();
+};
+
+const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapshot[], board: Board): void => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const ratio = window.devicePixelRatio || 1;
@@ -125,13 +221,22 @@ const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapsh
   ctx.scale(scale, scale);
 
   const bodies = new Map(snapshot.map((body) => [body.id, body]));
-  for (const item of scene.items) drawItem(ctx, item, bodies.get(item.id), bodies);
+  if (!board) {
+    for (const item of scene.items) drawItem(ctx, item, bodies.get(item.id), bodies);
+    drawLabels(ctx, scene, bodies);
+    return;
+  }
+  // On the photo only what moves is drawn again, with the pulleys and pivots it hangs from or turns on.
+  ctx.drawImage(board.canvas, 0, 0, scene.drawing.width, scene.drawing.height);
+  for (const item of scene.items) {
+    if (board.moving.has(item.id) || item.kind === 'pulley' || item.kind === 'pivot') drawItem(ctx, item, bodies.get(item.id), bodies);
+  }
 };
 
 const describeResult = (happened: boolean, item: string): string =>
   happened ? `Yes: ${item} fell over.` : `No: ${item} stayed standing.`;
 
-export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => void): (() => void) => {
+export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: string | null, onExit: () => void): (() => void) => {
   const playback = createPlayback(lesson, SETTLE_SECONDS);
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Physics animation of the approved scene' });
   const caption = h('div', { class: 'caption', role: 'status', 'aria-live': 'polite' });
@@ -142,6 +247,27 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
   let frame = 0;
   let last = performance.now();
   let carry = 0;
+  let board: Board = null;
+  let onPhoto = photoUrl !== null;
+  const photoToggle = h('button', { class: 'photo-toggle quiet', hidden: true }, '');
+  const showToggle = (): void => {
+    photoToggle.hidden = board === null;
+    photoToggle.textContent = onPhoto ? 'Show the clean drawing' : 'Show it on the photo';
+  };
+  photoToggle.addEventListener('click', () => {
+    onPhoto = !onPhoto;
+    showToggle();
+    redraw.invalidate();
+  });
+  if (photoUrl) {
+    const image = new Image();
+    image.addEventListener('load', () => {
+      board = boardFrom(image, lesson.scene);
+      showToggle();
+      redraw.invalidate();
+    });
+    image.src = photoUrl;
+  }
 
   const button = (label: string, action: () => void, primary = false): HTMLButtonElement =>
     h('button', { class: primary ? 'primary big' : 'big', onclick: action }, label);
@@ -198,7 +324,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
     if (redraw.shouldDraw(moving)) {
       const sim = playback.simulation();
       const alpha = moving ? carry / STEP_MS : 1;
-      drawScene(canvas, lesson.scene, interpolate(sim.previousSnapshot(), sim.snapshot(), alpha));
+      drawScene(canvas, lesson.scene, interpolate(sim.previousSnapshot(), sim.snapshot(), alpha), onPhoto ? board : null);
     }
     showPhase(playback.phase());
     frame = requestAnimationFrame(loop);
@@ -227,6 +353,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, onExit: () => v
     canvas,
     caption,
     controls,
+    photoToggle,
     h('button', { class: 'exit quiet', onclick: exit }, 'Exit'),
   );
   root.replaceChildren(stage);
