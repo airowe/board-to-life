@@ -22,3 +22,16 @@ export const handleDescribeWithModel = async (request: ModelDescribeRequest): Pr
     return failure(502, `The scene writer failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
+
+export const handleDescribeWebWithModel = async (request: ModelDescribeRequest): Promise<StubResponse> => {
+  const checked = checkDescription(request.text);
+  if (!checked.ok) return failure(400, checked.error);
+
+  try {
+    const web = await request.describe(checked.text);
+    return { status: 200, body: { stub: false, reader: request.reader, web } };
+  } catch (error) {
+    if (error instanceof LayoutError) return layoutFailure(error);
+    return failure(502, `The food web writer failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};

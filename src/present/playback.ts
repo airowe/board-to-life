@@ -1,7 +1,7 @@
 import { STEPS_PER_SECOND, createSimulation, type Simulation } from '../physics/simulation';
 import type { PredictQuestion } from '../scene/questions';
 import type { Scene } from '../scene/schema';
-import type { Lesson } from '../session/store';
+import type { PhysicsLesson } from '../session/store';
 import { createTrailRecorder, type Trail, type TrailRecorder } from './trails';
 
 export type Result = { question: PredictQuestion; happened: boolean };
@@ -28,7 +28,7 @@ export type Playback = {
 const TRAIL_GAP = 4;
 const TRAIL_MIN_TRAVEL = 12;
 
-export const createPlayback = (lesson: Lesson, settleSeconds: number): Playback => {
+export const createPlayback = (lesson: PhysicsLesson, settleSeconds: number): Playback => {
   const settleSteps = Math.round(settleSeconds * STEPS_PER_SECOND);
   let scene = lesson.scene;
   const triggerFor = (question: PredictQuestion) =>

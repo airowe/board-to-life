@@ -4,7 +4,7 @@ import { createPlayback, type Phase } from '../present/playback';
 import { erasePatches, keepShapes, ringColour, type Patch, type PatchShape } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
 import type { Trail } from '../present/trails';
-import { toDrawing, viewOf } from '../present/view';
+import { TOUCH_REACH_PX, toDrawing, viewOf } from '../present/view';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { changedFixedItems, gripPoint, moveGrip, pickGrip, rampHandles, type Grip } from '../scene/edit';
@@ -17,8 +17,6 @@ const STEP_MS = 1000 / STEPS_PER_SECOND;
 const MAX_FRAME_MS = 100;
 
 const INK = { board: '#f7f7f3', black: '#1d2433', blue: '#1f4fbf', fill: 'rgba(31, 79, 191, 0.12)', handle: '#ffffff' };
-// How far from a piece a finger may land and still pick it up, in screen pixels: about a fingertip either side.
-const TOUCH_REACH_PX = 32;
 const HANDLE_RADIUS = 16;
 const GHOST_ALPHA = 0.3;
 
@@ -310,6 +308,7 @@ const describeResult = (happened: boolean, item: string): string =>
   happened ? `Yes: ${item} fell over.` : `No: ${item} stayed standing.`;
 
 export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: string | null, onExit: () => void): (() => void) => {
+  if (lesson.subject !== 'physics') throw new Error(`present mode cannot show a ${lesson.subject} lesson yet`);
   const playback = createPlayback(lesson, SETTLE_SECONDS);
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Physics animation of the approved scene' });
   const caption = h('div', { class: 'caption', role: 'status', 'aria-live': 'polite' });

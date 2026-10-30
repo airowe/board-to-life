@@ -1,3 +1,5 @@
+import { NOTHING_TO_PREDICT, changingSpecies, checkWebGrounding, eventOf } from '../src/ecosystem/questions';
+import { validateWeb, type Web } from '../src/ecosystem/schema';
 import { checkGrounding } from '../src/scene/questions';
 import { validateScene, type Scene } from '../src/scene/schema';
 import { outcomesOf } from './questionDrafter';
@@ -27,5 +29,25 @@ export const handleDraftQuestionsWithModel = async (request: ModelDraftRequest):
   }
   const grounded = checkGrounding(drafted, scene);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the scene.', grounded.errors);
+  return { status: 200, body: { stub: false, drafter: request.drafter, questions: grounded.questions } };
+};
+
+export type ModelWebDraft = (web: Web) => Promise<unknown>;
+export type ModelWebDraftRequest = { web: unknown; drafter: string; draft: ModelWebDraft };
+
+export const handleDraftWebQuestionsWithModel = async (request: ModelWebDraftRequest): Promise<StubResponse> => {
+  const validated = validateWeb(request.web);
+  if (!validated.ok) return failure(400, 'The web sent for drafting failed validation.', validated.errors);
+  const web = validated.web;
+  if (changingSpecies(web, eventOf(web)).length === 0) return failure(422, NOTHING_TO_PREDICT);
+
+  let drafted: unknown;
+  try {
+    drafted = await request.draft(web);
+  } catch (error) {
+    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const grounded = checkWebGrounding(drafted, web);
+  if (!grounded.ok) return failure(422, 'A drafted question cited something not in the web.', grounded.errors);
   return { status: 200, body: { stub: false, drafter: request.drafter, questions: grounded.questions } };
 };

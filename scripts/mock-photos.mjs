@@ -14,6 +14,8 @@ const { DRAWING_CASES } = await load('src/checks/cases.ts');
 const { PHOTO_CHECKS, pickItem, scorePhoto } = await load('src/checks/photos.ts');
 const { observeFallen, SETTLE_SECONDS } = await load('src/checks/replay.ts');
 const { sketchScene } = await load('src/checks/sketch.ts');
+const { WEB_SAMPLES } = await load('src/ecosystem/samples.ts');
+const { sketchWeb } = await load('src/ecosystem/sketch.ts');
 
 const sceneOf = (id) => DRAWING_CASES.find((each) => each.id === id).scene;
 
@@ -88,4 +90,14 @@ for (const [index, check] of PHOTO_CHECKS.entries()) {
   const png = execFileSync('rsvg-convert', ['-'], { input: svg });
   execFileSync('magick', photoArgs(mock.view, seed, `${outputDir}/${check.name}.jpg`), { input: png });
   console.log(`mocked check-photos/mock/${check.name}.jpg (${mock.scene}, ${mock.view})`);
+}
+
+// The food-web samples get the same treatment, in the same straight view, named web-<id>.jpg.
+const WEB_SEED_BASE = 141;
+for (const [index, sample] of WEB_SAMPLES.entries()) {
+  const seed = WEB_SEED_BASE + index;
+  const svg = sketchWeb(sample.web, seed).replace('fill="url(#board)"', `fill="${BOARD_COLOUR}"`);
+  const png = execFileSync('rsvg-convert', ['-'], { input: svg });
+  execFileSync('magick', photoArgs('straight', seed, `${outputDir}/web-${sample.id}.jpg`), { input: png });
+  console.log(`mocked check-photos/mock/web-${sample.id}.jpg (${sample.title}, straight)`);
 }

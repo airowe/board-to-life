@@ -1,84 +1,37 @@
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { linkPoints } from '../scene/linkPoints';
+import {
+  GHOST,
+  INK,
+  LABEL_FONT,
+  MARKER,
+  ORANGE,
+  RED,
+  boardBackground,
+  corners,
+  escapeText,
+  pathOf,
+  scribblePath,
+  seededJitter,
+  stroke,
+  towards,
+  wobblyCircle,
+  wobblyLine,
+  wobblyPolygon,
+  type Jitter,
+  type Point,
+} from './ink';
 
-type Point = { x: number; y: number };
-type Jitter = (amount: number) => number;
-
-const INK = '#1d2433';
-const MARKER = '#1f4fbf';
-const RED = '#c0392b';
-const ORANGE = '#d68910';
-const GHOST = '#8a8f99';
 const GHOST_OFFSET = { x: 23, y: -14 };
 const GHOST_SEED_SHIFT = 101;
 const ARROW_LENGTH = 80;
-const SPIRAL_TURNS = 3;
-const SPIRAL_STEPS = 60;
 const HATCH_SPACING = 14;
-
-const seededJitter = (seed: number): Jitter => {
-  let state = seed;
-  return (amount) => {
-    state = (state * 16807) % 2147483647;
-    return ((state - 1) / 2147483646 - 0.5) * amount;
-  };
-};
-
-const pathOf = (points: Point[]): string => `M${points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L')}`;
-
-const wobblyLine = (jitter: Jitter, from: Point, to: Point, wobble = 3): string => {
-  const segments = Math.max(4, Math.round(Math.hypot(to.x - from.x, to.y - from.y) / 40));
-  return pathOf(
-    Array.from({ length: segments + 1 }, (_, i) => {
-      const t = i / segments;
-      const edge = i === 0 || i === segments ? 0.6 : 1;
-      return { x: from.x + (to.x - from.x) * t + jitter(wobble * edge), y: from.y + (to.y - from.y) * t + jitter(wobble * edge) };
-    }),
-  );
-};
-
-const wobblyCircle = (jitter: Jitter, centre: Point, radius: number): string => {
-  const steps = 28;
-  return pathOf(
-    Array.from({ length: steps + 2 }, (_, i) => {
-      const angle = (i / steps) * Math.PI * 2 - 0.3;
-      const r = radius + jitter(3);
-      return { x: centre.x + Math.cos(angle) * r, y: centre.y + Math.sin(angle) * r };
-    }),
-  );
-};
-
-const corners = (centre: Point, width: number, height: number, angle: number): Point[] => {
-  const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
-  return [
-    [-1, -1],
-    [1, -1],
-    [1, 1],
-    [-1, 1],
-  ].map(([sx = 0, sy = 0]) => {
-    const [dx, dy] = [(sx * width) / 2, (sy * height) / 2];
-    return { x: centre.x + dx * cos - dy * sin, y: centre.y + dx * sin + dy * cos };
-  });
-};
-
-const wobblyPolygon = (jitter: Jitter, points: Point[]): string =>
-  points.map((point, i) => wobblyLine(jitter, point, points[(i + 1) % points.length] ?? point, 2)).join(' ');
-
-const stroke = (d: string, colour: string, width: number, data: string, opacity = 0.92): string =>
-  `<path ${data} d="${d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`;
-
-const escapeText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const centreOf = (item: SceneItem | undefined): Point | null =>
   item && 'x' in item && 'y' in item ? { x: item.x, y: item.y } : null;
 
 const radiusOf = (item: SceneItem | undefined): number => (item && 'radius' in item ? item.radius : 0);
-
-const towards = (from: Point, to: Point, distance: number): Point => {
-  const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-  return { x: from.x + ((to.x - from.x) / length) * distance, y: from.y + ((to.y - from.y) / length) * distance };
-};
 
 const itemPath =(jitter: Jitter, item: SceneItem, byId: Map<string, SceneItem>): string => {
   switch (item.kind) {
@@ -148,18 +101,11 @@ const hatch = (jitter: Jitter, item: SceneItem): string | null => {
   return stroke(lines.join(' '), INK, 3, `data-hatch="${item.id}"`);
 };
 
-// Doodles are spirals: a zigzag would read as a spring.
-const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string => {
-  const points = Array.from({ length: SPIRAL_STEPS + 1 }, (_, i) => {
-    const t = i / SPIRAL_STEPS;
-    const angle = t * SPIRAL_TURNS * Math.PI * 2;
-    return { x: mark.x + Math.cos(angle) * t * (mark.width / 2 - 6) + jitter(3), y: mark.y + Math.sin(angle) * t * (mark.height / 2 - 6) + jitter(3) };
-  });
-  return stroke(pathOf(points), ORANGE, 4, `data-mark="${mark.id}"`);
-};
+const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string =>
+  stroke(scribblePath(jitter, mark), ORANGE, 4, `data-mark="${mark.id}"`);
 
 const label = (entry: Scene['labels'][number]): string =>
-  `<text x="${entry.x}" y="${entry.y}" fill="${INK}" font-family="Marker Felt, Comic Sans MS, cursive" font-size="34">${escapeText(entry.text)}</text>`;
+  `<text x="${entry.x}" y="${entry.y}" fill="${INK}" font-family="${LABEL_FONT}" font-size="34">${escapeText(entry.text)}</text>`;
 
 // Marker that was wiped off but not cleaned: faint, smeared, slightly off from where it was.
 const ghostStrokes = (ghost: Scene, seed: number): string[] => {
@@ -184,14 +130,7 @@ export const sketchScene = (scene: Scene, seed: number, ghost?: Scene): string =
     ...scene.labels.map(label),
   ];
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
-  <defs>
-    <radialGradient id="board" cx="45%" cy="40%" r="80%">
-      <stop offset="0" stop-color="#fbfbf8"/>
-      <stop offset="0.7" stop-color="#eeeeea"/>
-      <stop offset="1" stop-color="#d9d9d3"/>
-    </radialGradient>
-  </defs>
-  <rect width="${width}" height="${height}" fill="url(#board)"/>
+  ${boardBackground(width, height)}
   ${parts.join('\n  ')}
 </svg>
 `;

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { rampBallDominoes } from '../src/scene/fixtures';
-import { handleUnderstandWithModel, type ModelRead } from './understand';
+import { WEB_SAMPLES } from '../src/ecosystem/samples';
+import { handleUnderstandWebWithModel, handleUnderstandWithModel, type ModelRead } from './understand';
 
 const png = new Uint8Array(readFileSync(new URL('../public/samples/ramp-ball-dominoes.png', import.meta.url)));
 const READER = 'meta';
@@ -54,5 +55,37 @@ describe('handleUnderstandWithModel', () => {
       read: () => Promise.reject(new Error('meta answered 401: Invalid API key')),
     });
     expect(response).toEqual({ status: 502, body: { error: 'The scene reader failed: meta answered 401: Invalid API key', details: [] } });
+  });
+});
+
+describe('handleUnderstandWebWithModel', () => {
+  const web = WEB_SAMPLES[0]?.web;
+
+  it('returns the validated web and which reader produced it', async () => {
+    const response = await handleUnderstandWebWithModel({ contentType: 'image/png', bytes: png, reader: READER, read: reads(web) });
+    expect(response).toEqual({ status: 200, body: { stub: false, reader: READER, web } });
+  });
+
+  it('rejects a non-image before calling the model', async () => {
+    let called = false;
+    const read: ModelRead = () => {
+      called = true;
+      return Promise.resolve(web);
+    };
+    const response = await handleUnderstandWebWithModel({ contentType: 'text/plain', bytes: png, reader: READER, read });
+    expect(response.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  it('answers 502 when the web fails validation', async () => {
+    const response = await handleUnderstandWebWithModel({ contentType: 'image/png', bytes: png, reader: READER, read: reads({ ...web, species: [] }) });
+    expect(response.status).toBe(502);
+    expect(response.body).toMatchObject({ error: 'The food web reader returned a web that failed validation.' });
+  });
+
+  it('answers 502 when the model call fails', async () => {
+    const read: ModelRead = () => Promise.reject(new Error('meta answered 500'));
+    const response = await handleUnderstandWebWithModel({ contentType: 'image/png', bytes: png, reader: READER, read });
+    expect(response).toEqual({ status: 502, body: { error: 'The food web reader failed: meta answered 500', details: [] } });
   });
 });

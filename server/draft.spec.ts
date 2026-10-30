@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../src/scene/fixtures';
-import { handleDraftQuestionsWithModel } from './draft';
+import { grasslandWeb, speciesAt, webOf } from '../src/ecosystem/fixtures';
+import { templateQuestion } from '../src/ecosystem/questions';
+import type { Web } from '../src/ecosystem/schema';
+import { handleDraftQuestionsWithModel, handleDraftWebQuestionsWithModel } from './draft';
 
 const questions: unknown = structuredClone(rampBallDominoesQuestions);
 const draftReturning = (result: unknown) => () => Promise.resolve(result);
@@ -53,5 +56,58 @@ describe('handleDraftQuestionsWithModel', () => {
     const response = await handleDraftQuestionsWithModel({ scene: rampBallDominoes, drafter: 'meta', draft: draftReturning(ungrounded) });
     expect(response.status).toBe(422);
     expect((response.body as { details: string[] }).details).toEqual(['q-1 mentions "pulley" but the scene has none']);
+  });
+});
+
+describe('handleDraftWebQuestionsWithModel', () => {
+  const web: Web = { ...grasslandWeb(), event: { kind: 'remove', species: 'fox' } };
+  const grounded: unknown = [templateQuestion(web, { kind: 'remove', species: 'fox' }, 'grass')];
+  const aloneWeb: Web = { ...webOf([speciesAt('grass', 'producer', 0, 0)], []), event: { kind: 'remove', species: 'grass' } };
+
+  it('returns grounded questions from the model', async () => {
+    const response = await handleDraftWebQuestionsWithModel({ web, drafter: 'meta', draft: draftReturning(grounded) });
+    expect(response).toEqual({ status: 200, body: { stub: false, drafter: 'meta', questions: grounded } });
+  });
+
+  it('rejects a web that fails validation without calling the model', async () => {
+    let called = false;
+    const draft = () => {
+      called = true;
+      return Promise.resolve(grounded);
+    };
+    const response = await handleDraftWebQuestionsWithModel({ web: { version: 1 }, drafter: 'meta', draft });
+    expect(response.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  it('answers 422 without calling the model when nothing changes after the event', async () => {
+    let called = false;
+    const draft = () => {
+      called = true;
+      return Promise.resolve(grounded);
+    };
+    const response = await handleDraftWebQuestionsWithModel({ web: aloneWeb, drafter: 'meta', draft });
+    expect(response).toEqual({ status: 422, body: { error: 'Nothing in the web changes after the event, so there is nothing to predict.', details: [] } });
+    expect(called).toBe(false);
+  });
+
+  it('reports a failed model call', async () => {
+    const draft = () => Promise.reject(new Error('meta answered 500: overloaded'));
+    const response = await handleDraftWebQuestionsWithModel({ web, drafter: 'meta', draft });
+    expect(response).toEqual({ status: 502, body: { error: 'The question drafter failed: meta answered 500: overloaded', details: [] } });
+  });
+
+  it('rejects a drafted question that cites a species not in the web', async () => {
+    const ungrounded = [{ ...templateQuestion(web, { kind: 'remove', species: 'fox' }, 'grass'), cites: ['grass', 'wolf'] }];
+    const response = await handleDraftWebQuestionsWithModel({ web, drafter: 'meta', draft: draftReturning(ungrounded) });
+    expect(response.status).toBe(422);
+    expect((response.body as { details: string[] }).details).toEqual(['q-1 cites missing species "wolf"']);
+  });
+
+  it('rejects a drafted question about the removed species', async () => {
+    const aboutFox = [{ ...templateQuestion(web, { kind: 'remove', species: 'fox' }, 'grass'), observe: { kind: 'direction', species: 'fox' } }];
+    const response = await handleDraftWebQuestionsWithModel({ web, drafter: 'meta', draft: draftReturning(aboutFox) });
+    expect(response.status).toBe(422);
+    expect((response.body as { details: string[] }).details).toEqual(['q-1 observes "fox", which the event removes']);
   });
 });

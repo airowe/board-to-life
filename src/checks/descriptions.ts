@@ -43,7 +43,7 @@ const heavierBlockSinksAndLighterRises = (scene: Scene, { drop }: LayoutOutcome)
 const THREE_DOMINOES = 3;
 const FIVE_DOMINOES = 5;
 const example = (index: number): string => {
-  const text = DESCRIPTION_EXAMPLES[index];
+  const text = DESCRIPTION_EXAMPLES.physics[index];
   if (text === undefined) throw new Error(`no description example ${index}`);
   return text;
 };

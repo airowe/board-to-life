@@ -5,11 +5,15 @@ import { hasAccess } from './access';
 import { MODEL_REQUEST_TIMEOUT_MS } from '../src/reading';
 import { isProviderName, parseEffort, providerFromEnv, readSceneWithModel } from './sceneReader';
 import { describeSceneWithModel } from './sceneWriter';
-import { handleDescribe, handleDraftQuestions, handleUnderstand, parseStubMode, type StubMode, type StubResponse } from './stub';
-import { handleDraftQuestionsWithModel, type ModelDraft } from './draft';
+import { readWebWithModel } from './webReader';
+import { describeWebWithModel } from './webWriter';
+import { parseSubject } from '../src/subjects';
+import { handleDescribe, handleDescribeWeb, handleDraftQuestions, handleDraftWebQuestions, handleUnderstand, handleUnderstandWeb, parseStubMode, type StubMode, type StubResponse } from './stub';
+import { handleDraftQuestionsWithModel, handleDraftWebQuestionsWithModel, type ModelDraft, type ModelWebDraft } from './draft';
 import { draftQuestionsWithModel } from './questionDrafter';
-import { handleDescribeWithModel, type ModelDescribe } from './describe';
-import { handleUnderstandWithModel, type ModelRead } from './understand';
+import { draftWebQuestionsWithModel } from './webDrafter';
+import { handleDescribeWebWithModel, handleDescribeWithModel, type ModelDescribe } from './describe';
+import { handleUnderstandWebWithModel, handleUnderstandWithModel, type ModelRead } from './understand';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STUB_LATENCY_MS = 700;
@@ -58,7 +62,17 @@ const header = (request: IncomingMessage, name: string): string | undefined => {
 type ApiOptions = { env: Record<string, string | undefined> };
 
 // SCENE_READER=meta or baseten sends photos and question drafts to that model (paid); anything else keeps the stub.
-const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; draft: ModelDraft; describe: ModelDescribe } | null => {
+export type ApiModel = {
+  name: string;
+  read: ModelRead;
+  readWeb: ModelRead;
+  draft: ModelDraft;
+  draftWeb: ModelWebDraft;
+  describe: ModelDescribe;
+  describeWeb: ModelDescribe;
+};
+
+const modelFrom = (env: ApiOptions['env']): ApiModel | null => {
   const name = env.SCENE_READER ?? 'stub';
   if (!isProviderName(name)) return null;
   const provider = providerFromEnv(name, env);
@@ -67,14 +81,23 @@ const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; dra
   return {
     name,
     read: (photo) => readSceneWithModel(photo, provider, options),
+    readWeb: (photo) => readWebWithModel(photo, provider, options),
     draft: (scene) => draftQuestionsWithModel(scene, provider, options),
+    draftWeb: (web) => draftWebQuestionsWithModel(web, provider, options),
     describe: (text) => describeSceneWithModel(text, provider, options),
+    describeWeb: (text) => describeWebWithModel(text, provider, options),
   };
 };
 
 const API_ROUTES = new Set(['/api/understand', '/api/draft-questions', '/api/describe']);
 
 type Middleware = (request: IncomingMessage, response: ServerResponse, next: () => void) => Promise<void>;
+
+const UNKNOWN_SUBJECT = 'Pick a subject: Physics or Ecosystem.';
+const unknownSubject = (): StubResponse => ({ status: 400, body: { error: UNKNOWN_SUBJECT, details: [] } });
+
+const fieldOf = (parsed: unknown, name: string): unknown =>
+  typeof parsed === 'object' && parsed !== null && name in parsed ? (parsed as Record<string, unknown>)[name] : undefined;
 
 const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
 
@@ -97,6 +120,20 @@ export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Midd
   }
   if (route === '/api/understand') {
     const contentType = header(request, 'content-type') ?? '';
+    const subject = parseSubject(new URL(request.url ?? '', 'http://localhost').searchParams.get('subject') ?? undefined);
+    if (subject === null) {
+      send(response, unknownSubject());
+      return;
+    }
+    if (subject === 'ecosystem') {
+      send(
+        response,
+        model
+          ? await handleUnderstandWebWithModel({ contentType, bytes: new Uint8Array(body), reader: model.name, read: model.readWeb })
+          : await handleUnderstandWeb({ mode, delayMs: delayFor(mode), contentType, bytes: body.length }),
+      );
+      return;
+    }
     send(
       response,
       model
@@ -106,13 +143,37 @@ export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Midd
     return;
   }
   const parsed = parseJson(body);
+  const subject = parseSubject(fieldOf(parsed, 'subject'));
+  if (subject === null) {
+    send(response, unknownSubject());
+    return;
+  }
   if (route === '/api/describe') {
     const text = typeof parsed === 'object' && parsed !== null && 'text' in parsed ? parsed.text : null;
+    if (subject === 'ecosystem') {
+      send(
+        response,
+        model
+          ? await handleDescribeWebWithModel({ text, reader: model.name, describe: model.describeWeb })
+          : await handleDescribeWeb({ mode, delayMs: delayFor(mode), text }),
+      );
+      return;
+    }
     send(
       response,
       model
         ? await handleDescribeWithModel({ text, reader: model.name, describe: model.describe })
         : await handleDescribe({ mode, delayMs: delayFor(mode), text }),
+    );
+    return;
+  }
+  if (subject === 'ecosystem') {
+    const web = fieldOf(parsed, 'web');
+    send(
+      response,
+      model
+        ? await handleDraftWebQuestionsWithModel({ web, drafter: model.name, draft: model.draftWeb })
+        : await handleDraftWebQuestions({ mode, delayMs: delayFor(mode), web }),
     );
     return;
   }
