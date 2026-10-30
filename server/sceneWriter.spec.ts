@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createSimulation, SETTLE_SECONDS, STEPS_PER_SECOND } from '../src/physics/simulation';
 import { validateScene } from '../src/scene/schema';
 import { ITEM_KINDS, PROVIDERS, READER_PROMPT, toScene, type ModelScene } from './sceneReader';
-import { describeSceneWithModel, LayoutError, writerPrompt, WRITER_SIZE } from './sceneWriter';
+import { describeSceneWithModel, LAYOUT_GUIDE, LayoutError, writerPrompt, WRITER_SIZE } from './sceneWriter';
 
 const TIMEOUT_MS = 1000;
 const DESCRIPTION = 'A ball rolls down a ramp and knocks over three dominoes.';
@@ -84,6 +85,17 @@ describe('writerPrompt', () => {
     expect(writerPrompt(DESCRIPTION, [])).toContain(instruction);
   });
 
+  it.each([
+    `Draw each domino ${LAYOUT_GUIDE.domino.width} wide and ${LAYOUT_GUIDE.domino.height} tall`,
+    `leave ${LAYOUT_GUIDE.domino.gap} between neighbouring dominoes`,
+    `Draw a ball with radius ${LAYOUT_GUIDE.ballRadius}`,
+    `give it push: dx ${LAYOUT_GUIDE.push}`,
+    `put the first domino ${LAYOUT_GUIDE.rampFootGap} to the right of where the ramp meets the floor`,
+    'Draw only what the description mentions',
+  ])('gives the model the layout guide: %s', (instruction) => {
+    expect(writerPrompt(DESCRIPTION, [])).toContain(instruction);
+  });
+
   it('asks for no fix when there are no errors', () => {
     expect(writerPrompt(DESCRIPTION, [])).not.toContain('Your last layout was rejected');
   });
@@ -93,6 +105,52 @@ describe('writerPrompt', () => {
       'Your last layout was rejected for these reasons; fix them:\nfirst problem\nsecond problem',
     );
   });
+});
+
+describe('LAYOUT_GUIDE', () => {
+  const { floorY, domino, ballRadius, push, rampFootGap } = LAYOUT_GUIDE;
+  const DOMINO_COUNT = 5;
+  const ground = { id: 'floor', kind: 'floor', x: 500, y: floorY, width: 1000, confidence: 1 };
+  const row = (firstX: number) =>
+    Array.from({ length: DOMINO_COUNT }, (_, index) => ({
+      id: `domino-${index + 1}`,
+      kind: 'domino',
+      x: firstX + index * (domino.width + domino.gap),
+      y: floorY - domino.height / 2,
+      width: domino.width,
+      height: domino.height,
+      confidence: 1,
+    }));
+  const guided = (items: ModelScene['items']): ModelScene => ({
+    lineWidth: 0,
+    items,
+    joints: [],
+    labels: [],
+    unknownMarks: [],
+    predictPoints: [{ id: 'pp-1', a: 'ball', b: 'domino-1' }],
+  });
+  const fallenAfterSettling = (model: ModelScene): string[] => {
+    const scene = validateScene(toScene(model, WRITER_SIZE));
+    if (!scene.ok) throw new Error(scene.errors.join('; '));
+    const simulation = createSimulation(scene.scene);
+    for (let step = 0; step < SETTLE_SECONDS * STEPS_PER_SECOND; step += 1) simulation.step();
+    return row(0)
+      .map((each) => each.id)
+      .filter((id) => !simulation.observe({ kind: 'fallen', item: id }));
+  };
+
+  it('knocks over every domino when a pushed ball rolls along the floor into the row', () => {
+    const ball = { id: 'ball', kind: 'ball', x: 100, y: floorY - ballRadius, radius: ballRadius, push: { dx: push, dy: 0 }, confidence: 1 };
+    expect(fallenAfterSettling(guided([ground, ball, ...row(300)]))).toEqual([]);
+  });
+
+  it('knocks over every domino when a ball rolls down a ramp into the row', () => {
+    const RAMP_FOOT_X = 350;
+    const ramp = { id: 'ramp', kind: 'ramp', x: 50, y: 450, x2: RAMP_FOOT_X, y2: floorY, confidence: 1 };
+    const ball = { id: 'ball', kind: 'ball', x: 80, y: 450 - ballRadius - 20, radius: ballRadius, confidence: 1 };
+    expect(fallenAfterSettling(guided([ground, ramp, ball, ...row(RAMP_FOOT_X + rampFootGap)]))).toEqual([]);
+  });
+
 });
 
 describe('describeSceneWithModel', () => {
