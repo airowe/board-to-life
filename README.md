@@ -189,6 +189,7 @@ The "Stub mode" menu in the header makes the stubs misbehave so the error screen
 | `timeout` | `/understand` waits 145 s; the client gives up at 130 s | "did not answer within 130 seconds" and Try again |
 | `invalid scene` | the scene contains a `spring`, which is outside the vocabulary | validation errors and Try again |
 | `ungrounded draft` | the draft cites `domino-9`, which is not in the scene | the check screen with a grounding error in place of the questions, and Draft again |
+| `backward arrow` | the ecosystem sample comes back with the rabbit → fox arrow reversed | the check screen asks "Flip it?" on that arrow |
 
 ## Quality gates
 
@@ -248,6 +249,7 @@ npm run questions                                                  # draft quest
 npm run descriptions                                               # lay out the typed-description examples with Meta and play them (paid)
 npm run photos                                                     # read real photos from check-photos/ with Meta (paid)
 npm run photos:mock                                                # make stand-in phone photos in check-photos/mock/
+npm run webs                                                       # read the food web samples with Meta and play them (paid)
 npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
 ```
 
@@ -270,6 +272,35 @@ What the check set still does not cover:
   reader reports coordinates in, and the physics would also need the scene straightened first.
 - **Real handwriting.** The sketches are generated, and the only hand-drawn input is the clean sample. A pass here
   does not prove a reader copes with real boards.
+
+### Food web check set
+
+`npm run webs` reads each of the five ecosystem samples (grassland, ocean, pond, forest, and a messy grassland with a
+misspelling and a crossed-out arrow) three ways: the clean drawing, a mock phone photo of it
+(`check-photos/mock/web-*.jpg`), and a typed list of the species. Each read is run twice. The script matches species
+by name, removes the sample's species in the model, and checks that every species rises, falls, stays steady or dies
+out as the sample expects. It stops before any call that could take the spend past $3.
+
+Measured on 30 October 2026 with Muse Spark on Meta Model API (`check-runs/2026-10-30T19-11-45-909Z-webs`):
+
+| Input | Played as expected | Cost |
+| --- | --- | --- |
+| Drawing | 10 of 10 | $0.0831 |
+| Mock photo | 10 of 10 | $0.1039 |
+| Typed species list | 8 of 10 | $0.1601 |
+| **Total** | **28 of 30** | **$0.3471** |
+
+Both failures are the pond list ("algae, water fleas, minnows, ducks and herons"). A list names species but not who
+eats whom, so Muse Spark draws its own arrows. In both runs its ducks eat the fleas and minnows, and the herons eat
+only minnows. In that web the model's ducks out-compete the minnows, so minnows and herons have settled at zero before
+the event. Removing the heron then changes nothing, and every species reads as steady. The check screen would show the
+teacher "Nothing changes after this event" for that draft.
+
+What this check does not cover:
+
+- **Reading the event from the board.** The sample images do not show the event (for example a crossed-out fox), so
+  the check supplies it. Whether Muse Spark reads a drawn event is untested.
+- **Real handwriting and real photos.** The drawings are generated and the photos are mock phone photos.
 
 ## Scene schema v1
 
@@ -324,5 +355,9 @@ How each kind behaves:
   written on the photo; only the clean drawing moves them.
 - Frame rate and the smoothness gained from blending between steps have not been measured on a real display: the
   development browser pane throttles animation frames whenever it is hidden.
+- The food web model is a teaching sketch, not a calibrated ecology model. Every run starts from the settled
+  populations, so numbers written on the board are labels only. In the woodland sample the fungi fall after the wolf is
+  removed, because fewer deaths reach them.
+- Food webs with more than six species reuse colours.
 - The ball shoves domino-1 about 60–130 drawing units along the floor before the chain topples. That is what the engine
   computes for this drawing, but it has not been checked against a real ball and real dominoes.
