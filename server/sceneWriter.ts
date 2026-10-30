@@ -4,6 +4,17 @@ import { ITEM_KINDS, MODEL_SCENE_SCHEMA, requestModelJson, toScene, type CallOpt
 // The pretend photo the layout is read through: 3 by 2, so the drawing comes out 1200 by 800.
 export const WRITER_SIZE = { width: 1500, height: 1000 };
 
+// Sizes on the 0-1000 grid that play: the grid is stretched to 1200 by 800, so a gap of a
+// third of a domino's height on x comes out at half its height on the board.
+export const LAYOUT_GUIDE = {
+  floorY: 900,
+  domino: { width: 12, height: 140, gap: 46 },
+  ballRadius: 30,
+  push: 250,
+  rampFootGap: 50,
+};
+const { floorY, domino, ballRadius, push, rampFootGap } = LAYOUT_GUIDE;
+
 const MOVABLE_KINDS = new Set(['ball', 'block', 'domino', 'cart', 'lever']);
 const LAYOUT_ATTEMPTS = 2;
 const NOTHING_MOVES = 'Nothing in that description can move. Describe objects such as balls, ramps, blocks or dominoes.';
@@ -27,6 +38,10 @@ export const writerPrompt = (description: string, errors: readonly string[]): st
     'Put a floor along the bottom unless the description says otherwise.',
     'Rest everything on a surface.',
     'Space dominoes about half their height apart so each one can knock the next over.',
+    `Draw the floor line at y ${floorY}. Draw each domino ${domino.width} wide and ${domino.height} tall, standing on the floor, and leave ${domino.gap} between neighbouring dominoes.`,
+    `Draw a ball with radius ${ballRadius}. When the description says something is pushed, rolling or moving at the start, give it push: dx ${push}, dy 0 (negative dx if it moves to the left).`,
+    `When a ramp leads into a row, bring the ramp's low end down to the floor and put the first domino ${rampFootGap} to the right of where the ramp meets the floor.`,
+    'Draw only what the description mentions, plus the floor.',
     'Keep every item on the board.',
     'Add one predict point. It is the first contact between two items that the motion leads to; use a and b for the two item ids.',
     'When the description gives a weight or says one thing is heavier, write its mass as a label such as 2 kg attached to that item.',
