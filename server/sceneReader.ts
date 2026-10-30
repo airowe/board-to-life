@@ -148,6 +148,7 @@ Items may only be these kinds:
 The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A rectangle sitting on two small circles is a cart: the circles are its wheels, never balls. A circle with a dot at its centre is a pulley; a small triangle is a pivot. A straight line joining two items is a rope; a zigzag line joining two items is a spring. A zigzag that joins nothing is not a spring.
 Something drawn standing on the floor or on another item rests on it: put its bottom edge exactly on that surface.
 Ignore faint, faded or smudged grey marks: they are left over from an erased drawing and are not part of this one.
+The image may instead be exported from a digital board, with clean strokes on a plain background. Strokes in any colour are part of the drawing, and colour does not change what an item is.
 If an arrow is drawn next to a ball, block or cart to show a push, give that item push: dx, dy, the arrow from tail to head on the same grid.
 
 Do not invent anything. Any mark that is not one of these kinds goes in unknownMarks, with a box around it and a short note of what it looks like. Handwritten words go in labels, with attachesTo set when a word names an item. A mass written next to an item, such as 5 kg, is a label attached to that item.

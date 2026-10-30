@@ -60,6 +60,14 @@ describe('erasePatches', () => {
     const ropePatch = patches.find((patch) => patch.id === 'rope');
     expect(ropePatch?.shape).toMatchObject({ kind: 'line', points: [{ x: 600, y: 200 }, { x: 100, y: 200 }] });
   });
+
+  it('also covers fixed items a student moved, so their old ink does not stay behind', () => {
+    const wall = { id: 'wall', kind: 'wall', x: 900, y: 600, width: 24, height: 200, confidence: 0.9 };
+    const patches = erasePatches(sceneFrom([floor, ramp, wall, ball]), ['ramp', 'wall']);
+    expect(patches.map((patch) => patch.id)).toEqual(['ramp', 'wall', 'ball']);
+    expect(patches[0]?.shape).toEqual({ kind: 'line', points: [{ x: 50, y: 250 }, { x: 400, y: 700 }], width: 12 + 2 * PATCH_PAD });
+    expect(patches[1]?.shape).toEqual({ kind: 'rect', x: 900, y: 600, width: 24 + 2 * PATCH_PAD, height: 200 + 2 * PATCH_PAD, angle: 0 });
+  });
 });
 
 describe('keepShapes', () => {
@@ -77,6 +85,12 @@ describe('keepShapes', () => {
     expect(shape).toMatchObject({ kind: 'rect', x: 225, y: 475, height: 12 + 2 * KEEP_PAD });
     expect(shape?.kind === 'rect' && shape.width).toBeCloseTo(length + 2 * KEEP_PAD);
     expect(shape?.kind === 'rect' && shape.angle).toBeCloseTo(Math.atan2(450, 350));
+  });
+
+  it('does not keep a fixed item a student moved', () => {
+    expect(keepShapes(sceneFrom([floor, ramp]), ['ramp'])).toEqual([
+      { kind: 'rect', x: 600, y: 770, width: 1200 + 2 * KEEP_PAD, height: 60 + 2 * KEEP_PAD, angle: 0 },
+    ]);
   });
 
   it('pads less than a patch, so a moving item leaves only a sliver behind', () => {

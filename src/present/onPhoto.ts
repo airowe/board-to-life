@@ -60,7 +60,22 @@ const bodyPatch = (body: Body): Patch | null => {
   }
 };
 
-export const erasePatches = (scene: Scene): Patch[] => {
+// A fixed item normally stays as drawn; once a student drags it somewhere else, its old ink is painted out too.
+const movedFixedPatch = (body: Body): Patch | null => {
+  switch (body.kind) {
+    case 'ramp': {
+      const points = [{ x: body.x1, y: body.y1 }, { x: body.x2, y: body.y2 }];
+      const width = body.thickness + 2 * PATCH_PAD;
+      return { id: body.id, shape: { kind: 'line', points, width }, bounds: boxAround(points, width / 2) };
+    }
+    case 'wall':
+      return rectPatch(body.id, body.x, body.y, body.width + 2 * PATCH_PAD, body.height + 2 * PATCH_PAD, 0);
+    default:
+      return bodyPatch(body);
+  }
+};
+
+export const erasePatches = (scene: Scene, movedFixed: readonly string[] = []): Patch[] => {
   const bodies = new Map(scene.items.flatMap((item) => (isLink(item) ? [] : [[item.id, item] as const])));
   const at = (id: string): Point | null => {
     const body = bodies.get(id);
@@ -68,7 +83,7 @@ export const erasePatches = (scene: Scene): Patch[] => {
   };
   return scene.items.flatMap((item): Patch[] => {
     if (!isLink(item)) {
-      const patch = MOVING_KINDS.includes(item.kind) ? bodyPatch(item) : null;
+      const patch = MOVING_KINDS.includes(item.kind) ? bodyPatch(item) : movedFixed.includes(item.id) ? movedFixedPatch(item) : null;
       return patch ? [patch] : [];
     }
     // A spring is covered as one wide band along its length, which takes in every coil.
@@ -97,9 +112,9 @@ const keepShape = (body: Body): PatchShape | null => {
   }
 };
 
-export const keepShapes = (scene: Scene): PatchShape[] =>
+export const keepShapes = (scene: Scene, movedFixed: readonly string[] = []): PatchShape[] =>
   scene.items.flatMap((item) => {
-    const shape = isLink(item) ? null : keepShape(item);
+    const shape = isLink(item) || movedFixed.includes(item.id) ? null : keepShape(item);
     return shape ? [shape] : [];
   });
 

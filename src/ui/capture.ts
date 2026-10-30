@@ -1,6 +1,11 @@
+import { pickBoardImage } from '../capture/pickImage';
+import { SAMPLES, sampleUrl } from '../samples/scenes';
 import { h } from './dom';
 
-const SAMPLE_URL = '/samples/ramp-ball-dominoes.png';
+const SAMPLE_PICKS = [
+  { url: '/samples/ramp-ball-dominoes.png', title: 'Ball down a ramp into dominoes' },
+  ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
+];
 
 type CaptureHandlers = { onPhoto: (photo: Blob) => void };
 
@@ -59,8 +64,43 @@ export const renderCapture = (root: HTMLElement, { onPhoto }: CaptureHandlers): 
     else status.textContent = 'Could not take a photo from the camera. Try again or upload one.';
   });
 
-  const useSample = async (): Promise<void> => {
-    const response = await fetch(SAMPLE_URL);
+  const takeBoardImage = (files: readonly File[]): void => {
+    const picked = pickBoardImage(files);
+    if (picked.ok) onPhoto(picked.file);
+    else status.textContent = picked.reason;
+  };
+  const boardInput = h('input', {
+    type: 'file',
+    accept: 'image/png,image/jpeg,image/webp,image/gif,image/bmp',
+    id: 'board-input',
+    onchange: () => takeBoardImage(Array.from(boardInput.files ?? [])),
+  });
+  const onPaste = (event: ClipboardEvent): void => {
+    const files = Array.from(event.clipboardData?.files ?? []);
+    if (files.length === 0) return;
+    event.preventDefault();
+    takeBoardImage(files);
+  };
+  const onDragOver = (event: DragEvent): void => {
+    event.preventDefault();
+    document.body.classList.add('dropping');
+  };
+  const onDragEnd = (): void => document.body.classList.remove('dropping');
+  const onDrop = (event: DragEvent): void => {
+    event.preventDefault();
+    onDragEnd();
+    takeBoardImage(Array.from(event.dataTransfer?.files ?? []));
+  };
+  const listeners = [
+    ['paste', onPaste],
+    ['dragover', onDragOver],
+    ['dragleave', onDragEnd],
+    ['drop', onDrop],
+  ] as const;
+  for (const [name, listener] of listeners) document.addEventListener(name, listener as EventListener);
+
+  const useSample = async (url: string): Promise<void> => {
+    const response = await fetch(url);
     onPhoto(await response.blob());
   };
 
@@ -75,12 +115,33 @@ export const renderCapture = (root: HTMLElement, { onPhoto }: CaptureHandlers): 
         { class: 'capture-actions' },
         h('label', { class: 'primary file', for: 'photo-input' }, 'Upload a photo', fileInput),
         h('button', { onclick: () => void startWebcam() }, 'Use the webcam'),
-        h('button', { class: 'quiet', onclick: () => void useSample() }, 'Use the sample drawing'),
+      ),
+      h(
+        'div',
+        { class: 'board-import' },
+        h('label', { class: 'file', for: 'board-input' }, 'Bring in a board image', boardInput),
+        h('p', { class: 'note' }, 'From a digital whiteboard: export the page as PNG or JPG, then pick it, drop it here, or paste a screenshot.'),
       ),
       video,
       snap,
       status,
+      h(
+        'section',
+        { class: 'samples', 'aria-labelledby': 'samples-heading' },
+        h('h2', { id: 'samples-heading' }, 'No board to hand? Try a sample drawing'),
+        h(
+          'div',
+          { class: 'sample-grid' },
+          ...SAMPLE_PICKS.map((pick) =>
+            h('button', { class: 'sample', onclick: () => void useSample(pick.url) }, h('img', { src: pick.url, alt: '', loading: 'lazy' }), h('span', {}, pick.title)),
+          ),
+        ),
+      ),
     ),
   );
-  return () => stopStream(video);
+  return () => {
+    stopStream(video);
+    onDragEnd();
+    for (const [name, listener] of listeners) document.removeEventListener(name, listener as EventListener);
+  };
 };

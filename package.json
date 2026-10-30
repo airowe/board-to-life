@@ -14,7 +14,8 @@
     "questions": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-questions.mjs",
     "photos": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/check-photos.mjs",
     "photos:mock": "node scripts/mock-photos.mjs",
-    "build:vercel": "tsc --noEmit && node scripts/build-vercel.mjs"
+    "build:vercel": "tsc --noEmit && node scripts/build-vercel.mjs",
+    "samples:draw": "node scripts/draw-samples.mjs"
   },
   "keywords": [],
   "author": "",
