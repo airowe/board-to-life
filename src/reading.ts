@@ -28,3 +28,14 @@ export const readingNote = (body: unknown): string => {
   const reader = typeof source.reader === 'string' ? READERS[source.reader] : undefined;
   return reader ? `Read by ${reader}. ${CHECK_AGAINST_PHOTO}` : CHECK_AGAINST_PHOTO;
 };
+
+const CHECK_AGAINST_DESCRIPTION = 'Check that it matches what you meant.';
+
+export const describedNote = (body: unknown): string => {
+  const source = typeof body === 'object' && body !== null ? (body as { stub?: unknown; reader?: unknown }) : {};
+  if (source.stub === true) return 'Stub layout: a fixed scene for the sample drawing. No AI was called.';
+  const reader = typeof source.reader === 'string' ? READERS[source.reader] : undefined;
+  return reader
+    ? `Laid out by ${reader} from your description. ${CHECK_AGAINST_DESCRIPTION}`
+    : `Laid out from your description. ${CHECK_AGAINST_DESCRIPTION}`;
+};

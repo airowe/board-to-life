@@ -1,3 +1,4 @@
+import { checkDescription } from '../src/capture/description';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../src/scene/fixtures';
 import { checkGrounding } from '../src/scene/questions';
 import { validateScene } from '../src/scene/schema';
@@ -8,6 +9,7 @@ export type StubResponse = { status: number; body: unknown };
 
 type Timing = { mode: StubMode; delayMs: number };
 export type UnderstandRequest = Timing & { contentType: string; bytes: number };
+export type DescribeRequest = Timing & { text: unknown };
 export type DraftQuestionsRequest = Timing & { scene: unknown };
 
 export const parseStubMode = (value: string | undefined): StubMode =>
@@ -59,4 +61,16 @@ export const handleDraftQuestions = async (request: DraftQuestionsRequest): Prom
   const grounded = checkGrounding(questionsFromModel(request.mode), scene.scene);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the scene.', grounded.errors);
   return { status: 200, body: { stub: true, questions: grounded.questions } };
+};
+
+export const handleDescribe = async (request: DescribeRequest): Promise<StubResponse> => {
+  const checked = checkDescription(request.text);
+  if (!checked.ok) return failure(400, checked.error);
+  await wait(request.delayMs);
+  const simulated = simulatedFailure(request.mode);
+  if (simulated) return simulated;
+
+  const result = validateScene(sceneFromModel(request.mode));
+  if (!result.ok) return failure(502, 'The scene writer returned a scene that failed validation.', result.errors);
+  return { status: 200, body: { stub: true, scene: result.scene } };
 };

@@ -134,10 +134,7 @@ export const MODEL_SCENE_SCHEMA = objectOf(
   ['lineWidth', 'items', 'joints', 'labels', 'unknownMarks', 'predictPoints'],
 );
 
-export const READER_PROMPT = `This is a photo of a whiteboard drawing of a physics setup that a class will watch play out.
-Read it into the JSON format you are given. Give every position and size on a 0-1000 grid over this image: (0,0) is the top-left corner, x grows to the right and y grows downwards.
-
-Items may only be these kinds:
+export const ITEM_KINDS = `Items may only be these kinds:
 - floor, wall, block, domino, lever: x, y is the centre; width and height; angleDegrees if drawn tilted (clockwise positive).
 - ball: x, y is the centre; radius.
 - cart: x, y, width and height are the cart's body (not its wheels); radius is the radius of its wheels.
@@ -145,7 +142,12 @@ Items may only be these kinds:
 - pivot: x, y is the point something turns on.
 - pulley: x, y is the centre; radius.
 - rope, spring: from and to are the ids of the two items it joins. If a rope runs over a pulley, from and to are the things hanging on each end, and over is the pulley's id.
-The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A rectangle sitting on two small circles is a cart: the circles are its wheels, never balls. A circle with a dot at its centre is a pulley; a small triangle is a pivot. A straight line joining two items is a rope; a zigzag line joining two items is a spring. A zigzag that joins nothing is not a spring.
+The board uses a legend. A rectangle filled with diagonal hatching is a wall: it is fixed in place, whatever its shape. A plain rectangle can move: it is a domino if it is tall and thin, otherwise a block. A rectangle sitting on two small circles is a cart: the circles are its wheels, never balls. A circle with a dot at its centre is a pulley; a small triangle is a pivot. A straight line joining two items is a rope; a zigzag line joining two items is a spring. A zigzag that joins nothing is not a spring.`;
+
+export const READER_PROMPT = `This is a photo of a whiteboard drawing of a physics setup that a class will watch play out.
+Read it into the JSON format you are given. Give every position and size on a 0-1000 grid over this image: (0,0) is the top-left corner, x grows to the right and y grows downwards.
+
+${ITEM_KINDS}
 Something drawn standing on the floor or on another item rests on it: put its bottom edge exactly on that surface.
 Ignore faint, faded or smudged grey marks: they are left over from an erased drawing and are not part of this one.
 The image may instead be exported from a digital board, with clean strokes on a plain background. Strokes in any colour are part of the drawing, and colour does not change what an item is.

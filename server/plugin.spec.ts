@@ -52,6 +52,18 @@ describe('apiMiddleware', () => {
     expect(response.status).toBe(401);
   });
 
+  it('describes with the stub when no reader is set', async () => {
+    const response = await fetch(`${await serve({})}/api/describe`, { method: 'POST', body: JSON.stringify({ text: 'a ball rolls into dominoes' }) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ stub: true, scene: { items: expect.any(Array) } });
+  });
+
+  it('turns away a describe request without the code', async () => {
+    const base = await serve({ ACCESS_CODE: CODE });
+    const response = await fetch(`${base}/api/describe`, { method: 'POST', body: JSON.stringify({ text: 'a ball' }) });
+    expect(response.status).toBe(401);
+  });
+
   it('lets a request with the right code through', async () => {
     const response = await postPhoto(await serve({ ACCESS_CODE: CODE }), { [ACCESS_HEADER]: CODE });
     expect(response.status).toBe(200);

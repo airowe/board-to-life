@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODEL_TIMEOUT_MS, STUB_TIMEOUT_DELAY_MS } from '../server/plugin';
-import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote, TYPICAL_READ_MS } from './reading';
+import { describedNote, describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote, TYPICAL_READ_MS } from './reading';
 
 const SECOND = 1000;
 
@@ -49,5 +49,15 @@ describe('readingNote', () => {
     [null, 'Check each item against the photo.'],
   ])('says who read the drawing for %j', (body, note) => {
     expect(readingNote(body)).toBe(note);
+  });
+});
+
+describe('describedNote', () => {
+  it.each([
+    [{ stub: true }, 'Stub layout: a fixed scene for the sample drawing. No AI was called.'],
+    [{ stub: false, reader: 'meta' }, 'Laid out by Muse Spark on the Meta Model API from your description. Check that it matches what you meant.'],
+    [{ stub: false, reader: 'unheard-of' }, 'Laid out from your description. Check that it matches what you meant.'],
+  ])('says who laid out the scene for %j', (body, note) => {
+    expect(describedNote(body)).toBe(note);
   });
 });

@@ -4,9 +4,11 @@ import { ACCESS_HEADER } from '../src/access';
 import { hasAccess } from './access';
 import { MODEL_REQUEST_TIMEOUT_MS } from '../src/reading';
 import { isProviderName, parseEffort, providerFromEnv, readSceneWithModel } from './sceneReader';
-import { handleDraftQuestions, handleUnderstand, parseStubMode, type StubMode, type StubResponse } from './stub';
+import { describeSceneWithModel } from './sceneWriter';
+import { handleDescribe, handleDraftQuestions, handleUnderstand, parseStubMode, type StubMode, type StubResponse } from './stub';
 import { handleDraftQuestionsWithModel, type ModelDraft } from './draft';
 import { draftQuestionsWithModel } from './questionDrafter';
+import { handleDescribeWithModel, type ModelDescribe } from './describe';
 import { handleUnderstandWithModel, type ModelRead } from './understand';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -56,7 +58,7 @@ const header = (request: IncomingMessage, name: string): string | undefined => {
 type ApiOptions = { env: Record<string, string | undefined> };
 
 // SCENE_READER=meta or baseten sends photos and question drafts to that model (paid); anything else keeps the stub.
-const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; draft: ModelDraft } | null => {
+const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; draft: ModelDraft; describe: ModelDescribe } | null => {
   const name = env.SCENE_READER ?? 'stub';
   if (!isProviderName(name)) return null;
   const provider = providerFromEnv(name, env);
@@ -66,17 +68,20 @@ const modelFrom = (env: ApiOptions['env']): { name: string; read: ModelRead; dra
     name,
     read: (photo) => readSceneWithModel(photo, provider, options),
     draft: (scene) => draftQuestionsWithModel(scene, provider, options),
+    describe: (text) => describeSceneWithModel(text, provider, options),
   };
 };
 
+const API_ROUTES = new Set(['/api/understand', '/api/draft-questions', '/api/describe']);
+
 type Middleware = (request: IncomingMessage, response: ServerResponse, next: () => void) => Promise<void>;
 
-const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then take the photo again.';
+const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
 
 // The API routes as plain Node middleware, so the dev server and the deployed functions share them.
 export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Middleware => async (request, response, next) => {
   const route = request.url?.split('?')[0];
-  if (request.method !== 'POST' || (route !== '/api/understand' && route !== '/api/draft-questions')) {
+  if (request.method !== 'POST' || !API_ROUTES.has(route ?? '')) {
     next();
     return;
   }
@@ -101,6 +106,16 @@ export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Midd
     return;
   }
   const parsed = parseJson(body);
+  if (route === '/api/describe') {
+    const text = typeof parsed === 'object' && parsed !== null && 'text' in parsed ? parsed.text : null;
+    send(
+      response,
+      model
+        ? await handleDescribeWithModel({ text, reader: model.name, describe: model.describe })
+        : await handleDescribe({ mode, delayMs: delayFor(mode), text }),
+    );
+    return;
+  }
   const scene = typeof parsed === 'object' && parsed !== null && 'scene' in parsed ? parsed.scene : null;
   send(
     response,

@@ -16,7 +16,7 @@ started on Oct 26, 2026, the event's kickoff day. No code was carried over from 
 
 ## Scene readers
 
-`/api/understand` and `/api/draft-questions` use the **stub** unless `.env` or `.env.local` says otherwise. The stub
+`/api/understand`, `/api/draft-questions` and `/api/describe` use the **stub** unless `.env` or `.env.local` says otherwise. The stub
 always returns the same hand-written scene for the test drawing (`src/scene/fixtures.ts`), and fixed questions for it,
 without looking at the photo. The check screen says which reader produced the scene.
 
@@ -109,6 +109,19 @@ run (Oct 28): all 12 drafts grounded, and every explanation agreed with the phys
 costs about a cent. One explanation on a photo read was clumsy, naming dominoes in the wrong order of position. In the
 app with the Meta reader, the sample took about 16 s to read and 6 s to draft.
 
+Typed descriptions: Muse Spark's layouts played as described 4 of 10 times when last checked (`npm run descriptions`).
+The count is from the Oct 29 run: each of the 5 descriptions laid out twice ($0.22 in all), played in the simulation for
+7 s, and re-scored offline after the pulley check was tightened (the heavier block must sink and the lighter must rise).
+- "A ball rolls down a ramp and knocks over a row of five dominoes" failed both times. Domino-1 fell and dominoes 2 to 5
+  stayed standing. In run 1 the ramp ends at x=480 and domino-1 stands at x=576; in run 2 the ramp ends at x=480 and
+  domino-1 stands at x=600. The cause was not isolated.
+- "A ball is pushed along a high shelf..." failed both times: none of the three dominoes fell. The ball was given a
+  sideways velocity of 270; the shelf's right edge is at x=576 (run 1) and x=660 (run 2), with the first domino at x=720.
+  The cause was not isolated.
+- "Three dominoes stand in a row with a ball rolling toward them" failed both times: the ball has no velocity in either
+  layout and none of the dominoes fell.
+- The cart and wall description and the pulley description passed both times.
+
 ## Run it
 
 Requires Node 22 or later (developed on Node 26).
@@ -146,8 +159,8 @@ Open http://127.0.0.1:5173.
 ## Live site
 
 The app is deployed on Vercel at https://board-to-life.vercel.app. `npm run build:vercel` builds it in Vercel's Build
-Output format (`scripts/build-vercel.mjs`): the app as static files, and `/api/understand` and `/api/draft-questions`
-as Node functions bundled from `server/vercel.ts`, which runs the same middleware as the dev server.
+Output format (`scripts/build-vercel.mjs`): the app as static files, and `/api/understand`, `/api/draft-questions`
+and `/api/describe` as Node functions bundled from `server/vercel.ts`, which runs the same middleware as the dev server.
 
 Because each photo is a paid model call, the API answers only requests that carry the access code when `ACCESS_CODE`
 is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
@@ -205,6 +218,10 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | `server/stub.spec.ts` | stub endpoints, including rejection of invalid scenes and ungrounded drafts |
 | `src/samples/scenes.spec.ts` | every sample drawing has its image, reaches its predict point and plays out as described |
 | `src/checks/*.spec.ts` | drawing check set: pinned outcomes and their controls, drawings match their scenes, photo versions keep the same expectations and carry erased strokes, the HTTP reader (request shape, server errors, missing scene), item matching (renamed, nudged, misread, rescaled, reversed ramps, ropes, unflagged and invented marks), replay with a perfect reader, the stub, a changed outcome, an invalid scene and a failing reader |
+| `server/sceneWriter.spec.ts` | the typed-description writer: layouts become valid 1200 by 800 scenes, items placed off the board are clamped, one retry with the validation errors, and a layout with nothing that can move is rejected |
+| `server/describe.spec.ts` | `/api/describe`: the trimmed text goes to the writer; 422 when nothing can move, 502 with details when the layout stays invalid, 502 for any other failure |
+| `src/capture/description.spec.ts`, `src/capture/examples.spec.ts` | the typed description: the 600-character limit, trimming, accepting exactly the limit, and exactly four examples |
+| `src/checks/descriptions.spec.ts` | typed-description check set: the prompt, the dominoes, pulley and cart cases, each with a negative control, and the four examples plus the three-dominoes case |
 | `src/api.spec.ts` | client timeout, server error, network failure, and non-JSON error bodies become clear, retryable messages |
 
 ## Drawing check set
@@ -234,6 +251,7 @@ npm run drawings                                                   # the stub re
 npm run drawings -- --reader meta                                  # Muse Spark on Meta Model API (paid)
 npm run drawings -- --reader baseten                               # Muse Spark Open on Baseten (paid)
 npm run questions                                                  # draft questions for the check scenes with Meta (paid)
+npm run descriptions                                               # lay out the typed-description examples with Meta and play them (paid)
 npm run photos                                                     # read real photos from check-photos/ with Meta (paid)
 npm run photos:mock                                                # make stand-in phone photos in check-photos/mock/
 npm run drawings -- --reader http --url http://127.0.0.1:5173/api/understand   # a running server's endpoint
