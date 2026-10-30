@@ -109,13 +109,12 @@ run (Oct 28): all 12 drafts grounded, and every explanation agreed with the phys
 costs about a cent. One explanation on a photo read was clumsy, naming dominoes in the wrong order of position. In the
 app with the Meta reader, the sample took about 16 s to read and 6 s to draft.
 
-Typed descriptions: Muse Spark's layouts played as described 9 of 10 times when last checked (`npm run descriptions`).
+Typed descriptions: Muse Spark's layouts played as described 10 of 10 times when last checked (`npm run descriptions`).
 The count is from the Oct 30 run: each of the 5 descriptions laid out twice ($0.22 in all) and played in the simulation
 for 7 s. The writer prompt gives the model domino, ball and push sizes on its grid that are pinned by
-`server/sceneWriter.spec.ts` to knock a row over; before that, the Oct 29 run played 4 of 10.
-- The pulley description failed once: the left block was labelled 2 kg but the right block had no mass written, so it
-  took its mass from its size and the left block did not sink.
-- The three domino descriptions and the cart and wall description passed both times.
+`server/sceneWriter.spec.ts` to knock a row over, and asks for a mass label on every item a description weighs or
+compares. Earlier runs played 4 of 10 (before the sizes) and 9 of 10 (before the mass labels: one pulley
+layout labelled only the heavier block). Two runs per description is a small sample.
 
 ## Run it
 

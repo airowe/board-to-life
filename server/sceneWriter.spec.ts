@@ -79,7 +79,7 @@ describe('writerPrompt', () => {
     'Space dominoes about half their height apart so each one can knock the next over.',
     'Keep every item on the board.',
     'Add one predict point.',
-    'When the description gives a weight or says one thing is heavier, write its mass as a label such as 2 kg attached to that item.',
+    'When the description gives weights or says one thing is heavier, write a mass label on every item it weighs or compares, such as 2 kg and 1 kg, attached to that item.',
     'Use the words of the description as labels only when the teacher would write them on the board.',
   ])('tells the model: %s', (instruction) => {
     expect(writerPrompt(DESCRIPTION, [])).toContain(instruction);
@@ -142,6 +142,33 @@ describe('LAYOUT_GUIDE', () => {
   it('knocks over every domino when a pushed ball rolls along the floor into the row', () => {
     const ball = { id: 'ball', kind: 'ball', x: 100, y: floorY - ballRadius, radius: ballRadius, push: { dx: push, dy: 0 }, confidence: 1 };
     expect(fallenAfterSettling(guided([ground, ball, ...row(300)]))).toEqual([]);
+  });
+
+  it('sinks the heavier block on a pulley when both blocks carry the written masses the prompt asks for', () => {
+    const block = (id: string, x: number) => ({ id, kind: 'block', x, y: 500, width: 80, height: 80, confidence: 1 });
+    const model: ModelScene = {
+      ...guided([
+        ground,
+        { id: 'pulley', kind: 'pulley', x: 500, y: 150, radius: 40, confidence: 1 },
+        block('block-left', 460),
+        block('block-right', 540),
+        { id: 'rope', kind: 'rope', from: 'block-left', to: 'block-right', over: 'pulley', confidence: 1 },
+      ]),
+      labels: [
+        { id: 'label-left', text: '2 kg', x: 460, y: 500, attachesTo: 'block-left', confidence: 1 },
+        { id: 'label-right', text: '1 kg', x: 540, y: 500, attachesTo: 'block-right', confidence: 1 },
+      ],
+      predictPoints: [],
+    };
+    const scene = validateScene(toScene(model, WRITER_SIZE));
+    if (!scene.ok) throw new Error(scene.errors.join('; '));
+    const simulation = createSimulation(scene.scene);
+    const heights = () => new Map(simulation.snapshot().map((body) => [body.id, body.y]));
+    const start = heights();
+    for (let step = 0; step < STEPS_PER_SECOND; step += 1) simulation.step();
+    const end = heights();
+    expect((end.get('block-left') ?? 0) - (start.get('block-left') ?? 0)).toBeGreaterThan(0);
+    expect((end.get('block-right') ?? 0) - (start.get('block-right') ?? 0)).toBeLessThan(0);
   });
 
   it('knocks over every domino when a ball rolls down a ramp into the row', () => {
