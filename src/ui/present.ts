@@ -3,8 +3,12 @@ import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
 import { erasePatches, keepShapes, ringColour, type Patch, type PatchShape } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
+import type { Trail } from '../present/trails';
+import { toDrawing, viewOf } from '../present/view';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
+import { changedFixedItems, gripPoint, moveGrip, pickGrip, rampHandles, type Grip } from '../scene/edit';
+import { outlineOf } from '../scene/shapes';
 import { linkPoints } from '../scene/linkPoints';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
@@ -12,7 +16,11 @@ import { h } from './dom';
 const STEP_MS = 1000 / STEPS_PER_SECOND;
 const MAX_FRAME_MS = 100;
 
-const INK = { board: '#f7f7f3', black: '#1d2433', blue: '#1f4fbf', fill: 'rgba(31, 79, 191, 0.12)' };
+const INK = { board: '#f7f7f3', black: '#1d2433', blue: '#1f4fbf', fill: 'rgba(31, 79, 191, 0.12)', handle: '#ffffff' };
+// How far from a piece a finger may land and still pick it up, in screen pixels: about a fingertip either side.
+const TOUCH_REACH_PX = 32;
+const HANDLE_RADIUS = 16;
+const GHOST_ALPHA = 0.3;
 
 const drawItem = (
   ctx: CanvasRenderingContext2D,
@@ -153,7 +161,8 @@ const outline = (path: Path2D, shape: PatchShape): void => {
 };
 
 // The photo with every moving item's own strokes painted out, in drawing units scaled to the photo's pixels.
-const boardFrom = (image: HTMLImageElement, scene: Scene): { canvas: HTMLCanvasElement; moving: Set<string> } | null => {
+// Fixed items a student dragged elsewhere are painted out too, since their ink would otherwise stay at the old spot.
+const boardFrom = (image: HTMLImageElement, scene: Scene, movedFixed: readonly string[]): { canvas: HTMLCanvasElement; moving: Set<string> } | null => {
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth;
   canvas.height = image.naturalHeight;
@@ -162,7 +171,7 @@ const boardFrom = (image: HTMLImageElement, scene: Scene): { canvas: HTMLCanvasE
   ctx.drawImage(image, 0, 0);
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const [sx, sy] = [canvas.width / scene.drawing.width, canvas.height / scene.drawing.height];
-  const patches = erasePatches(scene);
+  const patches = erasePatches(scene, movedFixed);
   const colours = patches.map((patch) =>
     ringColour(pixels, { x: patch.bounds.x * sx, y: patch.bounds.y * sy, width: patch.bounds.width * sx, height: patch.bounds.height * sy }, SAMPLE_MARGIN * sx),
   );
@@ -174,7 +183,7 @@ const boardFrom = (image: HTMLImageElement, scene: Scene): { canvas: HTMLCanvasE
   }
   // Fixed items win where a patch overlapped them, such as the floor line under a domino.
   const keep = new Path2D();
-  for (const shape of keepShapes(scene)) outline(keep, shape);
+  for (const shape of keepShapes(scene, movedFixed)) outline(keep, shape);
   ctx.save();
   ctx.clip(keep);
   ctx.drawImage(image, 0, 0, scene.drawing.width, scene.drawing.height);
@@ -201,7 +210,71 @@ const drawLabels = (ctx: CanvasRenderingContext2D, scene: Scene, bodies: Map<str
   ctx.restore();
 };
 
-const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapshot[], board: Board): void => {
+// The previous run, left faintly on the board: the path each moving piece took and where it came to rest.
+type Ghost = { scene: Scene; trails: Trail[]; rest: BodySnapshot[] };
+// While students may rearrange the pieces: the ramp ends they can drag, and the piece they are holding.
+type Editing = { handles: boolean; held: string | null };
+
+const drawGhost = (ctx: CanvasRenderingContext2D, ghost: Ghost): void => {
+  const rest = new Map(ghost.rest.map((body) => [body.id, body]));
+  ctx.save();
+  ctx.globalAlpha = GHOST_ALPHA;
+  ctx.strokeStyle = INK.blue;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([2, 10]);
+  for (const trail of ghost.trails) {
+    ctx.beginPath();
+    for (const [index, point] of trail.points.entries()) {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  const traced = new Set(ghost.trails.map((trail) => trail.id));
+  for (const item of ghost.scene.items) if (traced.has(item.id)) drawItem(ctx, item, rest.get(item.id), rest);
+  ctx.restore();
+};
+
+const drawEditing = (ctx: CanvasRenderingContext2D, scene: Scene, editing: Editing): void => {
+  ctx.save();
+  ctx.strokeStyle = INK.blue;
+  ctx.lineWidth = 4;
+  const held = editing.held ? scene.items.find((item) => item.id === editing.held) : undefined;
+  const heldOutline = held && !isLink(held) && held.kind !== 'ramp' ? outlineOf(held) : null;
+  if (heldOutline) {
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath();
+    for (const [index, point] of heldOutline.entries()) {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (editing.handles) {
+    ctx.fillStyle = INK.handle;
+    for (const handle of rampHandles(scene)) {
+      ctx.beginPath();
+      ctx.arc(handle.x, handle.y, HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+};
+
+const drawScene = (
+  canvas: HTMLCanvasElement,
+  scene: Scene,
+  snapshot: BodySnapshot[],
+  board: Board,
+  ghost: Ghost | null,
+  editing: Editing | null,
+): void => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const ratio = window.devicePixelRatio || 1;
@@ -210,9 +283,7 @@ const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapsh
     canvas.width = clientWidth * ratio;
     canvas.height = clientHeight * ratio;
   }
-  const scale = Math.min(clientWidth / scene.drawing.width, clientHeight / scene.drawing.height);
-  const offsetX = (clientWidth - scene.drawing.width * scale) / 2;
-  const offsetY = (clientHeight - scene.drawing.height * scale) / 2;
+  const { scale, offsetX, offsetY } = viewOf({ width: clientWidth, height: clientHeight }, scene.drawing);
 
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.fillStyle = INK.board;
@@ -221,16 +292,18 @@ const drawScene = (canvas: HTMLCanvasElement, scene: Scene, snapshot: BodySnapsh
   ctx.scale(scale, scale);
 
   const bodies = new Map(snapshot.map((body) => [body.id, body]));
+  if (board) ctx.drawImage(board.canvas, 0, 0, scene.drawing.width, scene.drawing.height);
+  if (ghost) drawGhost(ctx, ghost);
   if (!board) {
     for (const item of scene.items) drawItem(ctx, item, bodies.get(item.id), bodies);
     drawLabels(ctx, scene, bodies);
-    return;
+  } else {
+    // On the photo only what moves is drawn again, with the pulleys and pivots it hangs from or turns on.
+    for (const item of scene.items) {
+      if (board.moving.has(item.id) || item.kind === 'pulley' || item.kind === 'pivot') drawItem(ctx, item, bodies.get(item.id), bodies);
+    }
   }
-  // On the photo only what moves is drawn again, with the pulleys and pivots it hangs from or turns on.
-  ctx.drawImage(board.canvas, 0, 0, scene.drawing.width, scene.drawing.height);
-  for (const item of scene.items) {
-    if (board.moving.has(item.id) || item.kind === 'pulley' || item.kind === 'pivot') drawItem(ctx, item, bodies.get(item.id), bodies);
-  }
+  if (editing) drawEditing(ctx, scene, editing);
 };
 
 const describeResult = (happened: boolean, item: string): string =>
@@ -248,7 +321,12 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
   let last = performance.now();
   let carry = 0;
   let board: Board = null;
+  let image: HTMLImageElement | null = null;
+  let boardKey = '';
   let onPhoto = photoUrl !== null;
+  let ghost: Ghost | null = null;
+  let drag: { pointerId: number; grip: Grip; offset: { x: number; y: number }; from: Scene } | null = null;
+  let note = '';
   const photoToggle = h('button', { class: 'photo-toggle quiet', hidden: true }, '');
   const showToggle = (): void => {
     photoToggle.hidden = board === null;
@@ -259,23 +337,44 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
     showToggle();
     redraw.invalidate();
   });
+  // The board is painted from the photo as drawn; it is painted again only when the set of moved fixed items changes.
+  const refreshBoard = (): void => {
+    const movedFixed = changedFixedItems(lesson.scene, playback.scene());
+    const key = movedFixed.join('|');
+    if (!image || (board && key === boardKey)) return;
+    board = boardFrom(image, lesson.scene, movedFixed);
+    boardKey = key;
+  };
   if (photoUrl) {
-    const image = new Image();
-    image.addEventListener('load', () => {
-      board = boardFrom(image, lesson.scene);
+    const photo = new Image();
+    photo.addEventListener('load', () => {
+      image = photo;
+      refreshBoard();
       showToggle();
       redraw.invalidate();
     });
-    image.src = photoUrl;
+    photo.src = photoUrl;
   }
 
   const button = (label: string, action: () => void, primary = false): HTMLButtonElement =>
     h('button', { class: primary ? 'primary big' : 'big', onclick: action }, label);
 
-  const replay = (): void => {
-    playback.replay();
+  // A finished or interrupted run stays on the board faintly, so the next one can be compared with it.
+  const restart = (scene?: Scene): void => {
+    if (playback.stepIndex() > 0) {
+      ghost = { scene: playback.scene(), trails: playback.trails(), rest: playback.simulation().snapshot() };
+    }
+    playback.replay(scene);
     carry = 0;
+    refreshBoard();
     redraw.invalidate();
+  };
+  const replay = (): void => restart();
+  const editable = (): boolean => ghost !== null && playback.phase().kind === 'ready';
+  const edited = (): boolean => JSON.stringify(playback.scene()) !== JSON.stringify(lesson.scene);
+  const putBack = (): void => {
+    note = '';
+    restart(lesson.scene);
   };
 
   const showPhase = (phase: Phase): void => {
@@ -284,8 +383,16 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
     const firstQuestion = lesson.questions[0];
     switch (phase.kind) {
       case 'ready':
-        caption.replaceChildren(h('p', { class: 'question-text' }, firstQuestion ? `Watch closely. ${firstQuestion.prompt}` : 'Watch closely.'));
-        controls.replaceChildren(button('Play', playback.play, true));
+        if (ghost) {
+          caption.replaceChildren(
+            h('p', { class: 'question-text' }, 'Drag a piece to change the setup, then press Play.'),
+            h('p', { class: 'explanation-text' }, note || 'The faint marks show what happened last time.'),
+          );
+          controls.replaceChildren(button('Play', playback.play, true), ...(edited() ? [button('Put pieces back', putBack)] : []));
+        } else {
+          caption.replaceChildren(h('p', { class: 'question-text' }, firstQuestion ? `Watch closely. ${firstQuestion.prompt}` : 'Watch closely.'));
+          controls.replaceChildren(button('Play', playback.play, true));
+        }
         break;
       case 'running':
         caption.replaceChildren();
@@ -305,6 +412,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
             h('p', { class: 'explanation-text' }, question.explanation),
           ]),
         );
+        caption.append(h('p', { class: 'explanation-text' }, 'Press Replay, then drag any piece to see what changes.'));
         controls.replaceChildren(button('Replay', replay, true));
         break;
     }
@@ -324,11 +432,60 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
     if (redraw.shouldDraw(moving)) {
       const sim = playback.simulation();
       const alpha = moving ? carry / STEP_MS : 1;
-      drawScene(canvas, lesson.scene, interpolate(sim.previousSnapshot(), sim.snapshot(), alpha), onPhoto ? board : null);
+      const editing = editable() ? { handles: true, held: drag?.grip.id ?? null } : null;
+      drawScene(canvas, playback.scene(), interpolate(sim.previousSnapshot(), sim.snapshot(), alpha), onPhoto ? board : null, ghost, editing);
     }
     showPhase(playback.phase());
+    canvas.classList.toggle('editable', editable());
+    canvas.classList.toggle('holding', drag !== null);
     frame = requestAnimationFrame(loop);
   };
+
+  const pointerAt = (event: PointerEvent): { point: { x: number; y: number }; reach: number } => {
+    const rect = canvas.getBoundingClientRect();
+    const view = viewOf({ width: rect.width, height: rect.height }, playback.scene().drawing);
+    return { point: toDrawing(view, { x: event.clientX - rect.left, y: event.clientY - rect.top }), reach: TOUCH_REACH_PX / view.scale };
+  };
+  const onPointerDown = (event: PointerEvent): void => {
+    if (drag || !editable()) return;
+    const { point, reach } = pointerAt(event);
+    const scene = playback.scene();
+    const grip = pickGrip(scene, point, reach);
+    const held = grip ? gripPoint(scene, grip) : null;
+    if (!grip || !held) return;
+    event.preventDefault();
+    canvas.setPointerCapture(event.pointerId);
+    drag = { pointerId: event.pointerId, grip, offset: { x: held.x - point.x, y: held.y - point.y }, from: scene };
+    redraw.invalidate();
+  };
+  const onPointerMove = (event: PointerEvent): void => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!editable()) {
+      drag = null;
+      return;
+    }
+    const { point } = pointerAt(event);
+    const result = moveGrip(drag.from, drag.grip, { x: point.x + drag.offset.x, y: point.y + drag.offset.y });
+    if (result.ok) {
+      note = '';
+      playback.replay(result.scene);
+      refreshBoard();
+    } else if (note !== result.reason) {
+      note = result.reason;
+      shownPhase = null;
+    }
+    redraw.invalidate();
+  };
+  const onPointerUp = (event: PointerEvent): void => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag = null;
+    shownPhase = null;
+    redraw.invalidate();
+  };
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
 
   const onKey = (event: KeyboardEvent): void => {
     const kind = playback.phase().kind;

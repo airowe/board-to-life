@@ -120,7 +120,10 @@ npm run dev
 
 Open http://127.0.0.1:5173.
 
-1. **Capture**: upload a photo, use the webcam, or click "Use the sample drawing". The photo is turned upright using
+1. **Capture**: upload a photo, use the webcam, or pick one of six sample drawings. Five are chain reactions drawn from
+   scenes in `src/samples/scenes.ts` by `npm run samples:draw`, and each one's outcome is pinned by its spec. They are
+   laid out with slack for reading errors: Muse Spark's readings of them played through the whole chain 11 times out of
+   11 when last checked. The stub reader always returns the first sample's scene, so the others only make sense with Muse Spark. The photo is turned upright using
    its EXIF orientation and scaled so its long edge is at most 1600 px, then sent as JPEG.
 2. **Check**: the check screen opens as soon as the scene is read; the predict questions are drafted while the teacher
    looks it over, and Approve stays disabled until they arrive. While the scene is read, the screen shows the seconds
@@ -150,6 +153,23 @@ Because each photo is a paid model call, the API answers only requests that carr
 is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
 it as the `x-access-code` header. Without it the API answers 401 and the app says to open the link from the submission
 page. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository.
+
+## Using it on a classroom board
+
+Interactive flat panels (SMART Board, Promethean ActivPanel, Clevertouch, Newline, Vibe) are large touchscreens with a
+built-in web browser. Open the live link in that browser and add `&board` to the address (or tap **Board mode** in the
+header). Board mode is remembered on that panel; `?board=0` turns it off.
+
+- **Board mode** sizes type to the screen width (about 25 px at 1920×1080, 50 px at 3840×2160), makes every control at
+  least 64 px tall, and switches off pinch zoom, pull to refresh, long-press text selection and sticky hover colours.
+  Turning it on asks for full screen; if the panel's browser refuses, a **Full screen** button stays in the header.
+- **Phone photo** remains the main way in: photograph the board, check the reading on the phone or the panel.
+- **Board image**: draw on the panel's own whiteboard app, export the page as PNG or JPG (most panels offer a QR code
+  to the phone, a USB stick or a cloud drive), then use **Bring in a board image**, drop the file on the page, or paste a
+  screenshot. PDF and SVG exports are refused with a message asking for an image.
+- **Dark boards.** Exports with light or coloured ink on black, or on a transparent background, are turned into dark
+  ink on white before reading (`src/capture/boardInk.ts`). The flip keeps each stroke's hue, so red ink stays red, and
+  the check screen says it happened. Playback then runs on the flipped image, so redrawn items stay visible.
 
 ### Stub modes (error states)
 
@@ -183,6 +203,7 @@ This runs ESLint (typescript-eslint strict), `tsc --noEmit` (strict, `noUnchecke
 | `src/present/interpolate.spec.ts` | blending body states between physics steps |
 | `src/present/redraw.spec.ts` | drawing every frame while moving, one final frame once still, and again after a resize |
 | `server/stub.spec.ts` | stub endpoints, including rejection of invalid scenes and ungrounded drafts |
+| `src/samples/scenes.spec.ts` | every sample drawing has its image, reaches its predict point and plays out as described |
 | `src/checks/*.spec.ts` | drawing check set: pinned outcomes and their controls, drawings match their scenes, photo versions keep the same expectations and carry erased strokes, the HTTP reader (request shape, server errors, missing scene), item matching (renamed, nudged, misread, rescaled, reversed ramps, ropes, unflagged and invented marks), replay with a perfect reader, the stub, a changed outcome, an invalid scene and a failing reader |
 | `src/api.spec.ts` | client timeout, server error, network failure, and non-JSON error bodies become clear, retryable messages |
 

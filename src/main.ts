@@ -5,6 +5,7 @@ import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote } from './readin
 import { checkGrounding } from './scene/questions';
 import { validateScene, type Scene } from './scene/schema';
 import { createSession } from './session/store';
+import { setUpBoardMode } from './ui/boardToggle';
 import { renderCapture } from './ui/capture';
 import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { h } from './ui/dom';
@@ -21,11 +22,13 @@ const requireElement = <T extends Element>(selector: string): T => {
 const root = requireElement<HTMLElement>('#app');
 const stubSelect = requireElement<HTMLSelectElement>('#stub-mode');
 const noop = (): void => undefined;
+setUpBoardMode(requireElement<HTMLButtonElement>('#board-mode'), requireElement<HTMLButtonElement>('#fullscreen'), localStorage);
 
 const session = createSession();
 let cleanup: () => void = noop;
 let photoUrl: string | null = null;
 let photoNote = '';
+let preparedNote = '';
 let checkScreen: CheckScreen | null = null;
 let activeDraftId = 0;
 let activeRead: AbortController | null = null;
@@ -128,14 +131,16 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(photo);
-  photoNote = readingNote(understood.data);
+  photoNote = `${preparedNote}${readingNote(understood.data)}`;
   showCheck();
   void draftQuestions(draftId, scene.scene);
 };
 
 const receivePhoto = async (photo: Blob): Promise<void> => {
   showLoading('Preparing the photo…');
-  await readDrawing(await preparePhoto(photo));
+  const prepared = await preparePhoto(photo);
+  preparedNote = prepared.inverted ? 'Light ink on a dark or see-through background: the image was flipped to dark ink on white so it reads like a whiteboard. ' : '';
+  await readDrawing(prepared.photo);
 };
 
 function showCheck(): void {

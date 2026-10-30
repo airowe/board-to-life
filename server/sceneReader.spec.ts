@@ -172,6 +172,11 @@ describe('toScene', () => {
     });
   });
 
+  it('tells the model that coloured ink from a digital board export is part of the drawing', () => {
+    expect(READER_PROMPT).toMatch(/exported from a digital board/);
+    expect(READER_PROMPT).toMatch(/Strokes in any colour are part of the drawing/);
+  });
+
   it('teaches the legend: a zigzag joining two things is a spring', () => {
     expect(READER_PROMPT).toMatch(/zigzag line joining two items is a spring/);
   });
