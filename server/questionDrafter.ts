@@ -49,7 +49,7 @@ export const eventsOf = (scene: Scene): SceneEvent[] => {
 export const describeEvent = (event: SceneEvent): string =>
   `${event.seconds.toFixed(1)} s: ${event.kind === 'contact' ? `${event.a} touches ${event.b}` : `${event.item} falls over`}`;
 
-const objectOf = (properties: Record<string, unknown>): Record<string, unknown> => ({
+export const objectOf = (properties: Record<string, unknown>): Record<string, unknown> => ({
   type: 'object',
   properties,
   required: Object.keys(properties),

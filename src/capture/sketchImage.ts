@@ -1,5 +1,6 @@
 import { sketchScene } from '../checks/sketch';
-import type { Scene } from '../scene/schema';
+import { sketchWeb } from '../ecosystem/sketch';
+import type { DraftContent } from '../session/store';
 
 const SKETCH_SEED = 7;
 const DRAW_FAILURE = 'Could not draw the described setup.';
@@ -12,9 +13,14 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
     image.src = url;
   });
 
-export const sketchImage = async (scene: Scene): Promise<Blob> => {
-  const { width, height } = scene.drawing;
-  const svg = sketchScene(scene, SKETCH_SEED);
+const sketchOf = (content: DraftContent): { svg: string; width: number; height: number } => {
+  const drawing = content.subject === 'physics' ? content.scene.drawing : content.web.drawing;
+  const svg = content.subject === 'physics' ? sketchScene(content.scene, SKETCH_SEED) : sketchWeb(content.web, SKETCH_SEED);
+  return { svg, ...drawing };
+};
+
+export const sketchImage = async (content: DraftContent): Promise<Blob> => {
+  const { svg, width, height } = sketchOf(content);
   const image = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
   const canvas = document.createElement('canvas');
   canvas.width = width;

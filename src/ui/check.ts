@@ -1,23 +1,17 @@
-import type { PredictQuestion } from '../scene/questions';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { linkPoints } from '../scene/linkPoints';
-import type { ApiFailure } from '../api';
-import type { ApprovedLesson, Draft, Session } from '../session/store';
+import type { ApprovedLesson, ApprovedPhysicsLesson, Draft, PhysicsDraft, Session } from '../session/store';
 import { h, s } from './dom';
+import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsStatus } from './questionCards';
 
 export const LOW_CONFIDENCE = 0.7;
 
+export type { CheckScreen, QuestionsStatus };
+
 type CheckHandlers = { onPresent: () => void; onRestart: () => void };
 
-export type QuestionsStatus =
-  | { kind: 'drafting' }
-  | { kind: 'ready' }
-  | { kind: 'failed'; failure: Pick<ApiFailure, 'message' | 'details'>; retry: () => void };
-
-export type CheckScreen = { setQuestionsStatus: (status: QuestionsStatus) => void };
-
-const percent = (value: number): string => `${Math.round(value * 100)}%`;
+export const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
 const centre = (item: SceneItem, scene: Scene): { x: number; y: number } => {
   if (item.kind === 'ramp') return { x: (item.x1 + item.x2) / 2, y: (item.y1 + item.y2) / 2 };
@@ -106,43 +100,15 @@ const itemRow = (id: string, kind: string, confidence: number, extraClass = ''):
   );
 };
 
-const questionCard = (question: PredictQuestion, status: 'draft' | 'approved'): HTMLElement =>
-  h(
-    'article',
-    { class: `question ${status}` },
-    h(
-      'p',
-      { class: 'question-status' },
-      status === 'draft' ? 'Draft · not shown to the class' : 'Approved · used in present mode',
-    ),
-    h('p', { class: 'prompt' }, question.prompt),
-    h('p', { class: 'choices' }, question.choices.join(' / ')),
-    h('p', { class: 'explanation' }, question.explanation),
-    h('p', { class: 'cites' }, 'Cites: ', ...question.cites.map((cited) => h('code', {}, cited))),
-  );
-
-const lessonQuestions = (lesson: Draft | ApprovedLesson | null): HTMLElement[] =>
-  lesson?.questions ? lesson.questions.map((question) => questionCard(question, lesson.status)) : [];
-
-const questionsPlaceholder = (status: QuestionsStatus): HTMLElement | null => {
-  if (status.kind === 'drafting') {
-    return h('p', { class: 'drafting', role: 'status' }, h('span', { class: 'spinner small' }), 'Drafting predict questions…');
-  }
-  if (status.kind === 'failed') {
-    return h(
-      'div',
-      { class: 'inline-error', role: 'alert' },
-      h('p', {}, status.failure.message),
-      status.failure.details && status.failure.details.length > 0
-        ? h('ul', { class: 'details' }, ...status.failure.details.map((detail) => h('li', {}, detail)))
-        : null,
-      h('button', { onclick: status.retry }, 'Draft again'),
-    );
-  }
-  return null;
+const physicsOnly = <T extends Draft | ApprovedLesson>(lesson: T | null): Extract<T, { subject: 'physics' }> | null => {
+  if (lesson && lesson.subject !== 'physics') throw new Error(`the check screen cannot show a ${lesson.subject} lesson yet`);
+  return lesson as Extract<T, { subject: 'physics' }> | null;
 };
 
-const linkHighlights = (root: HTMLElement): void => {
+const lessonQuestions = (lesson: PhysicsDraft | ApprovedPhysicsLesson | null): HTMLElement[] =>
+  lesson?.questions ? lesson.questions.map((question) => questionCard(question, lesson.status)) : [];
+
+export const linkHighlights = (root: HTMLElement): void => {
   root.querySelectorAll<HTMLElement>('.item-row').forEach((row) => {
     const target = root.querySelector(`.overlay [data-id="${CSS.escape(row.dataset.id ?? '')}"]`);
     row.addEventListener('mouseenter', () => target?.classList.add('hover'));
@@ -151,7 +117,7 @@ const linkHighlights = (root: HTMLElement): void => {
 };
 
 export const renderCheck = (root: HTMLElement, session: Session, photoUrl: string, note: string, handlers: CheckHandlers): CheckScreen => {
-  const draft = session.draft();
+  const draft = physicsOnly(session.draft());
   if (!draft) throw new Error('nothing to check');
   const { scene } = draft;
   const lowItems = scene.items.filter((item) => item.confidence < LOW_CONFIDENCE);
@@ -163,9 +129,9 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
   const approveButton = h('button', {}, 'Approve scene and questions');
 
   const refreshApproval = (): void => {
-    const approved = session.presentable();
+    const approved = physicsOnly(session.presentable());
     const ready = questionsStatus.kind === 'ready';
-    draftSlot.replaceChildren(...(ready ? lessonQuestions(session.draft()) : [questionsPlaceholder(questionsStatus) ?? '']));
+    draftSlot.replaceChildren(...(ready ? lessonQuestions(physicsOnly(session.draft())) : [questionsPlaceholder(questionsStatus) ?? '']));
     approvedSlot.replaceChildren(...lessonQuestions(approved));
     presentButton.disabled = approved === null;
     approveButton.disabled = approved !== null || !ready;

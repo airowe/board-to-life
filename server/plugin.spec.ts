@@ -1,16 +1,22 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ACCESS_HEADER } from '../src/access';
-import { apiMiddleware } from './plugin';
+import { grasslandWeb } from '../src/ecosystem/fixtures';
+import { templateQuestion } from '../src/ecosystem/questions';
+import { WEB_SAMPLES } from '../src/ecosystem/samples';
+import type { Web, WebEvent } from '../src/ecosystem/schema';
+import { rampBallDominoes } from '../src/scene/fixtures';
+import { apiMiddleware, type ApiModel } from './plugin';
 
 const CODE = 'class-demo-42';
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 let server: Server | null = null;
 
-const serve = async (env: Record<string, string | undefined>): Promise<string> => {
-  const handle = apiMiddleware({ env });
+const serve = async (env: Record<string, string | undefined>, model?: ApiModel | null): Promise<string> => {
+  const handle = model === undefined ? apiMiddleware({ env }) : apiMiddleware({ env }, model);
   server = createServer((request, response) =>
     handle(request, response, () => {
       response.statusCode = 404;
@@ -72,5 +78,109 @@ describe('apiMiddleware', () => {
   it('passes other routes on', async () => {
     const response = await fetch(`${await serve({ ACCESS_CODE: CODE })}/index.html`);
     expect(response.status).toBe(404);
+  });
+});
+
+describe('apiMiddleware subjects', () => {
+  const web = WEB_SAMPLES[0]?.web;
+  const drafted: Web = { ...grasslandWeb(), event: { kind: 'remove', species: 'fox' } };
+  const UNKNOWN_SUBJECT = 'Pick a subject: Physics or Ecosystem.';
+  const calls: string[] = [];
+  const fake: ApiModel = {
+    name: 'fake',
+    read: () => {
+      calls.push('read');
+      return Promise.resolve(rampBallDominoes);
+    },
+    readWeb: () => {
+      calls.push('readWeb');
+      return Promise.resolve(web);
+    },
+    draft: () => Promise.resolve([]),
+    draftWeb: () => {
+      calls.push('draftWeb');
+      return Promise.resolve([templateQuestion(drafted, drafted.event as WebEvent, 'grass')]);
+    },
+    describe: () => {
+      calls.push('describe');
+      return Promise.resolve(rampBallDominoes);
+    },
+    describeWeb: () => {
+      calls.push('describeWeb');
+      return Promise.resolve(web);
+    },
+  };
+  const post = (base: string, path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', body: JSON.stringify(body) });
+  const samplePng = readFileSync(new URL('../public/samples/ramp-ball-dominoes.png', import.meta.url));
+  const photo = (base: string, query: string) =>
+    fetch(`${base}/api/understand${query}`, { method: 'POST', headers: { 'content-type': 'image/png' }, body: samplePng });
+
+  beforeEach(() => {
+    calls.length = 0;
+  });
+
+  it('reads a photo with the web reader when the query names the ecosystem subject', async () => {
+    const response = await photo(await serve({}, fake), '?subject=ecosystem');
+    expect(await response.json()).toMatchObject({ stub: false, reader: 'fake', web: { version: 1 } });
+    expect(calls).toEqual(['readWeb']);
+  });
+
+  it('still reads a photo into a scene with no subject, or with physics', async () => {
+    const base = await serve({}, fake);
+    for (const query of ['', '?subject=physics']) {
+      const body = await (await photo(base, query)).json();
+      expect(body).toMatchObject({ scene: { version: 1 } });
+      expect(body).not.toHaveProperty('web');
+    }
+    expect(calls).toEqual(['read', 'read']);
+  });
+
+  it('describes with the web writer when the body names the ecosystem subject', async () => {
+    const response = await post(await serve({}, fake), '/api/describe', { text: 'grass and rabbits', subject: 'ecosystem' });
+    expect(await response.json()).toMatchObject({ stub: false, web: { version: 1 } });
+    expect(calls).toEqual(['describeWeb']);
+  });
+
+  it('still describes a scene with no subject', async () => {
+    const body = await (await post(await serve({}, fake), '/api/describe', { text: 'a ball rolls' })).json();
+    expect(body).toMatchObject({ scene: { version: 1 } });
+    expect(calls).toEqual(['describe']);
+  });
+
+  it('serves the stub web for the ecosystem subject with no reader set', async () => {
+    const base = await serve({});
+    expect(await (await photo(base, '?subject=ecosystem')).json()).toEqual({ stub: true, web });
+    expect(await (await post(base, '/api/describe', { text: 'grass and rabbits', subject: 'ecosystem' })).json()).toEqual({ stub: true, web });
+  });
+
+  it('answers 400 for an unknown subject on every route, without calling the model', async () => {
+    const base = await serve({}, fake);
+    const responses = [
+      await photo(base, '?subject=chemistry'),
+      await post(base, '/api/describe', { text: 'a ball', subject: 'chemistry' }),
+      await post(base, '/api/draft-questions', { scene: {}, subject: 'chemistry' }),
+    ];
+    for (const response of responses) {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: UNKNOWN_SUBJECT, details: [] });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('drafts ecosystem questions with the web drafter when the body names the ecosystem subject', async () => {
+    const response = await post(await serve({}, fake), '/api/draft-questions', { web: drafted, subject: 'ecosystem' });
+    expect(await response.json()).toMatchObject({ stub: false, drafter: 'fake', questions: [{ id: 'q-1', observe: { kind: 'direction', species: 'grass' } }] });
+    expect(calls).toEqual(['draftWeb']);
+  });
+
+  it('serves a template question for the ecosystem subject with no drafter set', async () => {
+    const response = await post(await serve({}), '/api/draft-questions', { web: drafted, subject: 'ecosystem' });
+    expect(await response.json()).toEqual({ stub: true, questions: [templateQuestion(drafted, drafted.event as WebEvent, 'grass')] });
+  });
+
+  it('still drafts physics questions with the scene drafter when no subject is named', async () => {
+    const response = await post(await serve({}, fake), '/api/draft-questions', { scene: rampBallDominoes });
+    expect(await response.json()).toMatchObject({ stub: false, questions: [] });
+    expect(calls).toEqual([]);
   });
 });

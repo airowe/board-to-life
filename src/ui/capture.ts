@@ -1,15 +1,28 @@
 import { checkDescription, DESCRIPTION_LIMIT } from '../capture/description';
 import { DESCRIPTION_EXAMPLES } from '../capture/examples';
 import { pickBoardImage } from '../capture/pickImage';
+import { WEB_SAMPLES, webSampleUrl } from '../ecosystem/samples';
 import { SAMPLES, sampleUrl } from '../samples/scenes';
+import { SUBJECT_LABELS, SUBJECTS, type Subject } from '../subjects';
 import { h } from './dom';
 
-const SAMPLE_PICKS = [
-  { url: '/samples/ramp-ball-dominoes.png', title: 'Ball down a ramp into dominoes' },
-  ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
-];
+type SamplePick = { url: string; title: string };
 
-type CaptureHandlers = { onPhoto: (photo: Blob) => void; onDescribe: (text: string) => void; description?: string };
+const SAMPLE_PICKS: Record<Subject, readonly SamplePick[]> = {
+  physics: [
+    { url: '/samples/ramp-ball-dominoes.png', title: 'Ball down a ramp into dominoes' },
+    ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
+  ],
+  ecosystem: WEB_SAMPLES.map((sample) => ({ url: webSampleUrl(sample.id), title: sample.title })),
+};
+
+type CaptureHandlers = {
+  subject: Subject;
+  onSubject: (subject: Subject) => void;
+  onPhoto: (photo: Blob, subject: Subject) => void;
+  onDescribe: (text: string, subject: Subject) => void;
+  description?: string;
+};
 
 const stopStream = (video: HTMLVideoElement): void => {
   const stream = video.srcObject;
@@ -23,7 +36,13 @@ const grabFrame = (video: HTMLVideoElement): Promise<Blob | null> => {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
 };
 
-export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, description = '' }: CaptureHandlers): (() => void) => {
+export const renderCapture = (
+  root: HTMLElement,
+  { subject: initialSubject, onSubject, onPhoto: submitPhoto, onDescribe: submitText, description = '' }: CaptureHandlers,
+): (() => void) => {
+  let subject = initialSubject;
+  const onPhoto = (photo: Blob): void => submitPhoto(photo, subject);
+  const onDescribe = (text: string): void => submitText(text, subject);
   const status = h('p', { class: 'status', role: 'status' });
   const video = h('video', { class: 'webcam', playsinline: true, muted: true, hidden: true });
   const snap = h('button', { class: 'primary', hidden: true }, 'Take photo');
@@ -111,7 +130,6 @@ export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, descript
     class: 'description-input',
     rows: '3',
     maxlength: String(DESCRIPTION_LIMIT),
-    placeholder: 'A ball rolls down a ramp and knocks over a row of dominoes.',
   });
   descriptionBox.value = description;
   const submitDescription = (): void => {
@@ -119,17 +137,14 @@ export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, descript
     if (checked.ok) onDescribe(checked.text);
     else status.textContent = checked.error;
   };
-  const describeSection = h(
-    'section',
-    { class: 'describe', 'aria-labelledby': 'describe-heading' },
-    h('h2', { id: 'describe-heading' }, 'Or describe it'),
-    h('label', { class: 'note', for: 'description-input' }, 'Type the setup in a sentence or two. You check the layout before anything is shown to the class.'),
-    descriptionBox,
-    h('div', { class: 'capture-actions' }, h('button', { class: 'primary', onclick: submitDescription }, 'Lay it out')),
-    h(
-      'div',
-      { class: 'description-examples' },
-      ...DESCRIPTION_EXAMPLES.map((example) =>
+  const examplesBox = h('div', { class: 'description-examples' });
+  const sampleGrid = h('div', { class: 'sample-grid' });
+
+  const showSubjectContent = (): void => {
+    const examples = DESCRIPTION_EXAMPLES[subject];
+    descriptionBox.placeholder = examples[0] ?? '';
+    examplesBox.replaceChildren(
+      ...examples.map((example) =>
         h(
           'button',
           {
@@ -143,7 +158,47 @@ export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, descript
           example,
         ),
       ),
+    );
+    sampleGrid.replaceChildren(
+      ...SAMPLE_PICKS[subject].map((pick) =>
+        h('button', { class: 'sample', onclick: () => void useSample(pick.url) }, h('img', { src: pick.url, alt: '', loading: 'lazy' }), h('span', {}, pick.title)),
+      ),
+    );
+  };
+  showSubjectContent();
+
+  const subjectPicker = h(
+    'fieldset',
+    { class: 'subject-picker' },
+    h('legend', {}, 'Subject'),
+    ...SUBJECTS.map((option) =>
+      h(
+        'label',
+        { class: 'subject-option' },
+        h('input', {
+          type: 'radio',
+          name: 'subject',
+          value: option,
+          checked: option === subject,
+          onchange: () => {
+            subject = option;
+            onSubject(option);
+            showSubjectContent();
+          },
+        }),
+        SUBJECT_LABELS[option],
+      ),
     ),
+  );
+
+  const describeSection = h(
+    'section',
+    { class: 'describe', 'aria-labelledby': 'describe-heading' },
+    h('h2', { id: 'describe-heading' }, 'Or describe it'),
+    h('label', { class: 'note', for: 'description-input' }, 'Type the setup in a sentence or two. You check the layout before anything is shown to the class.'),
+    descriptionBox,
+    h('div', { class: 'capture-actions' }, h('button', { class: 'primary', onclick: submitDescription }, 'Lay it out')),
+    examplesBox,
   );
 
   root.replaceChildren(
@@ -152,6 +207,7 @@ export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, descript
       { class: 'capture' },
       h('h1', {}, 'Photograph the board'),
       h('p', { class: 'lede' }, 'Take a photo of your drawing. You check what was read before anything is shown to the class.'),
+      subjectPicker,
       h(
         'div',
         { class: 'capture-actions' },
@@ -172,13 +228,7 @@ export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, descript
         'section',
         { class: 'samples', 'aria-labelledby': 'samples-heading' },
         h('h2', { id: 'samples-heading' }, 'No board to hand? Try a sample drawing'),
-        h(
-          'div',
-          { class: 'sample-grid' },
-          ...SAMPLE_PICKS.map((pick) =>
-            h('button', { class: 'sample', onclick: () => void useSample(pick.url) }, h('img', { src: pick.url, alt: '', loading: 'lazy' }), h('span', {}, pick.title)),
-          ),
-        ),
+        sampleGrid,
       ),
     ),
   );

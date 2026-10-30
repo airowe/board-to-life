@@ -61,3 +61,25 @@ describe('describedNote', () => {
     expect(describedNote(body)).toBe(note);
   });
 });
+
+describe('notes for an ecosystem drawing', () => {
+  it('calls a read drawing a food web', () => {
+    expect(readingNote({ stub: false, reader: 'meta' }, 'ecosystem')).toBe(
+      'Read by Muse Spark on the Meta Model API. Check each species and arrow in the food web against the photo.',
+    );
+  });
+
+  it('calls a stub reading a food web', () => {
+    expect(readingNote({ stub: true }, 'ecosystem')).toBe('Stub reading: a fixed, hand-written food web for the test drawing. No AI was called.');
+  });
+
+  it('calls a described setup a food web', () => {
+    expect(describedNote({ stub: false, reader: 'baseten' }, 'ecosystem')).toBe(
+      'Laid out by Muse Spark Open on Baseten from your description as a food web. Check that it matches what you meant.',
+    );
+  });
+
+  it('calls a stub layout a food web', () => {
+    expect(describedNote({ stub: true }, 'ecosystem')).toBe('Stub layout: a fixed food web for the sample drawing. No AI was called.');
+  });
+});

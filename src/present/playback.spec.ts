@@ -4,18 +4,18 @@ import { rampBallDominoes, rampBallDominoesQuestions } from '../scene/fixtures';
 import { moveGrip } from '../scene/edit';
 import { checkGrounding } from '../scene/questions';
 import { validateScene } from '../scene/schema';
-import type { Lesson } from '../session/store';
+import type { PhysicsLesson } from '../session/store';
 import { createPlayback } from './playback';
 
 const SETTLE_SECONDS = 8;
 const PLENTY = 10_000;
 
-const lesson = (): Lesson => {
+const lesson = (): PhysicsLesson => {
   const scene = validateScene(rampBallDominoes);
   if (!scene.ok) throw new Error('fixture scene invalid');
   const questions = checkGrounding(rampBallDominoesQuestions, scene.scene);
   if (!questions.ok) throw new Error('fixture questions invalid');
-  return { scene: scene.scene, questions: questions.questions };
+  return { subject: 'physics', scene: scene.scene, questions: questions.questions };
 };
 
 const playToEnd = (playback: ReturnType<typeof createPlayback>) => {
