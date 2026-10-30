@@ -6,7 +6,7 @@ import { build } from 'vite';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const output = `${root}.vercel/output`;
-const ROUTES = ['understand', 'draft-questions'];
+const ROUTES = ['understand', 'draft-questions', 'describe'];
 // Above the server's 120 s model budget, so a slow read ends with the server's own error.
 const MAX_DURATION_SECONDS = 150;
 

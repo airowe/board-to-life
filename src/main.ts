@@ -1,7 +1,8 @@
 import { accessHeaders, rememberAccessCode } from './access';
 import { requestJson, type ApiFailure } from './api';
 import { preparePhoto } from './capture/downscale';
-import { describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote } from './reading';
+import { sketchImage } from './capture/sketchImage';
+import { describedNote, describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote } from './reading';
 import { checkGrounding } from './scene/questions';
 import { validateScene, type Scene } from './scene/schema';
 import { createSession } from './session/store';
@@ -32,6 +33,7 @@ let preparedNote = '';
 let checkScreen: CheckScreen | null = null;
 let activeDraftId = 0;
 let activeRead: AbortController | null = null;
+let lastDescription = '';
 
 const leaveScreen = (): void => {
   activeRead?.abort();
@@ -52,7 +54,7 @@ const showLoading = (message: string): void => {
   root.replaceChildren(h('section', { class: 'loading', role: 'status' }, h('div', { class: 'spinner' }), h('p', {}, message)));
 };
 
-const showReading = (read: AbortController): void => {
+const showReading = (read: AbortController, headlineOverride?: string): void => {
   leaveScreen();
   activeRead = read;
   const startedAt = performance.now();
@@ -67,7 +69,8 @@ const showReading = (read: AbortController): void => {
   );
   const tick = (): void => {
     const progress = describeReading(performance.now() - startedAt);
-    if (headline.textContent !== progress.headline) headline.textContent = progress.headline;
+    const text = headlineOverride ?? progress.headline;
+    if (headline.textContent !== text) headline.textContent = text;
     detail.textContent = progress.detail;
     section.classList.toggle('late', progress.late);
   };
@@ -136,6 +139,40 @@ const readDrawing = async (photo: Blob): Promise<void> => {
   void draftQuestions(draftId, scene.scene);
 };
 
+const describeSetup = async (text: string): Promise<void> => {
+  lastDescription = text;
+  const retry = (): void => void describeSetup(text);
+  const read = new AbortController();
+  showReading(read, 'Laying out your description…');
+  const described = await requestJson(
+    '/api/describe',
+    { method: 'POST', body: JSON.stringify({ text }), headers: { 'content-type': 'application/json', ...requestHeaders() } },
+    { timeoutMs: MODEL_REQUEST_TIMEOUT_MS, signal: read.signal },
+  );
+  if (read.signal.aborted) return;
+  if (!described.ok) return showError(described, retry);
+
+  const scene = validateScene((described.data as { scene?: unknown } | null)?.scene);
+  if (!scene.ok) return showError({ message: 'The scene that came back failed validation.', details: scene.errors }, retry);
+
+  let sketch: Blob;
+  try {
+    sketch = await sketchImage(scene.scene);
+  } catch (cause) {
+    return showError({ message: cause instanceof Error ? cause.message : 'Could not draw the described setup.' }, retry);
+  }
+  if (read.signal.aborted) return;
+  activeRead = null;
+
+  const draftId = session.startDraft(scene.scene);
+  activeDraftId = draftId;
+  if (photoUrl) URL.revokeObjectURL(photoUrl);
+  photoUrl = URL.createObjectURL(sketch);
+  photoNote = describedNote(described.data);
+  showCheck();
+  void draftQuestions(draftId, scene.scene);
+};
+
 const receivePhoto = async (photo: Blob): Promise<void> => {
   showLoading('Preparing the photo…');
   const prepared = await preparePhoto(photo);
@@ -159,7 +196,11 @@ function showPresent(): void {
 
 function showCapture(): void {
   leaveScreen();
-  cleanup = renderCapture(root, { onPhoto: (photo) => void receivePhoto(photo) });
+  cleanup = renderCapture(root, {
+    onPhoto: (photo) => void receivePhoto(photo),
+    onDescribe: (text) => void describeSetup(text),
+    description: lastDescription,
+  });
 }
 
 showCapture();

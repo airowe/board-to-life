@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../src/scene/fixtures';
-import { handleDraftQuestions, handleUnderstand, parseStubMode } from './stub';
+import { handleDescribe, handleDraftQuestions, handleUnderstand, parseStubMode } from './stub';
 
 const image = { contentType: 'image/png', bytes: 1024 };
 const noDelay = { delayMs: 0 };
@@ -53,5 +53,28 @@ describe('handleDraftQuestions', () => {
     const response = await handleDraftQuestions({ scene: rampBallDominoes, mode: 'ungrounded', ...noDelay });
     expect(response.status).toBe(422);
     expect(JSON.stringify(response.body)).toMatch(/missing item \\"domino-9\\"/);
+  });
+});
+
+describe('handleDescribe', () => {
+  const text = 'a ball rolls into dominoes';
+
+  it('returns the hand-written scene for a description', async () => {
+    expect(await handleDescribe({ text, mode: 'ok', ...noDelay })).toEqual({ status: 200, body: { stub: true, scene: rampBallDominoes } });
+  });
+
+  it('refuses empty text before the stub delay', async () => {
+    const started = Date.now();
+    const response = await handleDescribe({ text: '  ', mode: 'ok', delayMs: 5000 });
+    expect(response.status).toBe(400);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it.each([
+    ['error', 503],
+    ['timeout', 504],
+    ['invalid', 502],
+  ] as const)('behaves as understand does in %s mode', async (mode, status) => {
+    expect((await handleDescribe({ text, mode, ...noDelay })).status).toBe(status);
   });
 });

@@ -41,7 +41,7 @@ export const requestJson = async (url: string, init: RequestInit, options: Optio
       ok: false,
       retryable: true,
       message: timedOut
-        ? `The scene reader did not answer within ${Math.round(options.timeoutMs / 1000)} seconds.`
+        ? `Muse Spark did not answer within ${Math.round(options.timeoutMs / 1000)} seconds.`
         : 'Could not reach the server. Check the connection and try again.',
     };
   } finally {

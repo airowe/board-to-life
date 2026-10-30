@@ -1,3 +1,5 @@
+import { checkDescription, DESCRIPTION_LIMIT } from '../capture/description';
+import { DESCRIPTION_EXAMPLES } from '../capture/examples';
 import { pickBoardImage } from '../capture/pickImage';
 import { SAMPLES, sampleUrl } from '../samples/scenes';
 import { h } from './dom';
@@ -7,7 +9,7 @@ const SAMPLE_PICKS = [
   ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
 ];
 
-type CaptureHandlers = { onPhoto: (photo: Blob) => void };
+type CaptureHandlers = { onPhoto: (photo: Blob) => void; onDescribe: (text: string) => void; description?: string };
 
 const stopStream = (video: HTMLVideoElement): void => {
   const stream = video.srcObject;
@@ -21,7 +23,7 @@ const grabFrame = (video: HTMLVideoElement): Promise<Blob | null> => {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
 };
 
-export const renderCapture = (root: HTMLElement, { onPhoto }: CaptureHandlers): (() => void) => {
+export const renderCapture = (root: HTMLElement, { onPhoto, onDescribe, description = '' }: CaptureHandlers): (() => void) => {
   const status = h('p', { class: 'status', role: 'status' });
   const video = h('video', { class: 'webcam', playsinline: true, muted: true, hidden: true });
   const snap = h('button', { class: 'primary', hidden: true }, 'Take photo');
@@ -104,6 +106,46 @@ export const renderCapture = (root: HTMLElement, { onPhoto }: CaptureHandlers): 
     onPhoto(await response.blob());
   };
 
+  const descriptionBox = h('textarea', {
+    id: 'description-input',
+    class: 'description-input',
+    rows: '3',
+    maxlength: String(DESCRIPTION_LIMIT),
+    placeholder: 'A ball rolls down a ramp and knocks over a row of dominoes.',
+  });
+  descriptionBox.value = description;
+  const submitDescription = (): void => {
+    const checked = checkDescription(descriptionBox.value);
+    if (checked.ok) onDescribe(checked.text);
+    else status.textContent = checked.error;
+  };
+  const describeSection = h(
+    'section',
+    { class: 'describe', 'aria-labelledby': 'describe-heading' },
+    h('h2', { id: 'describe-heading' }, 'Or describe it'),
+    h('label', { class: 'note', for: 'description-input' }, 'Type the setup in a sentence or two. You check the layout before anything is shown to the class.'),
+    descriptionBox,
+    h('div', { class: 'capture-actions' }, h('button', { class: 'primary', onclick: submitDescription }, 'Lay it out')),
+    h(
+      'div',
+      { class: 'description-examples' },
+      ...DESCRIPTION_EXAMPLES.map((example) =>
+        h(
+          'button',
+          {
+            class: 'quiet',
+            onclick: () => {
+              descriptionBox.value = example;
+              status.textContent = '';
+              descriptionBox.focus();
+            },
+          },
+          example,
+        ),
+      ),
+    ),
+  );
+
   root.replaceChildren(
     h(
       'section',
@@ -125,6 +167,7 @@ export const renderCapture = (root: HTMLElement, { onPhoto }: CaptureHandlers): 
       video,
       snap,
       status,
+      describeSection,
       h(
         'section',
         { class: 'samples', 'aria-labelledby': 'samples-heading' },
