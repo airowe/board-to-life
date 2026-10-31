@@ -68,11 +68,20 @@ const sameName = (a: string, b: string): boolean => {
   return [...singularForms(left[last] as string)].some((form) => rightForms.has(form));
 };
 
+const organismNamed = (library: Library, name: string): string | null =>
+  library.entries.find(
+    (entry) => entry.group === 'organism' && (sameName(entry.subject, name) || entry.aliases.some((alias) => sameName(alias, name))),
+  )?.subject ?? null;
+
+// The organism a species name means: the whole name first, then without its leading words one at a time, so the head noun
+// still finds it ("Great white shark" is a shark, "giant dragonfly larva" a dragonfly larva). Props and backgrounds never match.
 export const findLibrarySubject = (library: Library, name: string): string | null => {
-  const match = library.entries.find(
-    (entry) => sameName(entry.subject, name) || entry.aliases.some((alias) => sameName(alias, name)),
-  );
-  return match?.subject ?? null;
+  const parts = words(name);
+  for (let first = 0; first < parts.length; first += 1) {
+    const subject = organismNamed(library, parts.slice(first).join(' '));
+    if (subject !== null) return subject;
+  }
+  return null;
 };
 
 export const findFallback = (fallback: FallbackEntry[], name: string): FallbackEntry | null =>

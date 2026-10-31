@@ -32,6 +32,27 @@ describe('findLibrarySubject', () => {
   ])('maps %j to %j', (name, subject) => {
     expect(findLibrarySubject(library, name)).toBe(subject);
   });
+
+  it.each([['box'], ['ocean'], ['domino'], ['plank'], ['pond']])('never matches the prop or background %j as a species', (name) => {
+    expect(findLibrarySubject(library, name)).toBeNull();
+  });
+
+  it.each([
+    ['Red fox', 'fox'],
+    ['Great white shark', 'shark'],
+    ['Grey wolf', 'wolf'],
+    ['tree frog', 'frog'],
+    ['giant dragonfly larva', 'dragonfly-larva'],
+    ['sea star', 'sea-star'],
+    ['water flea', 'water-flea'],
+    ['purple sea urchins', 'sea-urchin'],
+  ])('falls back to the head noun: %j is %j', (name, subject) => {
+    expect(findLibrarySubject(library, name)).toBe(subject);
+  });
+
+  it.each([['star'], ['sea lion'], ['killer whale'], ['shooting star']])('does not stretch a head noun into a wrong match: %j', (name) => {
+    expect(findLibrarySubject(library, name)).toBeNull();
+  });
 });
 
 const entryFor = (subject: string): LibraryEntry => ({
