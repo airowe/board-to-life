@@ -212,10 +212,43 @@ describe('layoutPlace', () => {
     const water = layout.groups.filter((group) => group.zone === 'water');
     expect(water.length).toBeGreaterThan(0);
     for (const group of water) {
-      expect(group.baseY).toBe(WATER_Y_BY_HABITAT[habitat] * STAGE.height);
       expect(group.baseY - group.depth - group.size / 2).toBeGreaterThan(SURFACE_Y_BY_HABITAT[habitat] * STAGE.height);
       expect(group.baseY + group.depth + group.size / 2).toBeLessThan(FLOOR_Y * STAGE.height);
     }
+  });
+
+  it('keeps a lone water group on the habitat\'s water line', () => {
+    const web = webOf([speciesAt('kelp', 'producer', 100, 800), speciesAt('shark', 'consumer', 600, 200)], []);
+    expect(groupOf(layoutPlace(web, library).groups, 'shark').baseY).toBe(WATER_Y_BY_HABITAT['kelp-forest'] * STAGE.height);
+  });
+
+  it.each<[string, () => Web]>([
+    ['kelp forest with swimmers', kelpWithSwimmers],
+    ['pond sample', () => sampleWeb('pond')],
+    [
+      'plankton, jellyfish and sea turtles',
+      () =>
+        webOf(
+          [
+            speciesAt('phytoplankton', 'producer', 200, 800),
+            speciesAt('jellyfish', 'consumer', 500, 500),
+            speciesAt('turtle', 'consumer', 800, 200),
+            speciesAt('kelp', 'producer', 100, 900),
+          ],
+          [],
+        ),
+    ],
+  ])('gives each water group in the %s its own depth lane, higher on the board nearer the surface', (_, makeWeb) => {
+    const web = makeWeb();
+    const water = layoutPlace(web, library).groups.filter((group) => group.zone === 'water');
+    expect(water.length).toBeGreaterThan(1);
+    const boardY = new Map(web.species.map((entry) => [entry.id, entry.y]));
+    const lanes = [...water].sort((a, b) => (boardY.get(a.speciesId) ?? 0) - (boardY.get(b.speciesId) ?? 0));
+    lanes.slice(1).forEach((group, index) => {
+      const above = lanes[index] as Group;
+      expect(group.baseY - above.baseY).toBeGreaterThanOrEqual(Math.max(group.size, above.size));
+      expect(group.baseY - group.depth).toBeGreaterThanOrEqual(above.baseY + above.depth);
+    });
   });
 
   it('gives floor and water crowds some depth, and surface crowds none', () => {

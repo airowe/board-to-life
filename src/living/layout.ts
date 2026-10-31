@@ -119,6 +119,21 @@ const depthOf = (habitat: Habitat, zone: Zone, baseY: number, size: number): num
   return Math.max(0, Math.min(DEPTH_PX.water, room));
 };
 
+// Several water groups each get a depth lane, spread evenly through the water band: the group drawn highest on the board
+// swims nearest the surface. A lone group keeps the habitat's water line. Returns each lane's line and its half-height room.
+const waterLanes = (habitat: Habitat, swimmers: { id: string; boardY: number; size: number }[]): Map<string, { baseY: number; room: number }> => {
+  if (swimmers.length < 2) return new Map();
+  const count = swimmers.length;
+  const tallest = Math.max(...swimmers.map((entry) => entry.size));
+  const highest = SURFACE_Y_BY_HABITAT[habitat] * STAGE.height + WATER_MARGIN_PX + tallest / 2;
+  const lowest = FLOOR_Y * STAGE.height - WATER_MARGIN_PX - tallest / 2;
+  // Each lane keeps the same room either side of its line, shared out of whatever the lanes leave spare.
+  const room = Math.min(Math.max((lowest - highest - (count - 1) * tallest) / (2 * count), 0), DEPTH_PX.water);
+  const gap = Math.max(lowest - highest - 2 * room, 0) / (count - 1);
+  const ordered = [...swimmers].sort((a, b) => a.boardY - b.boardY);
+  return new Map(ordered.map((entry, index) => [entry.id, { baseY: highest + room + index * gap, room }]));
+};
+
 export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
   const habitat = habitatFor(web, library);
   const placed = [...web.species]
@@ -129,6 +144,10 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
       const width = size * aspectOf(library, species.name, zone);
       return { species, zone, size, width, row: rowOf({ zone, role: species.role }) };
     });
+  const lanes = waterLanes(
+    habitat,
+    placed.filter((entry) => entry.zone === 'water').map((entry) => ({ id: entry.species.id, boardY: entry.species.y, size: entry.size })),
+  );
   const leftByRow = new Map<string, number>();
   const pxPerWidthByRow = new Map<string, number>();
   for (const row of new Set(placed.map((entry) => entry.row))) {
@@ -140,7 +159,8 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     const slot = width * (pxPerWidthByRow.get(row) ?? 0);
     const left = leftByRow.get(row) ?? STAGE_MARGIN;
     leftByRow.set(row, left + slot);
-    const baseY = lineOf(habitat, zone);
+    const lane = lanes.get(species.id);
+    const baseY = lane?.baseY ?? lineOf(habitat, zone);
     const spacing = width * SPACING_PER_WIDTH;
     const rooted = isRooted(species.role, zone);
     const widest = Math.min((slot / 2) * SPREAD_FILL, MAX_SPREAD_SPACINGS[zone] * spacing);
@@ -155,7 +175,7 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
       centreX,
       spread,
       baseY,
-      depth: depthOf(habitat, zone, baseY, size),
+      depth: Math.min(depthOf(habitat, zone, baseY, size), lane?.room ?? Infinity),
       size,
       spacing,
     };
