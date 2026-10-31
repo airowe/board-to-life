@@ -5,9 +5,9 @@ import { speciesAt, webOf } from '../ecosystem/fixtures';
 import { EVENT_STEP, MODEL_STEPS, simulate, type Series } from '../ecosystem/model';
 import { WEB_SAMPLES } from '../ecosystem/samples';
 import type { Web, WebEvent } from '../ecosystem/schema';
-import { isGone, referenceLevel } from '../ecosystem/outcomes';
+import { directionsAfter, isGone, referenceLevel, type Direction } from '../ecosystem/outcomes';
 import { crowdTargets } from './crowd';
-import { MAX_LABELS, labelsAt, type PinnedLabel } from './labels';
+import { MAX_LABELS, changeLabelsAt, labelsAt, type PinnedLabel } from './labels';
 
 const sampleWeb = (id: string): Web => {
   const sample = WEB_SAMPLES.find((entry) => entry.id === id);
@@ -82,7 +82,7 @@ describe('labelsAt', () => {
 
   it('a died-out label replaces that species\' decline label', () => {
     const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
-    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), 80, 50, 5, 0.9, 0.5];
+    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), 80, 50, 5, 0.9, ...Array<number>(EVENT_STEP).fill(0.5)];
     const grass = Array<number>(fox.length).fill(1000);
     const series: Series = { ids: ['grass', 'fox'], values: { grass, fox } };
     const declineStep = EVENT_STEP + 1;
@@ -165,7 +165,7 @@ describe('labelsAt', () => {
 
   it.each([...PLURALS, ...OTHER_PLURALS])('names a rising "%s" as "%s multiplying."', (name, plural) => {
     const web = webOf([{ ...speciesAt('grass', 'producer', 100, 800), name }], []);
-    const series: Series = { ids: ['grass'], values: { grass: [...Array<number>(EVENT_STEP + 1).fill(100), 200] } };
+    const series: Series = { ids: ['grass'], values: { grass: [...Array<number>(EVENT_STEP + 1).fill(100), ...Array<number>(EVENT_STEP).fill(200)] } };
     expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 1), 'grass')?.text).toBe(`${plural} multiplying.`);
   });
 
@@ -177,10 +177,11 @@ describe('labelsAt', () => {
 });
 
 describe('labels and crowds agree on who is gone', () => {
-  // Edited up to 4x its settled value, the fox is at 400 when the event comes, then crashes and recovers.
+  // Edited up to 4x its settled value, the fox is at 400 when the event comes, then crashes and recovers to a lower level.
   const SETTLED_FOX = 100;
   const AT_EVENT = 400;
-  const fox = [...Array<number>(EVENT_STEP).fill(AT_EVENT - 10), AT_EVENT, 300, 100, 20, 3, 2, 3, 10, 40];
+  const RECOVERED = 40;
+  const fox = [...Array<number>(EVENT_STEP).fill(AT_EVENT - 10), AT_EVENT, 300, 100, 20, 3, 2, 3, 10, ...Array<number>(EVENT_STEP).fill(RECOVERED)];
   const series: Series = { ids: ['grass', 'fox'], values: { grass: Array<number>(fox.length).fill(1000), fox } };
   const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
   const roles = { grass: 'producer', fox: 'consumer' } as const;
@@ -205,5 +206,54 @@ describe('labels and crowds agree on who is gone', () => {
   it('goes back to the decline label once the fox recovers', () => {
     expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 8), 'fox')).toEqual({ speciesId: 'fox', text: 'Foxes declining.', since: EVENT_STEP + 1 });
     expect(crowdAt(EVENT_STEP + 8)).toBeGreaterThan(0);
+  });
+});
+
+describe('labels agree with the outcome the reveal shows', () => {
+  const kindOf = (text: string): Direction | 'dying out' => {
+    if (text.endsWith('multiplying.')) return 'rose';
+    if (text.endsWith('dying out.')) return 'dying out';
+    return 'fell';
+  };
+
+  it('labels an overshoot by where it ends up, timed from the crossing in that direction', () => {
+    const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
+    const rise = [130, 125, 115, 100];
+    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), ...rise, ...Array<number>(MODEL_STEPS - EVENT_STEP - rise.length).fill(60)];
+    const series: Series = { ids: ['grass', 'fox'], values: { grass: Array<number>(fox.length).fill(1000), fox } };
+    expect(directionsAfter(series, EVENT_STEP).fox).toBe('fell');
+    const fallsAt = EVENT_STEP + rise.length + 1;
+    expect(labelFor(labelsAt(web, DROUGHT, series, fallsAt - 1), 'fox')).toBeUndefined();
+    expect(labelFor(labelsAt(web, DROUGHT, series, MODEL_STEPS), 'fox')).toEqual({ speciesId: 'fox', text: 'Foxes declining.', since: fallsAt });
+  });
+
+  it('gives a species that ends steady no change label, even after a swing', () => {
+    const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
+    const swing = [150, 140, 120];
+    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), ...swing, ...Array<number>(MODEL_STEPS - EVENT_STEP - swing.length).fill(102)];
+    const series: Series = { ids: ['grass', 'fox'], values: { grass: Array<number>(fox.length).fill(1000), fox } };
+    expect(directionsAfter(series, EVENT_STEP).fox).toBe('steady');
+    expect(labelFor(labelsAt(web, DROUGHT, series, MODEL_STEPS), 'fox')).toBeUndefined();
+  });
+
+  const REMOVALS = WEB_SAMPLES.flatMap((sample) =>
+    sample.web.species.map((species) => [sample.id, species.id, { kind: 'remove', species: species.id } as WebEvent] as const),
+  );
+
+  it.each(REMOVALS)('%s with %s removed: every label says what directionsAfter says', (id, removed, event) => {
+    const web = sampleWeb(id);
+    const series = run(web, event);
+    const directions = directionsAfter(series, EVENT_STEP);
+    for (const label of changeLabelsAt(web, event, series, MODEL_STEPS)) {
+      const values = series.values[label.speciesId as string] ?? [];
+      const direction = directions[label.speciesId as string];
+      const kind = kindOf(label.text);
+      if (kind === 'dying out') expect(isGone(values.at(-1) ?? 0, referenceLevel(values, EVENT_STEP))).toBe(true);
+      else expect([label.speciesId, kind]).toEqual([label.speciesId, direction === 'died out' ? 'fell' : direction]);
+    }
+    const labelled = new Set(changeLabelsAt(web, event, series, MODEL_STEPS).map((label) => label.speciesId));
+    for (const [speciesId, direction] of Object.entries(directions)) {
+      if (direction !== 'steady' && speciesId !== removed) expect([speciesId, labelled.has(speciesId)]).toEqual([speciesId, true]);
+    }
   });
 });

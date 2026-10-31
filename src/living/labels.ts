@@ -1,5 +1,5 @@
 import { EVENT_STEP, type Series } from '../ecosystem/model';
-import { CHANGE_THRESHOLD, isGone, referenceLevel } from '../ecosystem/outcomes';
+import { CHANGE_THRESHOLD, directionsAfter, isGone, referenceLevel, type Direction } from '../ecosystem/outcomes';
 import type { Species, Web, WebEvent } from '../ecosystem/schema';
 
 export const MAX_LABELS = 3;
@@ -43,31 +43,41 @@ const eventLabel = (web: Web, event: WebEvent): PinnedLabel => {
   return { speciesId: event.species, text: `The ${pluralName(name)} are removed.`, since: EVENT_STEP };
 };
 
-// The first clear change since the event, unless the species is gone right now: then "dying out", dated from when it went.
-const changeLabel = (species: Species, values: number[], step: number): PinnedLabel | null => {
+// The way the species ends up, as the reveal reports it (directionsAfter), dated from the first step it crosses the
+// threshold that way; no label for a species that ends steady. While the species is gone it is "dying out" instead,
+// dated from when it went.
+const changeLabel = (species: Species, values: number[], step: number, direction: Direction | undefined): PinnedLabel | null => {
   const reference = referenceLevel(values, EVENT_STEP);
   if (reference <= 0) return null;
   const name = capitalised(pluralName(species.name));
-  const fallText = species.role === 'producer' ? `${name} thinning out.` : `${name} declining.`;
+  const rises = direction === 'rose';
+  const falls = direction === 'fell' || direction === 'died out';
+  const text = rises ? `${name} multiplying.` : species.role === 'producer' ? `${name} thinning out.` : `${name} declining.`;
   let change: PinnedLabel | null = null;
   let goneSince: number | null = null;
   for (let at = EVENT_STEP + 1; at <= Math.min(step, values.length - 1); at += 1) {
     const value = values[at] ?? 0;
     goneSince = isGone(value, reference) ? (goneSince ?? at) : null;
     if (change !== null) continue;
-    if (value > reference * (1 + CHANGE_THRESHOLD)) change = { speciesId: species.id, text: `${name} multiplying.`, since: at };
-    else if (value < reference * (1 - CHANGE_THRESHOLD)) change = { speciesId: species.id, text: fallText, since: at };
+    const crossed = (rises && value > reference * (1 + CHANGE_THRESHOLD)) || (falls && value < reference * (1 - CHANGE_THRESHOLD));
+    if (crossed) change = { speciesId: species.id, text, since: at };
   }
   return goneSince === null ? change : { speciesId: species.id, text: `${name} dying out.`, since: goneSince };
 };
 
-export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
+// Every species' change label at `step`, before the newest few are picked; the removed species gets none.
+export const changeLabelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
   if (step < EVENT_STEP) return [];
   const removed = event.kind === 'remove' ? event.species : null;
-  const changes = web.species
+  const directions = directionsAfter(series, EVENT_STEP);
+  return web.species
     .filter((species) => species.id !== removed)
-    .map((species) => changeLabel(species, series.values[species.id] ?? [], step))
+    .map((species) => changeLabel(species, series.values[species.id] ?? [], step, directions[species.id]))
     .filter((label): label is PinnedLabel => label !== null);
-  const newestLast = [eventLabel(web, event), ...changes].sort((a, b) => a.since - b.since);
+};
+
+export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
+  if (step < EVENT_STEP) return [];
+  const newestLast = [eventLabel(web, event), ...changeLabelsAt(web, event, series, step)].sort((a, b) => a.since - b.since);
   return newestLast.slice(-MAX_LABELS);
 };
