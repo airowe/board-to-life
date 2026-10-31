@@ -198,3 +198,9 @@ export const handleDraftFigureQuestions = async (request: DraftFigureQuestionsRe
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the figure.', grounded.errors);
   return { status: 200, body: { stub: true, questions: grounded.questions } };
 };
+
+// A 1x1 white PNG: the picture the stub returns, so the browser path runs without a paid call.
+export const STUB_PICTURE =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+export const pictureResponse = (image: string): StubResponse => ({ status: 200, body: { image } });

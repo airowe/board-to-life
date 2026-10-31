@@ -10,6 +10,7 @@ import { describeWebWithModel } from './webWriter';
 import { readFigureWithModel } from './figureReader';
 import { describeFigureWithModel } from './figureWriter';
 import { draftFigureQuestionsWithModel } from './figureDrafter';
+import { drawPictureWithModel, parsePictureSubject } from './picture';
 import { parseSubject, SUBJECT_LABELS, SUBJECTS, type Subject } from '../src/subjects';
 import {
   handleDescribe,
@@ -22,6 +23,8 @@ import {
   handleUnderstandFigure,
   handleUnderstandWeb,
   parseStubMode,
+  pictureResponse,
+  STUB_PICTURE,
   type StubMode,
   type StubResponse,
 } from './stub';
@@ -101,6 +104,7 @@ export type ApiModel = {
   readFigure: ModelRead;
   describeFigure: ModelDescribe;
   draftFigure: ModelFigureDraft;
+  drawPicture?: (subject: string) => Promise<Buffer>;
 };
 
 const STUB_READER = 'stub';
@@ -123,6 +127,7 @@ export const modelFrom = (env: ApiOptions['env']): ApiModel | null => {
     readFigure: (photo) => readFigureWithModel(photo, provider, options),
     describeFigure: (text) => describeFigureWithModel(text, provider, options),
     draftFigure: (figure, focus) => draftFigureQuestionsWithModel(figure, focus, provider, options),
+    ...(name === 'meta' ? { drawPicture: (subject: string) => drawPictureWithModel(subject, provider.apiKey) } : {}),
   };
 };
 
@@ -197,17 +202,26 @@ export const SUBJECT_ROUTES: Record<Subject, SubjectRoute> = {
 };
 
 const UNDERSTAND_ROUTE = '/api/understand';
+const PICTURE_ROUTE = '/api/picture';
 const JSON_ROUTES: Record<string, 'describe' | 'draft'> = { '/api/describe': 'describe', '/api/draft-questions': 'draft' };
 
-const isApiRoute = (route: string | undefined): route is string => route === UNDERSTAND_ROUTE || (route !== undefined && Object.hasOwn(JSON_ROUTES, route));
+const isApiRoute = (route: string | undefined): route is string => route === UNDERSTAND_ROUTE || route === PICTURE_ROUTE || (route !== undefined && Object.hasOwn(JSON_ROUTES, route));
 
 const UNREADABLE = 'That request could not be read.';
 const unreadable = (): StubResponse => ({ status: 400, body: { error: UNREADABLE, details: [] } });
+const UNDRAWABLE = 'That subject cannot be drawn.';
 const SERVER_FAILURE: StubResponse = { status: 500, body: { error: 'Something went wrong on the server. Try again.', details: [] } };
 const TOO_LARGE: StubResponse = { status: 413, body: { error: `That photo is too large (${MAX_UPLOAD_BYTES / 1024 / 1024} MB maximum).`, details: [] } };
 
 const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
 const WRONG_CODE = 'That access code did not match. Open the full link from the submission page, including everything after ?code=, then try again.';
+
+const drawPicture = async ({ model }: RouteContext, value: unknown): Promise<StubResponse> => {
+  const subject = parsePictureSubject(value);
+  if (subject === null) return { status: 400, body: { error: UNDRAWABLE, details: [] } };
+  if (!model?.drawPicture) return pictureResponse(STUB_PICTURE);
+  return pictureResponse((await model.drawPicture(subject)).toString('base64'));
+};
 
 const answer = async (request: IncomingMessage, route: string, context: RouteContext, body: Buffer): Promise<StubResponse> => {
   if (route === UNDERSTAND_ROUTE) {
@@ -217,6 +231,7 @@ const answer = async (request: IncomingMessage, route: string, context: RouteCon
   }
   const parsed = parseJson(body);
   if (parsed === null) return unreadable();
+  if (route === PICTURE_ROUTE) return drawPicture(context, fieldOf(parsed, 'subject'));
   const subject = parseSubject(fieldOf(parsed, 'subject'));
   const handle = JSON_ROUTES[route];
   return subject === null || handle === undefined ? unknownSubject() : SUBJECT_ROUTES[subject][handle]({ ...context, parsed });
