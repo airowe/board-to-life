@@ -718,7 +718,7 @@ body.board-mode .web-present {
   height: 100%;
 }
 
-/* Place, Chart and Time: one segmented control above the stage. */
+/* Place, Chart and Time: one segmented control beside or above the stage. */
 .view-switch {
   display: inline-flex;
   justify-self: center;
@@ -803,6 +803,81 @@ body.board-mode .web-present {
   .web-body {
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  }
+}
+
+/* On a landscape screen the stage takes the full height on the left, and the words and buttons stack in a panel on the
+   right: the caption takes whatever the panel has left and scrolls if it must, so no phase can shrink the stage. */
+@media (min-width: 800px) and (min-aspect-ratio: 5/4) {
+  .web-present {
+    --web-panel-width: clamp(260px, 25vw, 440px);
+    --web-heading: clamp(1.2rem, 1.9vw, 2.2rem);
+    --web-detail: clamp(1rem, 1.3vw, 1.5rem);
+    grid-template-columns: minmax(0, 1fr) var(--web-panel-width);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'stage exit'
+      'stage tabs'
+      'stage caption'
+      'stage controls';
+    padding: 16px;
+  }
+
+  body.board-mode .web-present {
+    --web-panel-width: clamp(300px, 28vw, 520px);
+  }
+
+  .web-present .web-body {
+    grid-area: stage;
+  }
+
+  /* The panel already takes the side, so Chart stacks its rings above the strip chart. */
+  .web-present .web-body[data-view='chart'] {
+    grid-template-rows: minmax(0, 1fr) minmax(140px, 32%);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .web-present .exit {
+    grid-area: exit;
+    position: static;
+    justify-self: end;
+  }
+
+  .web-present .view-switch {
+    grid-area: tabs;
+    justify-self: stretch;
+  }
+
+  .web-present .view-tab,
+  body.board-mode .web-present .view-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .web-present .caption {
+    grid-area: caption;
+    max-width: none;
+    text-align: left;
+  }
+
+  /* Two buttons a row; an odd last button (Play, Reveal, Replay) takes the whole row. */
+  .web-present .controls {
+    grid-area: controls;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+  }
+
+  .web-present .controls > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .web-present .big,
+  body.board-mode .web-present .big {
+    min-width: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 1.15rem;
   }
 }
 
