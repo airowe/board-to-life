@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha } from './placeView';
+import { STAGE } from '../living/layout';
+import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha, stageView } from './placeView';
 
 describe('crossfadeBlend', () => {
   const SINCE = 10;
@@ -38,5 +39,34 @@ describe('labelAlpha', () => {
     [false, 0],
   ])('under reduced motion a label that is present: %s jumps straight to %s', (present, expected) => {
     expect(labelAlpha(0.3, present, 0, true)).toBe(expected);
+  });
+});
+
+describe('stageView', () => {
+  const HEIGHT = 600;
+  const EPSILON = 1e-9;
+
+  it.each([
+    ['1:1', 1],
+    ['3:2', 3 / 2],
+    ['16:9', 16 / 9],
+    ['3:1', 3],
+    ['2:3', 2 / 3],
+  ])('shows the whole stage, sky to floor and edge to edge, on a %s canvas', (_, aspect) => {
+    const width = HEIGHT * aspect;
+    const view = stageView(width, HEIGHT);
+    const left = view.offsetX;
+    const top = view.offsetY;
+    const right = view.offsetX + STAGE.width * view.scale;
+    const bottom = view.offsetY + STAGE.height * view.scale;
+    expect(left).toBeGreaterThanOrEqual(-EPSILON);
+    expect(top).toBeGreaterThanOrEqual(-EPSILON);
+    expect(right).toBeLessThanOrEqual(width + EPSILON);
+    expect(bottom).toBeLessThanOrEqual(HEIGHT + EPSILON);
+    // As large as fits: one pair of edges touches the canvas. Spare width is shared either side; spare height goes
+    // above the stage, so the floor sits on the canvas's bottom edge and the extra shows sky.
+    expect(Math.max(right - left - width, bottom - top - HEIGHT)).toBeCloseTo(0, 6);
+    expect(left).toBeCloseTo(width - right, 6);
+    expect(bottom).toBeCloseTo(HEIGHT, 6);
   });
 });

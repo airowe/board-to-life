@@ -7,14 +7,13 @@ import type { PictureSource } from '../library/source';
 import { isRooted, type IndividualPose } from '../living/crowd';
 import { LABEL_FADE_STEPS, type PinnedLabel } from '../living/labels';
 import { FLOOR_Y, MAX_WIDTH_PER_HEIGHT, STAGE, SURFACE_Y_BY_HABITAT, poseFileFor, type Group, type PlaceLayout } from '../living/layout';
+import { viewOf, type View } from '../present/view';
 import { sizeCanvas } from './canvasSize';
 
 // Tunable by eye. Stage px are the 1536 × 1024 background's pixels; screen px are CSS pixels on the canvas.
 const LIBRARY_ROOT = '/library/';
 export const FALLBACK_FOLDER = 'fallback/';
 const BACKGROUND_FILL = '#cfe3ea';
-// Stage px kept visible below the floor line when a wide canvas crops the background top and bottom.
-const FLOOR_KEEP_PX = 60;
 // Share of a floater's height that sits below the waterline.
 const SURFACE_SUBMERGE = 0.25;
 // Library and live pictures are drawn facing right; Fluent emoji animals mostly face left.
@@ -167,12 +166,29 @@ const pictureOf = (source: PictureSource, pose: 'rest' | 'move', frame: PlaceFra
   }
 };
 
-// Background scaled to cover the canvas, centred, then nudged up if that would crop the floor.
-const coverView = (width: number, height: number): { scale: number; offsetX: number; offsetY: number } => {
-  const scale = Math.max(width / STAGE.width, height / STAGE.height);
-  const centred = (height - STAGE.height * scale) / 2;
-  const floorFits = height - (FLOOR_Y * STAGE.height + FLOOR_KEEP_PX) * scale;
-  return { scale, offsetX: (width - STAGE.width * scale) / 2, offsetY: Math.max(height - STAGE.height * scale, Math.min(centred, floorFits)) };
+// The whole stage, as large as fits: no individual or label is ever cropped. Spare width is shared either side; spare
+// height goes above, so the floor stays on the canvas's bottom edge. The background is mirrored out into the spare room.
+export const stageView = (width: number, height: number): View => {
+  const view = viewOf({ width, height }, STAGE);
+  return { ...view, offsetY: height - STAGE.height * view.scale };
+};
+
+// The background at stage size, with a mirrored copy against each edge to fill whatever the canvas shows beyond it.
+const drawBackground = (ctx: CanvasRenderingContext2D, image: HTMLImageElement): void => {
+  const { width, height } = STAGE;
+  const copies: [number, number, number, number][] = [
+    [1, 1, 0, 0],
+    [-1, 1, 0, 0],
+    [-1, 1, 2 * width, 0],
+    [1, -1, 0, 0],
+  ];
+  for (const [flipX, flipY, shiftX, shiftY] of copies) {
+    ctx.save();
+    ctx.translate(shiftX, shiftY);
+    ctx.scale(flipX, flipY);
+    ctx.drawImage(image, 0, 0, width, height);
+    ctx.restore();
+  }
 };
 
 const drawIndividual = (
@@ -389,7 +405,7 @@ export const drawPlace = (canvas: HTMLCanvasElement, frame: PlaceFrame): void =>
     memory.size = sizeKey;
     for (const state of memory.labels.values()) state.rect = null;
   }
-  const view = coverView(width, height);
+  const view = stageView(width, height);
   const toScreen = (point: Point): Point => ({ x: view.offsetX + point.x * view.scale, y: view.offsetY + point.y * view.scale });
 
   fadeLabels(memory, frame.labels, frame.seconds, frame.reducedMotion);
@@ -402,7 +418,7 @@ export const drawPlace = (canvas: HTMLCanvasElement, frame: PlaceFrame): void =>
   ctx.translate(view.offsetX, view.offsetY);
   ctx.scale(view.scale, view.scale);
   const background = frame.images.get(`bg-${frame.layout.habitat}.webp`);
-  if (background) ctx.drawImage(background, 0, 0, STAGE.width, STAGE.height);
+  if (background) drawBackground(ctx, background);
   ctx.restore();
 
   drawLeaders(ctx, extents);
