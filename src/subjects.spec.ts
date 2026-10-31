@@ -6,7 +6,8 @@ describe('parseSubject', () => {
     ['a missing value', undefined, 'physics'],
     ['physics', 'physics', 'physics'],
     ['ecosystem', 'ecosystem', 'ecosystem'],
-    ['an unknown subject', 'geometry', null],
+    ['geometry', 'geometry', 'geometry'],
+    ['an unknown subject', 'chemistry', null],
     ['a number', 42, null],
   ])('reads %s', (_name, value, expected) => {
     expect(parseSubject(value)).toBe(expected);
@@ -15,6 +16,6 @@ describe('parseSubject', () => {
 
 describe('SUBJECT_LABELS', () => {
   it('labels every subject', () => {
-    expect(SUBJECTS.map((subject) => SUBJECT_LABELS[subject])).toEqual(['Physics', 'Ecosystem']);
+    expect(SUBJECTS.map((subject) => SUBJECT_LABELS[subject])).toEqual(['Physics', 'Ecosystem', 'Geometry']);
   });
 });

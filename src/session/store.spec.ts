@@ -4,6 +4,9 @@ import { checkGrounding, type PredictQuestion } from '../scene/questions';
 import { validateScene, type Scene } from '../scene/schema';
 import type { WebQuestion } from '../ecosystem/questions';
 import type { Web } from '../ecosystem/schema';
+import type { GeometryQuestion } from '../geometry/questions';
+import { GEOMETRY_SAMPLES } from '../geometry/samples';
+import type { Figure } from '../geometry/schema';
 import { createSession } from './store';
 
 const NO_EVENT_WEB: Web = {
@@ -28,6 +31,27 @@ const webQuestions = (): WebQuestion[] => [
     observe: { kind: 'direction', species: 'rabbit' },
     explanation: 'Rabbits eat grass.',
     cites: ['grass', 'rabbit'],
+  },
+];
+
+const TRIANGLE_POLYGON = 'abc';
+const DRAGGED_POINT = 'C';
+
+const figure = (): Figure => {
+  const sample = GEOMETRY_SAMPLES[0];
+  if (!sample) throw new Error('missing geometry sample');
+  return sample.figure;
+};
+
+const geometryQuestions = (): GeometryQuestion[] => [
+  {
+    id: 'q1',
+    prompt: 'Drag C anywhere. Do the angles of ABC still add to 180°?',
+    choices: ['Yes, always', 'Only sometimes', 'Never'],
+    observe: { kind: 'figure', focus: { kind: 'angle-sum', polygon: TRIANGLE_POLYGON, drag: DRAGGED_POINT } },
+    answer: 'Yes, always',
+    explanation: 'The angles of a triangle always add to 180°.',
+    cites: [TRIANGLE_POLYGON, DRAGGED_POINT],
   },
 ];
 
@@ -134,5 +158,27 @@ describe('createSession', () => {
     expect(session.draft()).toEqual({ status: 'draft', subject: 'ecosystem', web: DROUGHT_WEB, questions: null });
     expect(session.setDraftQuestions(first, webQuestions())).toBe(false);
     expect(session.setDraftQuestions(second, webQuestions())).toBe(true);
+  });
+
+  it('approves a geometry draft into a geometry lesson', () => {
+    const session = createSession();
+    const draftId = session.startDraft({ subject: 'geometry', figure: figure() });
+    expect(session.draft()).toEqual({ status: 'draft', subject: 'geometry', figure: figure(), questions: null });
+    expect(session.setDraftQuestions(draftId, geometryQuestions())).toBe(true);
+    session.approve();
+    expect(session.presentable()).toEqual({ status: 'approved', subject: 'geometry', figure: figure(), questions: geometryQuestions() });
+  });
+
+  it('refuses ecosystem and physics questions for a geometry draft, and geometry questions for the others', () => {
+    const geometry = createSession();
+    const geometryId = geometry.startDraft({ subject: 'geometry', figure: figure() });
+    expect(geometry.setDraftQuestions(geometryId, webQuestions())).toBe(false);
+    expect(geometry.setDraftQuestions(geometryId, questions())).toBe(false);
+    expect(geometry.draft()?.questions).toBeNull();
+
+    const ecosystem = createSession();
+    const ecosystemId = ecosystem.startDraft({ subject: 'ecosystem', web: NO_EVENT_WEB });
+    expect(ecosystem.setDraftQuestions(ecosystemId, geometryQuestions())).toBe(false);
+    expect(ecosystem.draft()?.questions).toBeNull();
   });
 });

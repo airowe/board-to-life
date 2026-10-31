@@ -12,4 +12,9 @@ export const DESCRIPTION_EXAMPLES: Record<Subject, readonly string[]> = {
     'A pond food web: algae, tadpoles, dragonfly larvae and fish. Fish eat the larvae.',
     'An ocean food web: plankton, krill, small fish and seals. The seals are removed.',
   ],
+  geometry: [
+    'Triangle ABC with a 50° angle at A and a 60° angle at B.',
+    'Two parallel lines cut by a transversal, with one angle of 65° marked.',
+    'Triangle ABC reflected over a vertical line MN.',
+  ],
 };

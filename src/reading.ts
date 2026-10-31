@@ -21,10 +21,12 @@ export const describeReading = (elapsedMs: number): ReadingProgress => {
 const CHECK_AGAINST_PHOTO: Record<Subject, string> = {
   physics: 'Check each item against the photo.',
   ecosystem: 'Check each species and arrow in the food web against the photo.',
+  geometry: 'Check each point, line and mark in the figure against the photo.',
 };
 const STUB_READING: Record<Subject, string> = {
   physics: 'Stub reading: a fixed, hand-written scene for the test drawing. No AI was called.',
   ecosystem: 'Stub reading: a fixed, hand-written food web for the test drawing. No AI was called.',
+  geometry: 'Stub reading: a fixed, hand-written figure for the test drawing. No AI was called.',
 };
 const READERS: Record<string, string> = {
   meta: 'Muse Spark on the Meta Model API',
@@ -43,8 +45,9 @@ const CHECK_AGAINST_DESCRIPTION = 'Check that it matches what you meant.';
 const STUB_LAYOUT: Record<Subject, string> = {
   physics: 'Stub layout: a fixed scene for the sample drawing. No AI was called.',
   ecosystem: 'Stub layout: a fixed food web for the sample drawing. No AI was called.',
+  geometry: 'Stub layout: a fixed figure for the sample drawing. No AI was called.',
 };
-const LAID_OUT_AS: Record<Subject, string> = { physics: '', ecosystem: ' as a food web' };
+const LAID_OUT_AS: Record<Subject, string> = { physics: '', ecosystem: ' as a food web', geometry: ' as a figure' };
 
 export const describedNote = (body: unknown, subject: Subject = 'physics'): string => {
   const source = typeof body === 'object' && body !== null ? (body as { stub?: unknown; reader?: unknown }) : {};

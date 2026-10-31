@@ -6,6 +6,9 @@ import { describedNote, describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote }
 import { checkWebGrounding } from './ecosystem/questions';
 import { validateWeb, type Web } from './ecosystem/schema';
 import { flipArrow } from './ecosystem/trophic';
+import { fittedOrDrawn } from './geometry/fit';
+import { checkFigureGrounding } from './geometry/questions';
+import { validateFigure, type Figure, type Focus } from './geometry/schema';
 import { checkGrounding } from './scene/questions';
 import { validateScene } from './scene/schema';
 import { createSession, type DraftContent } from './session/store';
@@ -16,8 +19,10 @@ import { renderCapture } from './ui/capture';
 import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { questionsFailureStatus } from './ui/questionCards';
 import { renderWebCheck } from './ui/checkWeb';
+import { figureQuestionsFailureStatus, renderFigureCheck } from './ui/checkFigure';
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
+import { renderFigurePresent } from './ui/presentFigure';
 import { renderWebPresent } from './ui/presentWeb';
 
 const PROGRESS_TICK_MS = 1000;
@@ -106,14 +111,25 @@ const showError = (failure: Pick<ApiFailure, 'message' | 'details'>, retry: () =
 
 const SCENE_UNGROUNDED = 'A drafted question cited something not in the scene.';
 const WEB_UNGROUNDED = 'A drafted question cited something not in the food web.';
+const FIGURE_UNGROUNDED = 'A drafted question cited something not in the figure.';
 
-const groundQuestions = (content: DraftContent, input: unknown) =>
-  content.subject === 'physics'
-    ? { ...checkGrounding(input, content.scene), ungrounded: SCENE_UNGROUNDED }
-    : { ...checkWebGrounding(input, content.web), ungrounded: WEB_UNGROUNDED };
+const groundQuestions = (content: DraftContent, input: unknown) => {
+  if (content.subject === 'physics') return { ...checkGrounding(input, content.scene), ungrounded: SCENE_UNGROUNDED };
+  if (content.subject === 'ecosystem') return { ...checkWebGrounding(input, content.web), ungrounded: WEB_UNGROUNDED };
+  return { ...checkFigureGrounding(input, content.figure), ungrounded: FIGURE_UNGROUNDED };
+};
 
-const draftQuestionsBody = (content: DraftContent): string =>
-  JSON.stringify(content.subject === 'physics' ? { scene: content.scene } : { subject: content.subject, web: content.web });
+const draftQuestionsBody = (content: DraftContent): string => {
+  if (content.subject === 'physics') return JSON.stringify({ scene: content.scene });
+  if (content.subject === 'ecosystem') return JSON.stringify({ subject: content.subject, web: content.web });
+  return JSON.stringify({ subject: content.subject, figure: content.figure });
+};
+
+const draftFailureStatus = (draftSubject: Subject, failure: ApiFailure, retry: () => void): QuestionsStatus => {
+  if (draftSubject === 'ecosystem') return questionsFailureStatus(failure, retry);
+  if (draftSubject === 'geometry') return figureQuestionsFailureStatus(failure, retry);
+  return { kind: 'failed', failure, retry };
+};
 
 const draftQuestions = async (draftId: number, content: DraftContent): Promise<void> => {
   const retry = (): void => void draftQuestions(draftId, content);
@@ -126,7 +142,7 @@ const draftQuestions = async (draftId: number, content: DraftContent): Promise<v
     { method: 'POST', body: draftQuestionsBody(content), headers: { 'content-type': 'application/json', ...requestHeaders() } },
     { timeoutMs: MODEL_REQUEST_TIMEOUT_MS },
   );
-  if (!drafted.ok) return report(content.subject === 'ecosystem' ? questionsFailureStatus(drafted, retry) : { kind: 'failed', failure: drafted, retry });
+  if (!drafted.ok) return report(draftFailureStatus(content.subject, drafted, retry));
 
   const grounded = groundQuestions(content, (drafted.data as { questions?: unknown } | null)?.questions);
   if (!grounded.ok) return report({ kind: 'failed', failure: { message: grounded.ungrounded, details: grounded.errors }, retry });
@@ -136,12 +152,17 @@ const draftQuestions = async (draftId: number, content: DraftContent): Promise<v
 const VALIDATION_FAILED: Record<Subject, string> = {
   physics: 'The scene that came back failed validation.',
   ecosystem: 'The food web that came back failed validation.',
+  geometry: 'The figure that came back failed validation.',
 };
 
 const validateContent = (subject: Subject, data: unknown): { ok: true; content: DraftContent } | { ok: false; errors: string[] } => {
   if (subject === 'physics') {
     const scene = validateScene((data as { scene?: unknown } | null)?.scene);
     return scene.ok ? { ok: true, content: { subject, scene: scene.scene } } : scene;
+  }
+  if (subject === 'geometry') {
+    const figure = validateFigure((data as { figure?: unknown } | null)?.figure);
+    return figure.ok ? { ok: true, content: { subject, figure: fittedOrDrawn(figure.figure) } } : figure;
   }
   const web = validateWeb((data as { web?: unknown } | null)?.web);
   return web.ok ? { ok: true, content: { subject, web: web.web } } : web;
@@ -233,7 +254,23 @@ function showCheck(): void {
     });
     return;
   }
+  if (current?.subject === 'geometry') {
+    checkScreen = renderFigureCheck(root, session, url, photoNote, {
+      onPresent: showPresent,
+      onRestart: showCapture,
+      onFocus: (focus) => changeFigure(current.figure, focus),
+    });
+    return;
+  }
   checkScreen = renderCheck(root, session, url, photoNote, { onPresent: showPresent, onRestart: showCapture });
+}
+
+function changeFigure(figure: Figure, focus: Focus): void {
+  const content: DraftContent = { subject: 'geometry', figure: { ...figure, focus } };
+  const draftId = session.startDraft(content);
+  activeDraftId = draftId;
+  showCheck();
+  void draftQuestions(draftId, content);
 }
 
 async function flipWebArrow(web: Web, eatsId: string): Promise<void> {
@@ -262,7 +299,9 @@ function showPresent(): void {
   const lesson = session.presentable();
   if (!lesson) return showCheck();
   leaveScreen();
-  cleanup = lesson.subject === 'ecosystem' ? renderWebPresent(root, lesson, photoUrl, showCheck) : renderPresent(root, lesson, photoUrl, showCheck);
+  if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck);
+  else if (lesson.subject === 'geometry') cleanup = renderFigurePresent(root, lesson, photoUrl, showCheck);
+  else cleanup = renderPresent(root, lesson, photoUrl, showCheck);
 }
 
 function showCapture(): void {

@@ -419,6 +419,19 @@ button:disabled {
   opacity: 0.85;
 }
 
+.overlay .figure-point circle {
+  fill: var(--marker);
+}
+
+.overlay .figure-point.low circle {
+  fill: var(--amber);
+}
+
+.overlay .figure-edge line {
+  stroke-width: 4;
+  opacity: 0.85;
+}
+
 .event-picker {
   display: grid;
   gap: 4px;
@@ -675,6 +688,87 @@ button:disabled {
   .web-body {
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  }
+}
+
+/* Geometry: the redrawn figure between the question and its controls. The caption row has a fixed height sized for the
+   longest caption (two heading lines and three detail lines), and the controls row reserves room for the most buttons
+   the current width wraps to, so the canvas keeps its size from phase to phase and points stay under the finger. On a
+   phone a caption longer than its row scrolls inside it instead of pushing the canvas. */
+.figure-present {
+  --figure-heading: clamp(1.3rem, 3.4vw, 2.8rem);
+  --figure-detail: clamp(1.1rem, 2.2vw, 1.7rem);
+  --figure-caption-height: calc(2 * 1.2 * var(--figure-heading) + 3 * 1.35 * var(--figure-detail) + 8px);
+  --figure-button-height: 60px;
+  --figure-controls-height: var(--figure-button-height);
+  display: grid;
+  grid-template-rows: var(--figure-caption-height) minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 64px 16px 16px;
+}
+
+.figure-present .caption {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: max(1100px, 60rem);
+  min-width: 0;
+  margin: 0 auto;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.figure-present .question-text {
+  font-size: var(--figure-heading);
+  line-height: 1.2;
+}
+
+.figure-present .explanation-text {
+  max-width: none;
+  font-size: var(--figure-detail);
+  line-height: 1.35;
+}
+
+.figure-present .controls {
+  position: static;
+  min-height: var(--figure-controls-height);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+}
+
+body.board-mode .figure-present {
+  --figure-button-height: max(80px, 3.4rem);
+}
+
+/* Board-mode buttons are wide: below this width three choices and Reveal wrap onto two rows. */
+@media (max-width: 1200px) {
+  body.board-mode .figure-present {
+    --figure-controls-height: calc(2 * var(--figure-button-height) + 1.5rem);
+  }
+}
+
+@media (max-width: 900px) {
+  body:not(.board-mode) .figure-present {
+    --figure-button-height: 48px;
+  }
+
+  .figure-present .controls {
+    gap: 8px;
+  }
+
+  .figure-present .big {
+    flex: 1 1 auto;
+    min-height: 48px;
+    padding: 8px 14px;
+    font-size: 1.05rem;
+  }
+}
+
+/* Three choices and Reveal take two rows on a phone. */
+@media (max-width: 500px) {
+  body:not(.board-mode) .figure-present {
+    --figure-controls-height: calc(2 * var(--figure-button-height) + 8px);
   }
 }
 

@@ -83,3 +83,22 @@ describe('notes for an ecosystem drawing', () => {
     expect(describedNote({ stub: true }, 'ecosystem')).toBe('Stub layout: a fixed food web for the sample drawing. No AI was called.');
   });
 });
+
+describe('notes for a geometry drawing', () => {
+  const FIGURE = 'figure';
+
+  it.each([
+    ['a read drawing', readingNote({ stub: false, reader: 'meta' }, 'geometry')],
+    ['a stub reading', readingNote({ stub: true }, 'geometry')],
+    ['a described setup', describedNote({ stub: false, reader: 'baseten' }, 'geometry')],
+    ['a stub layout', describedNote({ stub: true }, 'geometry')],
+  ])('calls %s a figure', (_case, note) => {
+    expect(note).toContain(FIGURE);
+  });
+
+  it('asks the teacher to check the figure against the photo', () => {
+    expect(readingNote({ stub: false, reader: 'meta' }, 'geometry')).toBe(
+      'Read by Muse Spark on the Meta Model API. Check each point, line and mark in the figure against the photo.',
+    );
+  });
+});

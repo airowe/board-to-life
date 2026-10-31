@@ -1,5 +1,6 @@
 import { sketchScene } from '../checks/sketch';
 import { sketchWeb } from '../ecosystem/sketch';
+import { sketchFigure } from '../geometry/sketch';
 import type { DraftContent } from '../session/store';
 
 const SKETCH_SEED = 7;
@@ -14,9 +15,9 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
   });
 
 const sketchOf = (content: DraftContent): { svg: string; width: number; height: number } => {
-  const drawing = content.subject === 'physics' ? content.scene.drawing : content.web.drawing;
-  const svg = content.subject === 'physics' ? sketchScene(content.scene, SKETCH_SEED) : sketchWeb(content.web, SKETCH_SEED);
-  return { svg, ...drawing };
+  if (content.subject === 'physics') return { svg: sketchScene(content.scene, SKETCH_SEED), ...content.scene.drawing };
+  if (content.subject === 'ecosystem') return { svg: sketchWeb(content.web, SKETCH_SEED), ...content.web.drawing };
+  return { svg: sketchFigure(content.figure, SKETCH_SEED), ...content.figure.drawing };
 };
 
 export const sketchImage = async (content: DraftContent): Promise<Blob> => {
