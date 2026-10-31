@@ -8,8 +8,9 @@ import type { Species, Web } from '../ecosystem/schema';
 import { sketchWeb } from '../ecosystem/sketch';
 import type { Box } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
-import { TOUCH_REACH_PX, backingSize, viewOf } from '../present/view';
+import { TOUCH_REACH_PX, viewOf } from '../present/view';
 import type { EcosystemLesson } from '../session/store';
+import { sizeCanvas } from './canvasSize';
 import { h } from './dom';
 
 const STEP_MS = 1000 / STEPS_PER_SECOND_SHOWN;
@@ -46,21 +47,6 @@ const reducedMotion = (): boolean => window.matchMedia?.('(prefers-reduced-motio
 const paletteOf = (element: HTMLElement): string[] => {
   const style = getComputedStyle(element);
   return FALLBACK_PALETTE.map((fallback, index) => style.getPropertyValue(`--species-${index + 1}`).trim() || fallback);
-};
-
-const sizeCanvas = (canvas: HTMLCanvasElement): { ctx: CanvasRenderingContext2D; width: number; height: number } | null => {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  const ratio = window.devicePixelRatio || 1;
-  const { width, height } = canvas.getBoundingClientRect();
-  const backing = backingSize({ width, height }, ratio);
-  if (canvas.width !== backing.width || canvas.height !== backing.height) {
-    canvas.width = backing.width;
-    canvas.height = backing.height;
-  }
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  return { ctx, width, height };
 };
 
 const formatCount = (value: number): string => (value < PRECISE_BELOW ? value.toFixed(1) : Math.round(value).toString());

@@ -656,6 +656,12 @@ button:disabled {
   height: 100%;
 }
 
+/* The living place: an illustrated habitat drawn to the edges of its rounded frame. */
+.place-frame {
+  border-radius: var(--radius);
+  background: #cfe3ea;
+}
+
 .web-chart {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
