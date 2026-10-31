@@ -610,8 +610,16 @@ button:disabled {
   --species-4: var(--red);
   --species-5: #7b3fa0;
   --species-6: #0f7c8a;
+  /* The caption and controls rows have fixed heights, sized for the longest caption and for the most buttons the width
+     wraps to (four predictions and Reveal), so the stage keeps its size from phase to phase in every view. A caption
+     longer than its row scrolls inside it. */
+  --web-heading: clamp(1.3rem, 3.4vw, 2.8rem);
+  --web-detail: clamp(1.1rem, 2.2vw, 1.7rem);
+  --web-caption-height: calc(2 * 1.2 * var(--web-heading) + 3 * 1.35 * var(--web-detail) + 8px);
+  --web-button-height: 60px;
+  --web-controls-height: var(--web-button-height);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: var(--web-caption-height) auto minmax(0, 1fr) auto;
   gap: 12px;
   padding: 64px 16px 16px;
 }
@@ -619,19 +627,73 @@ button:disabled {
 .web-present .caption {
   position: static;
   transform: none;
-  width: auto;
-  max-width: 1100px;
+  width: 100%;
+  max-width: max(1100px, 60rem);
+  min-width: 0;
   margin: 0 auto;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .web-present .question-text {
-  font-size: clamp(1.3rem, 3.4vw, 2.8rem);
+  font-size: var(--web-heading);
+  line-height: 1.2;
+}
+
+.web-present .explanation-text,
+.web-present .choices-text {
+  font-size: var(--web-detail);
+  line-height: 1.35;
 }
 
 .web-present .controls {
   position: static;
+  min-height: var(--web-controls-height);
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-content: flex-start;
+}
+
+body.board-mode .web-present {
+  --web-button-height: max(80px, 3.4rem);
+}
+
+/* Below these widths the four predictions and Reveal wrap onto a second row. */
+@media (max-width: 1100px) {
+  .web-present {
+    --web-controls-height: calc(2 * var(--web-button-height) + 16px);
+  }
+}
+
+@media (max-width: 1500px) {
+  body.board-mode .web-present {
+    --web-controls-height: calc(2 * var(--web-button-height) + 1.5rem);
+  }
+}
+
+@media (max-width: 900px) {
+  body:not(.board-mode) .web-present {
+    --web-button-height: 48px;
+    --web-controls-height: calc(2 * var(--web-button-height) + 8px);
+  }
+
+  body:not(.board-mode) .web-present .controls {
+    gap: 8px;
+  }
+
+  body:not(.board-mode) .web-present .big {
+    flex: 1 1 auto;
+    min-height: 48px;
+    padding: 8px 14px;
+    font-size: 1.05rem;
+  }
+}
+
+/* On a narrow phone they take three rows. */
+@media (max-width: 420px) {
+  body:not(.board-mode) .web-present {
+    --web-controls-height: calc(3 * var(--web-button-height) + 16px);
+  }
 }
 
 .web-body {
