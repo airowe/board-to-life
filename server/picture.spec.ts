@@ -130,6 +130,57 @@ describe('drawPictureWithModel', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('refuses a download that redirects', async () => {
+    const seen: (RequestRedirect | undefined)[] = [];
+    const fetcher = ((url: string, init: RequestInit) => {
+      if (url.endsWith('/images/generations')) return Promise.resolve(Response.json({ data: [{ url: 'https://images.example/a.png' }] }));
+      seen.push(init.redirect);
+      return Promise.reject(new TypeError('redirect mode is set to error'));
+    }) as unknown as typeof fetch;
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('redirect');
+    expect(seen).toEqual(['error', 'error']);
+  });
+
+  it('rejects early when the declared length is over the cap, without reading the body', async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({ pull: (controller) => (pulled += 1, controller.enqueue(new Uint8Array(1))) });
+    const { fetcher } = fakeFetch([
+      Response.json({ data: [{ url: 'https://images.example/a.png' }] }),
+      new Response(body, { headers: { 'content-length': String(MAX_PICTURE_BYTES + 1) } }),
+    ]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('too large');
+    expect(pulled).toBeLessThanOrEqual(1);
+  });
+
+  it('stops reading an endless stream once it passes the cap', async () => {
+    const CHUNK_BYTES = 1024 * 1024;
+    let pulled = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull: (controller) => (pulled += 1, controller.enqueue(new Uint8Array(CHUNK_BYTES))),
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    const { fetcher } = fakeFetch([Response.json({ data: [{ url: 'https://images.example/a.png' }] }), new Response(body)]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('too large');
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThanOrEqual(MAX_PICTURE_BYTES / CHUNK_BYTES + 3);
+  });
+
+  it('shares one deadline between the request and the download', async () => {
+    const DEADLINE_MS = 60;
+    const fetcher = ((url: string, init: RequestInit) => {
+      if (url.endsWith('/images/generations')) {
+        return new Promise((resolve) => setTimeout(() => resolve(Response.json({ data: [{ url: 'https://images.example/a.png' }] })), DEADLINE_MS * 0.7));
+      }
+      return new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)));
+    }) as unknown as typeof fetch;
+    const started = Date.now();
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher, timeoutMs: DEADLINE_MS })).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(DEADLINE_MS * 2 * 1.6);
+  });
+
   it('rejects a picture download over the size cap', async () => {
     const { fetcher, calls } = fakeFetch([
       Response.json({ data: [{ url: 'https://images.example/a.png' }] }),

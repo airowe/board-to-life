@@ -10,7 +10,7 @@ const ATTEMPTS = 2;
 const ERROR_PREVIEW_CHARS = 200;
 const HTTP_TOO_MANY_REQUESTS = 429;
 const HTTP_SERVER_ERROR = 500;
-// Each attempt gets this long, so two attempts fit inside the function's 150 s limit.
+// One deadline per attempt, shared by the request and the download, so two attempts fit inside the function's 150 s limit.
 export const PICTURE_ATTEMPT_TIMEOUT_MS = 60_000;
 export const MAX_PICTURE_BYTES = 8 * 1024 * 1024;
 export const MAX_SUBJECT_LENGTH = 40;
@@ -37,20 +37,44 @@ const isHttps = (value: string): boolean => {
   }
 };
 
-const downloadPicture = async (url: string, fetcher: typeof fetch, timeoutMs: number): Promise<Buffer> => {
-  if (!isHttps(url)) throw new PermanentError('Muse Image gave a picture address that is not https.');
-  const response = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new Error(`The picture download answered ${response.status}.`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > MAX_PICTURE_BYTES) throw new PermanentError('The drawn picture is too large.');
-  return bytes;
+const TOO_LARGE = 'The drawn picture is too large.';
+
+// Reads the body chunk by chunk and stops pulling the moment it passes the cap, so an endless stream is never held.
+const readCapped = async (response: Response): Promise<Buffer> => {
+  const declared = Number(response.headers.get('content-length'));
+  if (declared > MAX_PICTURE_BYTES) {
+    await response.body?.cancel();
+    throw new PermanentError(TOO_LARGE);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return Buffer.concat(chunks);
+    size += value.length;
+    if (size > MAX_PICTURE_BYTES) {
+      await reader.cancel();
+      throw new PermanentError(TOO_LARGE);
+    }
+    chunks.push(value);
+  }
 };
 
-const drawOnce = async (subject: string, apiKey: string, fetcher: typeof fetch, timeoutMs: number): Promise<Buffer> => {
+// An https address that redirects is refused, so it cannot lead to http or an internal host.
+const downloadPicture = async (url: string, fetcher: typeof fetch, signal: AbortSignal): Promise<Buffer> => {
+  if (!isHttps(url)) throw new PermanentError('Muse Image gave a picture address that is not https.');
+  const response = await fetcher(url, { signal, redirect: 'error' });
+  if (!response.ok) throw new Error(`The picture download answered ${response.status}.`);
+  return readCapped(response);
+};
+
+const drawOnce = async (subject: string, apiKey: string, fetcher: typeof fetch, signal: AbortSignal): Promise<Buffer> => {
   const response = await fetcher(IMAGES_URL, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    signal: AbortSignal.timeout(timeoutMs),
+    signal,
     body: JSON.stringify({
       model: IMAGE_MODEL,
       prompt: objectPrompt(subject),
@@ -68,7 +92,7 @@ const drawOnce = async (subject: string, apiKey: string, fetcher: typeof fetch, 
   }
   const item = (JSON.parse(text) as { data?: ImageItem[] }).data?.[0];
   if (item?.b64_json) return Buffer.from(item.b64_json, 'base64');
-  if (item?.url) return downloadPicture(item.url, fetcher, timeoutMs);
+  if (item?.url) return downloadPicture(item.url, fetcher, signal);
   throw new Error('Muse Image returned no picture.');
 };
 
@@ -76,7 +100,7 @@ export const drawPictureWithModel = async (subject: string, apiKey: string, opti
   const { fetcher = fetch, timeoutMs = PICTURE_ATTEMPT_TIMEOUT_MS } = options;
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await drawOnce(subject, apiKey, fetcher, timeoutMs);
+      return await drawOnce(subject, apiKey, fetcher, AbortSignal.timeout(timeoutMs));
     } catch (error) {
       if (error instanceof PermanentError || attempt >= ATTEMPTS) throw error;
     }
