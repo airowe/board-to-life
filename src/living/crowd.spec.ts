@@ -133,6 +133,25 @@ describe('createCrowdTracker: homes', () => {
     for (const gap of gapsOf(homes)) expect(gap).toBeGreaterThan(0);
   });
 
+  // Plants have no idle wander, so their reach is their whole spread.
+  const NARROW: Group = { ...PRODUCER, spread: 40, spacing: 90 };
+  const BUSY: Group = { ...PRODUCER, spread: 135, spacing: 90 };
+
+  it('spreads a crowd evenly across a reach narrower than one spacing instead of stacking it', () => {
+    const count = 6;
+    const homes = homesOf(NARROW, count);
+    expect(homes).toHaveLength(count);
+    expect(Math.min(...gapsOf(homes))).toBeGreaterThanOrEqual(NARROW.spread / 10);
+    expect((homes.at(-1) as number) - (homes[0] as number)).toBeGreaterThanOrEqual(1.5 * NARROW.spread);
+    for (const x of homes) expect(Math.abs(x - NARROW.centreX)).toBeLessThanOrEqual(NARROW.spread);
+  });
+
+  it('keeps a full crowd distinct once the lattice and its gaps are used up', () => {
+    const homes = homesOf(BUSY, MAX_PER_GROUP);
+    expect(Math.min(...gapsOf(homes))).toBeGreaterThanOrEqual(BUSY.spacing / 20);
+    for (const x of homes) expect(Math.abs(x - BUSY.centreX)).toBeLessThanOrEqual(BUSY.spread);
+  });
+
   it('a small crowd gathers about the centre rather than at the edges', () => {
     const homes = homesOf(ROOMY, 3);
     for (const x of homes) expect(Math.abs(x - ROOMY.centreX)).toBeLessThanOrEqual(ROOMY.spacing * (1 + HOME_JITTER));

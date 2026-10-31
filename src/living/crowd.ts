@@ -33,7 +33,7 @@ const DRIFT_PERIOD = [5, 8] as const;
 const WANDER_PERIOD = [6, 10] as const;
 const SWAY_PERIOD = [3, 5] as const;
 const SCALE_VARIETY = 0.1;
-// Each home is nudged up to this share of the group's spacing either way, so a crowd is not a drill line.
+// Each home is nudged up to this share of its gap to the next spot either way, so a crowd is not a drill line.
 export const HOME_JITTER = 0.12;
 const TAU = 2 * Math.PI;
 
@@ -147,19 +147,30 @@ const idleReach = (group: Group): number => {
 
 const sideOf = (index: number): 1 | -1 => (index % 2 === 0 ? 1 : -1);
 
-// Slot 0 stands at the centre; later slots alternate right and left, one spacing further out each pair, until the reach
-// is used up. Slots after that fill the half-spacing gaps, so a crowd overlaps only once it has run out of room.
-const latticeOffset = (slot: number, spacing: number, reach: number): number => {
-  const steps = spacing > 0 ? Math.floor(reach / spacing) : 0;
-  const onLattice = 2 * steps + 1;
-  if (slot < onLattice) return slot === 0 ? 0 : sideOf(slot - 1) * Math.ceil(slot / 2) * spacing;
-  const gap = (slot - onLattice) % Math.max(2 * steps, 1);
-  return sideOf(gap) * Math.min((Math.floor(gap / 2) + 0.5) * spacing, reach);
+// Slot 0 stands at the centre; later slots alternate right and left, one unit further out each pair, filling the reach.
+// The unit is the group's spacing, or the whole reach when that is narrower than one spacing. Once those spots are taken,
+// later slots halve the gaps between them, then quarter them, and so on, so a crowd that has run out of room overlaps
+// evenly rather than stacking. Returns the offset from the centre and the gap size at that level, for the jitter.
+const latticeSpot = (slot: number, spacing: number, reach: number): { offset: number; gap: number } => {
+  const fits = spacing > 0 ? Math.floor(reach / spacing) : 0;
+  const unit = fits > 0 ? spacing : reach;
+  const steps = unit > 0 ? Math.max(fits, 1) : 0;
+  if (steps === 0) return { offset: 0, gap: 0 };
+  if (slot < 2 * steps + 1) return { offset: slot === 0 ? 0 : sideOf(slot - 1) * Math.ceil(slot / 2) * unit, gap: unit };
+  let index = slot - (2 * steps + 1);
+  let level = 1;
+  while (index >= steps * 2 ** level) {
+    index -= steps * 2 ** level;
+    level += 1;
+  }
+  const gap = unit / 2 ** level;
+  return { offset: sideOf(index) * (2 * Math.floor(index / 2) + 1) * gap, gap };
 };
 
 const homeOf = (group: Group, who: Individual) => {
   const reach = Math.max(group.spread - idleReach(group), 0);
-  const offset = latticeOffset(who.slot, group.spacing, reach) + between(who.seed, CHANNEL.jitter) * HOME_JITTER * group.spacing;
+  const spot = latticeSpot(who.slot, group.spacing, reach);
+  const offset = spot.offset + between(who.seed, CHANNEL.jitter) * HOME_JITTER * spot.gap;
   return {
     x: group.centreX + Math.min(Math.max(offset, -reach), reach),
     y: group.baseY + between(who.seed, CHANNEL.depth) * group.depth,
