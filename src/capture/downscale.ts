@@ -16,12 +16,10 @@ export const fitWithin = (width: number, height: number, maxLongEdge: number): S
 // pixels sent to the reader and shown on the check screen are upright.
 export const preparePhoto = async (photo: Blob): Promise<PreparedPhoto> => {
   const unchanged = { photo, inverted: false };
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(photo, { imageOrientation: 'from-image' });
-  } catch {
-    return unchanged;
-  }
+  const bitmap =
+    (await createImageBitmap(photo, { imageOrientation: 'from-image' }).catch(() => null)) ??
+    (await createImageBitmap(photo).catch(() => null));
+  if (!bitmap) return unchanged;
   const { width, height } = fitWithin(bitmap.width, bitmap.height, MAX_LONG_EDGE);
   const canvas = document.createElement('canvas');
   canvas.width = width;

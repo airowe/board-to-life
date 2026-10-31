@@ -31,6 +31,17 @@ describe('checkGrounding', () => {
     expect(errorsFor(draftWith({ observe: { kind: 'fallen', item: 'domino-9' } }))).toMatch(/"domino-9"/);
   });
 
+  it.each([
+    ['rope', { id: 'rope-1', kind: 'rope', from: 'ball', to: 'domino-1', length: 300, confidence: 0.9 }],
+    ['spring', { id: 'spring-1', kind: 'spring', from: 'ball', to: 'domino-1', length: 300, confidence: 0.9 }],
+  ])('rejects a draft observing a %s, which has no position to fall', (kind, link) => {
+    const withLink = validateScene({ ...rampBallDominoes, items: [...rampBallDominoes.items, link] });
+    if (!withLink.ok) throw new Error(withLink.errors.join('\n'));
+    const result = checkGrounding(draftWith({ observe: { kind: 'fallen', item: link.id } }), withLink.scene);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join('\n')).toMatch(new RegExp(`q-1 observes a ${kind} "${link.id}"`));
+  });
+
   it('rejects a draft attached to a missing predict point', () => {
     expect(errorsFor(draftWith({ predictPointId: 'pp-7' }))).toMatch(/missing predict point "pp-7"/);
   });

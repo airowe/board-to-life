@@ -2,13 +2,14 @@ import { SETTLE_SECONDS, STEPS_PER_SECOND, type BodySnapshot } from '../physics/
 import { interpolate } from '../present/interpolate';
 import { createPlayback, type Phase } from '../present/playback';
 import { erasePatches, keepShapes, ringColour, type Patch, type PatchShape } from '../present/onPhoto';
+import { presenterKeyAction } from '../present/keys';
 import { createRedrawGate } from '../present/redraw';
 import type { Trail } from '../present/trails';
-import { TOUCH_REACH_PX, toDrawing, viewOf } from '../present/view';
+import { backingSize, TOUCH_REACH_PX, toDrawing, viewOf } from '../present/view';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { changedFixedItems, gripPoint, moveGrip, pickGrip, rampHandles, type Grip } from '../scene/edit';
-import { outlineOf } from '../scene/shapes';
+import { outlineOf, rectangle } from '../scene/shapes';
 import { linkPoints } from '../scene/linkPoints';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
@@ -145,11 +146,7 @@ const outline = (path: Path2D, shape: PatchShape): void => {
     path.moveTo(shape.x + shape.radius, shape.y);
     path.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
   } else if (shape.kind === 'rect') {
-    const [cos, sin] = [Math.cos(shape.angle), Math.sin(shape.angle)];
-    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx = 0, sy = 0]) => {
-      const [dx, dy] = [(sx * shape.width) / 2, (sy * shape.height) / 2];
-      return { x: shape.x + dx * cos - dy * sin, y: shape.y + dx * sin + dy * cos };
-    });
+    const corners = rectangle(shape.x, shape.y, shape.width, shape.height, shape.angle);
     for (const [index, corner] of corners.entries()) {
       if (index === 0) path.moveTo(corner.x, corner.y);
       else path.lineTo(corner.x, corner.y);
@@ -277,9 +274,10 @@ const drawScene = (
   if (!ctx) return;
   const ratio = window.devicePixelRatio || 1;
   const { clientWidth, clientHeight } = canvas;
-  if (canvas.width !== clientWidth * ratio || canvas.height !== clientHeight * ratio) {
-    canvas.width = clientWidth * ratio;
-    canvas.height = clientHeight * ratio;
+  const backing = backingSize({ width: clientWidth, height: clientHeight }, ratio);
+  if (canvas.width !== backing.width || canvas.height !== backing.height) {
+    canvas.width = backing.width;
+    canvas.height = backing.height;
   }
   const { scale, offsetX, offsetY } = viewOf({ width: clientWidth, height: clientHeight }, scene.drawing);
 
@@ -487,15 +485,23 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
   canvas.addEventListener('pointercancel', onPointerUp);
 
   const onKey = (event: KeyboardEvent): void => {
-    const kind = playback.phase().kind;
-    if (event.key === ' ' || event.key === 'Enter') {
-      event.preventDefault();
-      if (kind === 'ready') playback.play();
-      else if (kind === 'predict') playback.reveal();
-      else if (kind === 'done') replay();
-    } else if (event.key.toLowerCase() === 'r') {
+    const action = presenterKeyAction({
+      key: event.key,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      altKey: event.altKey,
+      onButton: event.target instanceof HTMLButtonElement,
+    });
+    if (action === 'replay') {
       replay();
+      return;
     }
+    if (action === null) return;
+    event.preventDefault();
+    const kind = playback.phase().kind;
+    if (kind === 'ready') playback.play();
+    else if (kind === 'predict') playback.reveal();
+    else if (kind === 'done') replay();
   };
 
   const exit = (): void => {

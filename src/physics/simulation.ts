@@ -1,10 +1,9 @@
 import Matter from 'matter-js';
 import { cartWheels } from '../scene/cart';
-import { isLink, type Body as SceneBody, type Link, type Scene, type Trigger } from '../scene/schema';
+import { isLink, SETTLE_SECONDS, type Body as SceneBody, type Link, type Scene, type Trigger } from '../scene/schema';
 
 export const STEPS_PER_SECOND = 60;
-// Long enough for every check drawing to come to rest.
-export const SETTLE_SECONDS = 7;
+export { SETTLE_SECONDS };
 const DEFAULT_SUBSTEPS = 4;
 // Drawing units are roughly millimetres on the board, so gravity is scaled up
 // from Matter's default; at the default the domino chain creeps at its friction

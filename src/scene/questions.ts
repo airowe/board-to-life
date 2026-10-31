@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BODY_KINDS, type Scene } from './schema';
+import { BODY_KINDS, isLink, type Scene } from './schema';
 
 const questionSchema = z.object({
   id: z.string().min(1),
@@ -24,9 +24,9 @@ const groundingErrors = (question: PredictQuestion, scene: Scene): string[] => {
   for (const cited of question.cites) {
     if (!itemIds.has(cited)) errors.push(`${question.id} cites missing item "${cited}"`);
   }
-  if (!itemIds.has(question.observe.item)) {
-    errors.push(`${question.id} observes missing item "${question.observe.item}"`);
-  }
+  const observed = scene.items.find((item) => item.id === question.observe.item);
+  if (!observed) errors.push(`${question.id} observes missing item "${question.observe.item}"`);
+  else if (isLink(observed)) errors.push(`${question.id} observes a ${observed.kind} "${observed.id}", which has no body to fall`);
   if (!scene.predictPoints.some((point) => point.id === question.predictPointId)) {
     errors.push(`${question.id} uses missing predict point "${question.predictPointId}"`);
   }

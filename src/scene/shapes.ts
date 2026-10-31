@@ -5,7 +5,7 @@ export type Point = { x: number; y: number };
 // Round things are traced as polygons with this many sides; close enough to judge overlaps and touches.
 const ROUND_SIDES = 16;
 
-const rectangle = (x: number, y: number, width: number, height: number, angle: number): Point[] => {
+export const rectangle = (x: number, y: number, width: number, height: number, angle: number): Point[] => {
   const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
   return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx = 0, sy = 0]) => {
     const [dx, dy] = [(sx * width) / 2, (sy * height) / 2];

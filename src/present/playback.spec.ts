@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSimulation, runUntil } from '../physics/simulation';
+import { createSimulation, runUntil, SETTLE_SECONDS } from '../physics/simulation';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../scene/fixtures';
 import { moveGrip } from '../scene/edit';
 import { checkGrounding } from '../scene/questions';
@@ -7,7 +7,6 @@ import { validateScene } from '../scene/schema';
 import type { PhysicsLesson } from '../session/store';
 import { createPlayback } from './playback';
 
-const SETTLE_SECONDS = 8;
 const PLENTY = 10_000;
 
 const lesson = (): PhysicsLesson => {

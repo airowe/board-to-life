@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rampBallDominoes } from './fixtures';
-import { validateScene } from './schema';
+import { MAX_SCENE_ENTRIES, SETTLE_SECONDS, validateScene } from './schema';
 
 const clone = (): Record<string, unknown> & { items: Record<string, unknown>[] } =>
   structuredClone(rampBallDominoes) as unknown as Record<string, unknown> & { items: Record<string, unknown>[] };
@@ -129,6 +129,30 @@ describe('validateScene', () => {
       expect(errorsFor(withPulley(over)).join('\n')).toMatch(message);
     });
   });
+
+  it.each([
+    ['at the end of the run', SETTLE_SECONDS],
+    ['after the run has ended', SETTLE_SECONDS + 3],
+  ])('rejects a time predict point %s, which the class would never reach', (_when, seconds) => {
+    const scene = clone();
+    scene.predictPoints = [{ id: 'late', trigger: { kind: 'time', seconds } }];
+    expect(errorsFor(scene).join('\n')).toMatch(/predict point "late".*after the run ends/);
+  });
+
+  it('accepts a time predict point inside the run', () => {
+    const scene = clone();
+    scene.predictPoints = [{ id: 'early', trigger: { kind: 'time', seconds: SETTLE_SECONDS - 1 } }];
+    expect(validateScene(scene).ok).toBe(true);
+  });
+
+  it.each(['items', 'joints', 'labels', 'unknownMarks', 'predictPoints'])(
+    'rejects a scene with more than the limit of %s, naming the collection',
+    (collection) => {
+      const scene = clone();
+      scene[collection] = Array.from({ length: MAX_SCENE_ENTRIES + 1 }, (_, index) => ({ id: `x-${index}` }));
+      expect(errorsFor(scene).join('\n')).toContain(`at most ${MAX_SCENE_ENTRIES} ${collection} are allowed`);
+    },
+  );
 
   it('keeps unknown marks flagged rather than dropping them', () => {
     const result = validateScene(rampBallDominoes);
