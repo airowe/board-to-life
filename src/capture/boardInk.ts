@@ -9,6 +9,8 @@ const CHANNEL_MAX = 255;
 const MID_LIGHTNESS = 128;
 // How far from the background's lightness a pixel must be to count as ink rather than noise or shading.
 const INK_CONTRAST = 48;
+// Ink is a thin tail of the image; a broad lighter area is the lit part of a board, not ink.
+const MAX_INK_SHARE = 0.25;
 
 const lightness = (data: Uint8ClampedArray, offset: number): number =>
   0.299 * (data[offset] ?? 0) + 0.587 * (data[offset + 1] ?? 0) + 0.114 * (data[offset + 2] ?? 0);
@@ -29,18 +31,20 @@ const medianLightness = (data: Uint8ClampedArray): number => {
 };
 
 // The background is whatever most of the image is; the ink is what stands out from it. Light ink outnumbering dark
-// ink on a dark background is a dark-board export, while a dimly lit whiteboard photo still has darker ink.
+// ink on a dark background is a dark-board export, while a dimly lit or half-shadowed whiteboard photo has either
+// darker ink or a broad lighter area that is far too large to be ink.
 export const isLightInkOnDark = (data: Uint8ClampedArray): boolean => {
   const background = medianLightness(data);
   if (background >= MID_LIGHTNESS) return false;
   let lighter = 0;
   let darker = 0;
+  const pixelCount = data.length / 4;
   for (let offset = 0; offset < data.length; offset += 4) {
     const value = lightness(data, offset);
     if (value > background + INK_CONTRAST) lighter += 1;
     else if (value < background - INK_CONTRAST) darker += 1;
   }
-  return lighter > darker;
+  return lighter > darker && lighter / pixelCount <= MAX_INK_SHARE;
 };
 
 // Shifting every channel by the same amount keeps the hue and saturation and mirrors the lightness, so white

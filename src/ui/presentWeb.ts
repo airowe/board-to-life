@@ -1,4 +1,4 @@
-import { chartPaths, feedingDots, ringRadius, type FeedingDot } from '../ecosystem/chart';
+import { chartPaths, feedingDots, ringRadius } from '../ecosystem/chart';
 import { editOnRelease, emptyEdits, pickSpecies, setStart, startMax, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, MODEL_STEPS, STEPS_PER_SECOND_SHOWN, startingPopulations, type Series } from '../ecosystem/model';
 import { EXTINCT_FRACTION } from '../ecosystem/outcomes';
@@ -8,7 +8,7 @@ import type { Species, Web } from '../ecosystem/schema';
 import { sketchWeb } from '../ecosystem/sketch';
 import type { Box } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
-import { TOUCH_REACH_PX, backingSize, viewOf, type Point } from '../present/view';
+import { TOUCH_REACH_PX, backingSize, viewOf } from '../present/view';
 import type { EcosystemLesson } from '../session/store';
 import { h } from './dom';
 
@@ -85,16 +85,9 @@ const isGone = (state: StageState, id: string): boolean =>
   state.edits.removed.has(id) || valueAt(state, id) <= (state.steady[id] ?? 0) * EXTINCT_FRACTION;
 
 const drawDots = (ctx: CanvasRenderingContext2D, state: StageState): void => {
-  const centreKey = (point: Point): string => `${point.x},${point.y}`;
-  const byCentre = new Map(state.web.species.map((entry) => [centreKey(entry), entry.id]));
-  const alive = (point: Point): boolean => {
-    const id = byCentre.get(centreKey(point));
-    return id !== undefined && !isGone(state, id);
-  };
-  const dots = feedingDots(state.web, state.dotStep).filter((dot: FeedingDot) => alive(dot.from) && alive(dot.to));
+  const dots = feedingDots(state.web, state.dotStep).filter((dot) => !isGone(state, dot.fromId) && !isGone(state, dot.toId));
   for (const dot of dots) {
-    const eaten = byCentre.get(centreKey(dot.from));
-    ctx.fillStyle = (eaten && state.colours.get(eaten)) || INK.black;
+    ctx.fillStyle = state.colours.get(dot.fromId) ?? INK.black;
     ctx.beginPath();
     ctx.arc(dot.from.x + (dot.to.x - dot.from.x) * dot.t, dot.from.y + (dot.to.y - dot.from.y) * dot.t, DOT_RADIUS, 0, Math.PI * 2);
     ctx.fill();
@@ -232,7 +225,7 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
   const playback = createWebPlayback(lesson);
   const eventText = describeEvent(web, eventOf(web));
   const steady = startingPopulations(web);
-  const maxStart = new Map(web.species.map((entry) => [entry.id, startMax(web, entry.id)]));
+  const maxStart = new Map(web.species.map((entry) => [entry.id, startMax(steady, entry.id)]));
 
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Food web drawing with each population shown as a ring' });
   const chartCanvas = h('canvas', { class: 'web-chart-lines', 'aria-hidden': 'true' });

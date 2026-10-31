@@ -199,17 +199,27 @@ describe('drought', () => {
   });
 });
 
+describe('simulate with a supplied settled start', () => {
+  const HALF = 0.5;
+
+  it('begins from the supplied start instead of warming the web up again', () => {
+    const web = grassland();
+    const settled = startingPopulations(web);
+    const halved = Object.fromEntries(Object.entries(settled).map(([id, value]) => [id, value * HALF]));
+    const series = simulate(web, quietRun(), halved);
+    for (const { id } of web.species) expect(valueAt(series, id, 0)).toBe(halved[id]);
+  });
+
+  it('matches the default run when given the web\'s own settled start', () => {
+    const web = grassland();
+    expect(simulate(web, quietRun({ event: { kind: 'drought' } }), startingPopulations(web))).toEqual(simulate(web, quietRun({ event: { kind: 'drought' } })));
+  });
+});
+
 describe('ratesFor', () => {
   it('gives every species rates', () => {
     const rates = ratesFor(grasslandWithFungus());
     expect([...rates.keys()].sort()).toEqual(['fox', 'fungus', 'grass', 'hawk', 'rabbit']);
-  });
-
-  it('applies overrides on top of the defaults for just that species', () => {
-    const plain = ratesFor(grassland());
-    const tuned = ratesFor(grassland(), { rabbit: { death: 0.9 } });
-    expect(tuned.get('rabbit')).toEqual({ ...plain.get('rabbit'), death: 0.9 });
-    expect(tuned.get('fox')).toEqual(plain.get('fox'));
   });
 
   it('feeds a higher-level consumer by the same rule as a lower one, with different numbers', () => {

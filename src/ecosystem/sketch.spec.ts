@@ -126,3 +126,27 @@ describe('sketchWeb', () => {
     expect(sketchWeb(grassland, OTHER_SEED)).not.toBe(svg);
   });
 });
+
+describe('sketchWeb with awkward input', () => {
+  const awkward = (id: string): Web => ({
+    ...grassland,
+    species: grassland.species.map((entry) => (entry.id === 'rabbit' ? { ...entry, id } : entry)),
+    eats: grassland.eats.map((arrow) => ({ ...arrow, from: arrow.from === 'rabbit' ? id : arrow.from, to: arrow.to === 'rabbit' ? id : arrow.to })),
+  });
+
+  it.each([
+    ['a quote', 'rab"bit', 'rab&quot;bit'],
+    ['an ampersand', 'rab&bit', 'rab&amp;bit'],
+    ['angle brackets', 'rab<bit>', 'rab&lt;bit&gt;'],
+  ])('escapes %s in a data attribute so the svg stays well formed', (_, id, escaped) => {
+    const svg = sketchWeb(awkward(id), SEED);
+    expect(svg).toContain(`data-box="${escaped}"`);
+    expect(svg).toContain('data-arrow="e1"');
+    expect(svg).not.toContain(`"${id}"`);
+  });
+
+  it('draws a self-arrow without NaN coordinates', () => {
+    const self: Web = { ...grassland, eats: [...grassland.eats, { id: 'loop', from: 'fox', to: 'fox', confidence: 0.9 }] };
+    expect(sketchWeb(self, SEED)).not.toContain('NaN');
+  });
+});

@@ -83,10 +83,10 @@ describe('feedingDots', () => {
 
   it('has one dot per arrow, running from the eaten species to the eater', () => {
     const dots = feedingDots(web, 0);
-    expect(dots.map((dot) => [dot.from, dot.to])).toEqual([
-      [centre('grass'), centre('rabbit')],
-      [centre('rabbit'), centre('fox')],
-      [centre('rabbit'), centre('hawk')],
+    expect(dots.map((dot) => [dot.fromId, dot.toId, dot.from, dot.to])).toEqual([
+      ['grass', 'rabbit', centre('grass'), centre('rabbit')],
+      ['rabbit', 'fox', centre('rabbit'), centre('fox')],
+      ['rabbit', 'hawk', centre('rabbit'), centre('hawk')],
     ]);
   });
 
@@ -126,5 +126,10 @@ describe('feedingDots', () => {
       { x: 400, y: 100 },
     ]);
     expect(feedingDots(flagged, 0)).toHaveLength(flagged.eats.length);
+  });
+
+  it('names the species even when two of them share a centre', () => {
+    const stacked = webOf([speciesAt('grass', 'producer', 100, 100), speciesAt('rabbit', 'consumer', 100, 100)], [eatsArrow('a1', 'grass', 'rabbit')]);
+    expect(feedingDots(stacked, 0).map((dot) => [dot.fromId, dot.toId])).toEqual([['grass', 'rabbit']]);
   });
 });

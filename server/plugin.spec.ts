@@ -12,7 +12,8 @@ import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
 import { validateFigure, type Figure, type Focus } from '../src/geometry/schema';
 import { rampBallDominoes } from '../src/scene/fixtures';
 import { obeyWrittenValues } from './figureReader';
-import { apiMiddleware, type ApiModel } from './plugin';
+import { apiMiddleware, MAX_UPLOAD_BYTES, type ApiModel } from './plugin';
+import { vercelHandler } from './vercel';
 
 const CODE = 'class-demo-42';
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -81,6 +82,86 @@ describe('apiMiddleware', () => {
 
   it('passes other routes on', async () => {
     const response = await fetch(`${await serve({ ACCESS_CODE: CODE })}/index.html`);
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('apiMiddleware robustness', () => {
+  const brokenModel = (): ApiModel =>
+    Object.defineProperty({}, 'name', {
+      get: () => {
+        throw new Error('internal detail');
+      },
+    }) as ApiModel;
+
+  it('answers an unexpected failure with a plain JSON 500 and keeps serving', async () => {
+    const base = await serve({}, brokenModel());
+    const failed = await postPhoto(base);
+    expect(failed.status).toBe(500);
+    expect(await failed.json()).toEqual({ error: 'Something went wrong on the server. Try again.', details: [] });
+    const next = await fetch(`${base}/api/describe`, { method: 'POST', body: '{' });
+    expect(next.status).toBe(400);
+  });
+
+  it('answers an oversize upload with a 413 the browser can read', async () => {
+    const response = await fetch(`${await serve({})}/api/understand`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: new Uint8Array(MAX_UPLOAD_BYTES + 1),
+    });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: expect.stringContaining('too large'), details: [] });
+  });
+
+  it('keeps uploads under the deployed function body limit', () => {
+    expect(MAX_UPLOAD_BYTES).toBeLessThanOrEqual(4 * 1024 * 1024);
+  });
+
+  it.each(['/api/describe', '/api/draft-questions'])('says a body that is not JSON could not be read on %s', async (route) => {
+    const response = await fetch(`${await serve({})}${route}`, { method: 'POST', body: '{"subject": "geometry"' });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'That request could not be read.', details: [] });
+  });
+
+  it.each(['Meta', 'toString', 'constructor'])('refuses to start with the reader name %s', (name) => {
+    expect(() => apiMiddleware({ env: { SCENE_READER: name } })).toThrow('SCENE_READER');
+  });
+});
+
+describe('vercelHandler', () => {
+  const PAID = { SCENE_READER: 'meta', MODEL_API_KEY: 'test-key' };
+
+  const serveVercel = async (env: Record<string, string | undefined>): Promise<string> => {
+    const handle = vercelHandler(env);
+    server = createServer((request, response) => void handle(request, response));
+    await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve));
+    return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  };
+
+  it('refuses every request when a paid reader is set but no access code is', async () => {
+    const response = await postPhoto(await serveVercel(PAID));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'This demo is not set up yet.', details: [] });
+  });
+
+  it('answers a JSON 503 instead of crashing when the reader key is missing', async () => {
+    const response = await postPhoto(await serveVercel({ SCENE_READER: 'meta', ACCESS_CODE: CODE }), { [ACCESS_HEADER]: CODE });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'This demo is not set up yet.', details: [] });
+  });
+
+  it('serves the stub when no reader is set', async () => {
+    const response = await postPhoto(await serveVercel({}));
+    expect(response.status).toBe(200);
+  });
+
+  it('still checks the access code when it is set', async () => {
+    const response = await postPhoto(await serveVercel({ ...PAID, ACCESS_CODE: CODE }));
+    expect(response.status).toBe(401);
+  });
+
+  it('answers 404 for a route it does not serve', async () => {
+    const response = await fetch(`${await serveVercel({})}/api/nothing`, { method: 'POST' });
     expect(response.status).toBe(404);
   });
 });

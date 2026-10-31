@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const ROLES = ['producer', 'consumer', 'decomposer'] as const;
 export type Role = (typeof ROLES)[number];
 
+export const MAX_SPECIES = 24;
+export const MAX_ARROWS = 100;
+
 const id = z.string().min(1);
 const confidence = z.number().min(0).max(1);
 const coord = z.number();
@@ -35,8 +38,8 @@ const unknownMark = z.object({ id, x: coord, y: coord, width: size, height: size
 const webSchema = z.object({
   version: z.literal(1),
   drawing: z.object({ width: size, height: size }),
-  species: z.array(species),
-  eats: z.array(eats),
+  species: z.array(species).max(MAX_SPECIES, `at most ${MAX_SPECIES} species are allowed`),
+  eats: z.array(eats).max(MAX_ARROWS, `at most ${MAX_ARROWS} arrows are allowed`),
   labels: z.array(label),
   unknownMarks: z.array(unknownMark),
   event: event.nullable(),
@@ -69,6 +72,13 @@ const crossReferenceErrors = (web: Web): string[] => {
     for (const end of [arrow.from, arrow.to]) {
       if (!speciesIds.has(end)) errors.push(`arrow "${arrow.id}" references missing species "${end}"`);
     }
+  }
+  const firstArrowFor = new Map<string, string>();
+  for (const arrow of web.eats) {
+    const pair = JSON.stringify([arrow.from, arrow.to]);
+    const first = firstArrowFor.get(pair);
+    if (first === undefined) firstArrowFor.set(pair, arrow.id);
+    else errors.push(`arrow "${arrow.id}" repeats arrow "${first}" from "${arrow.from}" to "${arrow.to}"`);
   }
   if (web.event?.kind === 'remove' && !speciesIds.has(web.event.species)) {
     errors.push(`event removes missing species "${web.event.species}"`);

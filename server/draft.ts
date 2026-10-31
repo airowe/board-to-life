@@ -6,6 +6,7 @@ import { validateFigure, type Figure, type Focus } from '../src/geometry/schema'
 import { checkGrounding } from '../src/scene/questions';
 import { validateScene, type Scene } from '../src/scene/schema';
 import { outcomesOf } from './questionDrafter';
+import { failureReason } from './sceneReader';
 import type { StubResponse } from './stub';
 
 export type ModelDraft = (scene: Scene) => Promise<unknown>;
@@ -28,7 +29,7 @@ export const handleDraftQuestionsWithModel = async (request: ModelDraftRequest):
   try {
     drafted = await request.draft(scene);
   } catch (error) {
-    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The question drafter failed: ${failureReason(error)}`);
   }
   const grounded = checkGrounding(drafted, scene);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the scene.', grounded.errors);
@@ -48,7 +49,7 @@ export const handleDraftWebQuestionsWithModel = async (request: ModelWebDraftReq
   try {
     drafted = await request.draft(web);
   } catch (error) {
-    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The question drafter failed: ${failureReason(error)}`);
   }
   const grounded = checkWebGrounding(drafted, web);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the web.', grounded.errors);
@@ -69,7 +70,7 @@ export const handleDraftFigureQuestionsWithModel = async (request: ModelFigureDr
   try {
     drafted = await request.draft(figure, focus);
   } catch (error) {
-    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The question drafter failed: ${failureReason(error)}`);
   }
   const grounded = checkFigureGrounding(drafted, figure);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the figure.', grounded.errors);

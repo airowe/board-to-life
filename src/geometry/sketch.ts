@@ -47,6 +47,8 @@ const CENTRE_DOT = 7;
 const text = (x: number, y: number, size: number, content: string, data: string, anchor = 'start'): string =>
   `<text ${data} x="${x}" y="${y}" text-anchor="${anchor}" fill="${INK}" font-family="${LABEL_FONT}" font-size="${size}">${escapeText(content)}</text>`;
 
+const dataAttr = (name: string, value: string): string => `data-${name}="${escapeText(value)}"`;
+
 const at = (positions: Positions, id: string): Point => positions[id] ?? { x: 0, y: 0 };
 
 const offset = (from: Point, direction: Point, distance: number): Point => ({ x: from.x + direction.x * distance, y: from.y + direction.y * distance });
@@ -86,24 +88,24 @@ const extended = (positions: Positions, entry: Segment, past: 'both' | 'to'): [P
 };
 
 const segmentPath = (jitter: Jitter, positions: Positions, entry: Segment): string =>
-  stroke(wobblyLine(jitter, at(positions, entry.from), at(positions, entry.to)), INK, LINE_WIDTH, `data-segment="${entry.id}"`);
+  stroke(wobblyLine(jitter, at(positions, entry.from), at(positions, entry.to)), INK, LINE_WIDTH, dataAttr('segment', entry.id));
 
 const lineLike = (jitter: Jitter, positions: Positions, entry: Segment, kind: 'line' | 'ray'): string => {
   const [start, end] = extended(positions, entry, kind === 'line' ? 'both' : 'to');
-  return stroke(wobblyLine(jitter, start, end), INK, LINE_WIDTH, `data-${kind}="${entry.id}"`);
+  return stroke(wobblyLine(jitter, start, end), INK, LINE_WIDTH, dataAttr(kind, entry.id));
 };
 
 const circlePath = (jitter: Jitter, positions: Positions, entry: Figure['circles'][number]): string => {
   const centre = at(positions, entry.centre);
   const through = at(positions, entry.through ?? entry.centre);
   const radius = entry.radius ?? Math.hypot(through.x - centre.x, through.y - centre.y);
-  return stroke(wobblyCircle(jitter, centre, radius), INK, LINE_WIDTH, `data-circle="${entry.id}"`);
+  return stroke(wobblyCircle(jitter, centre, radius), INK, LINE_WIDTH, dataAttr('circle', entry.id));
 };
 
 const edgePaths = (jitter: Jitter, positions: Positions, entry: Polygon): string[] =>
   entry.vertices.map((vertex, i) => {
     const next = entry.vertices[(i + 1) % entry.vertices.length] ?? vertex;
-    return stroke(wobblyLine(jitter, at(positions, vertex), at(positions, next)), INK, LINE_WIDTH, `data-edge="${entry.id}-${i}"`);
+    return stroke(wobblyLine(jitter, at(positions, vertex), at(positions, next)), INK, LINE_WIDTH, dataAttr('edge', `${entry.id}-${i}`));
   });
 
 const hasLabelText = (figure: Figure, content: string): boolean => figure.labels.some((entry) => entry.text === content);
@@ -113,12 +115,12 @@ const angleMark = (jitter: Jitter, figure: Figure, positions: Positions, entry: 
   const [start, end] = [headingOf(vertex, from), headingOf(vertex, to)];
   const sweep = shortestSweep(start, end);
   const arc = arcPoints(vertex, ARC_RADIUS, start, sweep, ARC_STEPS).map((p) => ({ x: p.x + jitter(2), y: p.y + jitter(2) }));
-  const parts = [stroke(pathOf(arc), MARKER, MARK_WIDTH, `data-angle="${entry.id}"`)];
+  const parts = [stroke(pathOf(arc), MARKER, MARK_WIDTH, dataAttr('angle', entry.id))];
   const value = entry.degrees === undefined ? undefined : `${entry.degrees}°`;
   if (value !== undefined && !hasLabelText(figure, value)) {
     const heading = start + sweep / 2;
     const spot = { x: vertex.x + Math.cos(heading) * (ARC_RADIUS + VALUE_REACH), y: vertex.y + Math.sin(heading) * (ARC_RADIUS + VALUE_REACH) };
-    parts.push(text(Math.round(spot.x), Math.round(spot.y + LETTER_BASELINE_SHIFT), VALUE_SIZE, value, `data-angle-value="${entry.id}"`, 'middle'));
+    parts.push(text(Math.round(spot.x), Math.round(spot.y + LETTER_BASELINE_SHIFT), VALUE_SIZE, value, dataAttr('angle-value', entry.id), 'middle'));
   }
   return parts;
 };
@@ -128,7 +130,7 @@ const rightMark = (jitter: Jitter, positions: Positions, entry: Extract<Mark, { 
   const [a, b] = [unit(vertex, at(positions, entry.from)), unit(vertex, at(positions, entry.to))];
   const [p, q] = [offset(vertex, a, RIGHT_SIDE), offset(vertex, b, RIGHT_SIDE)];
   const corner = offset(p, b, RIGHT_SIDE);
-  return stroke(`${wobblyLine(jitter, p, corner, 1)} ${wobblyLine(jitter, corner, q, 1)}`, MARKER, MARK_WIDTH, `data-right="${entry.id}"`);
+  return stroke(`${wobblyLine(jitter, p, corner, 1)} ${wobblyLine(jitter, corner, q, 1)}`, MARKER, MARK_WIDTH, dataAttr('right', entry.id));
 };
 
 const perpendicular = (direction: Point): Point => ({ x: -direction.y, y: direction.x });
@@ -144,7 +146,7 @@ const tickMarks = (jitter: Jitter, positions: Positions, entry: Extract<Mark, { 
         wobblyLine(jitter, offset(along, normal, -TICK_LENGTH / 2), offset(along, normal, TICK_LENGTH / 2), 1),
         MARKER,
         MARK_WIDTH,
-        `data-tick="${entry.id}-${segmentIndex}-${i}"`,
+        dataAttr('tick', `${entry.id}-${segmentIndex}-${i}`),
       );
     });
   });
@@ -157,7 +159,7 @@ const chevron = (jitter: Jitter, positions: Positions, entry: Extract<Mark, { ki
     const back = offset(tip, direction, -CHEVRON_LENGTH);
     const normal = perpendicular(direction);
     const d = `${wobblyLine(jitter, offset(back, normal, CHEVRON_SPREAD), tip, 1)} ${wobblyLine(jitter, offset(back, normal, -CHEVRON_SPREAD), tip, 1)}`;
-    return stroke(d, MARKER, MARK_WIDTH, `data-parallel="${entry.id}-${i}"`);
+    return stroke(d, MARKER, MARK_WIDTH, dataAttr('parallel', `${entry.id}-${i}`));
   });
 
 const markParts = (jitter: Jitter, figure: Figure, positions: Positions): string[] =>
@@ -177,13 +179,13 @@ const markParts = (jitter: Jitter, figure: Figure, positions: Positions): string
   });
 
 const centreCross = (centre: Point, id: string): string =>
-  stroke(`M${centre.x - CENTRE_DOT},${centre.y} L${centre.x + CENTRE_DOT},${centre.y} M${centre.x},${centre.y - CENTRE_DOT} L${centre.x},${centre.y + CENTRE_DOT}`, RED, MARK_WIDTH, `data-centre="${id}"`);
+  stroke(`M${centre.x - CENTRE_DOT},${centre.y} L${centre.x + CENTRE_DOT},${centre.y} M${centre.x},${centre.y - CENTRE_DOT} L${centre.x},${centre.y + CENTRE_DOT}`, RED, MARK_WIDTH, dataAttr('centre', id));
 
 const reflectParts = (jitter: Jitter, positions: Positions, entry: Extract<Transformation, { kind: 'reflect' }>): string[] => {
   const [p, q] = [at(positions, entry.mirror[0]), at(positions, entry.mirror[1])];
   const length = Math.hypot(q.x - p.x, q.y - p.y);
   const [start, end] = [towards(q, p, length + LINE_REACH), towards(p, q, length + LINE_REACH)];
-  return [stroke(wobblyLine(jitter, start, end), ORANGE, MARK_WIDTH, `data-mirror="${entry.id}" stroke-dasharray="${MIRROR_DASH}"`)];
+  return [stroke(wobblyLine(jitter, start, end), ORANGE, MARK_WIDTH, `${dataAttr('mirror', entry.id)} stroke-dasharray="${MIRROR_DASH}"`)];
 };
 
 const rotateParts = (jitter: Jitter, figure: Figure, positions: Positions, entry: Extract<Transformation, { kind: 'rotate' }>): string[] => {
@@ -198,14 +200,14 @@ const rotateParts = (jitter: Jitter, figure: Figure, positions: Positions, entry
   const valueSpot = { x: centre.x + Math.cos(middle) * (TURN_RADIUS + VALUE_REACH), y: centre.y + Math.sin(middle) * (TURN_RADIUS + VALUE_REACH) };
   return [
     centreCross(centre, entry.id),
-    stroke(`${pathOf(arc)} ${arrowhead(jitter, beforeTip, tip)}`, RED, MARK_WIDTH, `data-turn="${entry.id}"`),
-    text(Math.round(valueSpot.x), Math.round(valueSpot.y + LETTER_BASELINE_SHIFT), VALUE_SIZE, `${entry.degrees}°`, `data-turn-value="${entry.id}"`, 'middle'),
+    stroke(`${pathOf(arc)} ${arrowhead(jitter, beforeTip, tip)}`, RED, MARK_WIDTH, dataAttr('turn', entry.id)),
+    text(Math.round(valueSpot.x), Math.round(valueSpot.y + LETTER_BASELINE_SHIFT), VALUE_SIZE, `${entry.degrees}°`, dataAttr('turn-value', entry.id), 'middle'),
   ];
 };
 
 const translateParts = (jitter: Jitter, positions: Positions, entry: Extract<Transformation, { kind: 'translate' }>): string[] => {
   const [from, to] = [at(positions, entry.from), at(positions, entry.to)];
-  return [stroke(`${wobblyLine(jitter, from, to, 3)} ${arrowhead(jitter, from, to)}`, RED, MARK_WIDTH, `data-translate="${entry.id}"`)];
+  return [stroke(`${wobblyLine(jitter, from, to, 3)} ${arrowhead(jitter, from, to)}`, RED, MARK_WIDTH, dataAttr('translate', entry.id))];
 };
 
 const dilateParts = (positions: Positions, entry: Extract<Transformation, { kind: 'dilate' }>): string[] => {
@@ -239,11 +241,11 @@ const pointLetters = (figure: Figure, positions: Positions): string[] => {
     .map((entry) => {
       const direction = unit(middle, entry);
       const spot = offset(entry, direction, LETTER_OFFSET);
-      return text(Math.round(spot.x), Math.round(spot.y + LETTER_BASELINE_SHIFT), LETTER_SIZE, entry.id, `data-point-letter="${entry.id}"`, 'middle');
+      return text(Math.round(spot.x), Math.round(spot.y + LETTER_BASELINE_SHIFT), LETTER_SIZE, entry.id, dataAttr('point-letter', entry.id), 'middle');
     });
 };
 
-const scribble = (jitter: Jitter, mark: Figure['unknownMarks'][number]): string => stroke(scribblePath(jitter, mark), GHOST, MARK_WIDTH, `data-unknown="${mark.id}"`);
+const scribble = (jitter: Jitter, mark: Figure['unknownMarks'][number]): string => stroke(scribblePath(jitter, mark), GHOST, MARK_WIDTH, dataAttr('unknown', mark.id));
 
 export const sketchFigure = (figure: Figure, seed: number): string => {
   const jitter = seededJitter(seed);
@@ -259,7 +261,7 @@ export const sketchFigure = (figure: Figure, seed: number): string => {
     ...transformationParts(jitter, figure, positions),
     ...figure.unknownMarks.map((entry) => scribble(jitter, entry)),
     ...pointLetters(figure, positions),
-    ...figure.labels.map((entry) => text(entry.x, entry.y, LABEL_SIZE, entry.text, `data-label="${entry.id}"`)),
+    ...figure.labels.map((entry) => text(entry.x, entry.y, LABEL_SIZE, entry.text, dataAttr('label', entry.id))),
   ];
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   ${boardBackground(width, height)}

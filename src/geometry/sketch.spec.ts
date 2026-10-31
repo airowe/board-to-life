@@ -171,4 +171,21 @@ describe('sketchFigure', () => {
     expect(count(svg, 'data-mirror')).toBe(0);
     expect(count(svg, 'data-translate')).toBe(0);
   });
+
+  it('escapes ids written into attributes so the picture stays valid XML', () => {
+    const awkward = 'A&B"<C>';
+    const escaped = 'A&amp;B&quot;&lt;C&gt;';
+    const figure = withParts(triangle, {
+      points: triangle.points.map((entry, index) => (index === 0 ? { ...entry, id: awkward } : entry)),
+      segments: triangle.segments.map((entry, index) => (index === 0 ? { ...entry, id: awkward, from: awkward } : entry)),
+      polygons: [],
+      marks: [],
+      labels: [],
+    });
+    const svg = sketchFigure(figure, SEED);
+    expect(svg).toContain(`data-segment="${escaped}"`);
+    expect(svg).toContain(`data-point-letter="${escaped}"`);
+    expect(svg).not.toMatch(/&(?!amp;|lt;|gt;|quot;)/);
+    expect(svg.split('<').length).toBe(svg.split('>').length);
+  });
 });

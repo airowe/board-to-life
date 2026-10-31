@@ -1,5 +1,8 @@
 import { INK, LABEL_FONT, MARKER, RED, boardBackground, corners, escapeText, seededJitter, stroke, wobblyLine, wobblyPolygon, type Jitter, type Point } from '../checks/ink';
+import { edgePoint } from './edge';
 import type { Eats, Species, Web } from './schema';
+
+const escapeAttribute = (value: string): string => escapeText(value).replace(/"/g, '&quot;');
 
 const NAME_SIZE = 26;
 const NAME_BASELINE_SHIFT = 9;
@@ -11,13 +14,6 @@ const ARROWHEAD_SPREAD = 13;
 const MARK_WIDTH = 5;
 const MARK_MARGIN = 10;
 const CROSS_REACH = 0.3;
-
-// Where the line from a box's centre to another point leaves the box.
-const edgePoint = (box: Species, target: Point): Point => {
-  const [dx, dy] = [target.x - box.x, target.y - box.y];
-  const scale = Math.min(dx === 0 ? Infinity : box.width / 2 / Math.abs(dx), dy === 0 ? Infinity : box.height / 2 / Math.abs(dy));
-  return { x: box.x + dx * scale, y: box.y + dy * scale };
-};
 
 const arrowhead = (jitter: Jitter, from: Point, tip: Point): string => {
   const length = Math.hypot(tip.x - from.x, tip.y - from.y) || 1;
@@ -31,13 +27,13 @@ const arrow = (jitter: Jitter, bySpecies: Map<string, Species>, entry: Eats): st
   if (!eaten || !eater) return [];
   const [start, tip] = [edgePoint(eaten, eater), edgePoint(eater, eaten)];
   return [
-    stroke(wobblyLine(jitter, start, tip, 3), RED, ARROW_WIDTH, `data-arrow="${entry.id}"`),
-    stroke(arrowhead(jitter, start, tip), RED, ARROW_WIDTH, `data-arrowhead="${entry.id}"`),
+    stroke(wobblyLine(jitter, start, tip, 3), RED, ARROW_WIDTH, `data-arrow="${escapeAttribute(entry.id)}"`),
+    stroke(arrowhead(jitter, start, tip), RED, ARROW_WIDTH, `data-arrowhead="${escapeAttribute(entry.id)}"`),
   ];
 };
 
 const box = (jitter: Jitter, member: Species): string =>
-  stroke(wobblyPolygon(jitter, corners(member, member.width, member.height, 0)), MARKER, BOX_WIDTH, `data-box="${member.id}"`);
+  stroke(wobblyPolygon(jitter, corners(member, member.width, member.height, 0)), MARKER, BOX_WIDTH, `data-box="${escapeAttribute(member.id)}"`);
 
 const text = (x: number, y: number, size: number, content: string, anchor = 'start'): string =>
   `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${INK}" font-family="${LABEL_FONT}" font-size="${size}">${escapeText(content)}</text>`;
@@ -50,9 +46,9 @@ const crossedOutArrow = (jitter: Jitter, mark: Web['unknownMarks'][number]): str
   const reach = Math.min(mark.width, mark.height) * CROSS_REACH;
   const stroked = (d: string, data: string): string => stroke(d, INK, MARK_WIDTH, data);
   return [
-    stroked(`${wobblyLine(jitter, start, tip, 3)} ${arrowhead(jitter, start, tip)}`, `data-mark="${mark.id}"`),
-    stroked(wobblyLine(jitter, { x: mark.x - reach, y: mark.y - reach }, { x: mark.x + reach, y: mark.y + reach }, 2), `data-mark-cross="${mark.id}"`),
-    stroked(wobblyLine(jitter, { x: mark.x + reach, y: mark.y - reach }, { x: mark.x - reach, y: mark.y + reach }, 2), `data-mark-cross="${mark.id}"`),
+    stroked(`${wobblyLine(jitter, start, tip, 3)} ${arrowhead(jitter, start, tip)}`, `data-mark="${escapeAttribute(mark.id)}"`),
+    stroked(wobblyLine(jitter, { x: mark.x - reach, y: mark.y - reach }, { x: mark.x + reach, y: mark.y + reach }, 2), `data-mark-cross="${escapeAttribute(mark.id)}"`),
+    stroked(wobblyLine(jitter, { x: mark.x + reach, y: mark.y - reach }, { x: mark.x - reach, y: mark.y + reach }, 2), `data-mark-cross="${escapeAttribute(mark.id)}"`),
   ];
 };
 

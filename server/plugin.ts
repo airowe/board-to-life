@@ -38,7 +38,8 @@ import { draftWebQuestionsWithModel } from './webDrafter';
 import { handleDescribeFigureWithModel, handleDescribeWebWithModel, handleDescribeWithModel, type ModelDescribe } from './describe';
 import { handleUnderstandFigureWithModel, handleUnderstandWebWithModel, handleUnderstandWithModel, type ModelRead } from './understand';
 
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+// Vercel turns away function request bodies over 4.5 MB with its own reply; the app sends photos far smaller.
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const STUB_LATENCY_MS = 700;
 export const STUB_TIMEOUT_DELAY_MS = MODEL_REQUEST_TIMEOUT_MS + 15_000;
 // The whole budget for one read or draft, a retry included: the slowest read measured took 71 s.
@@ -46,21 +47,25 @@ export const MODEL_TIMEOUT_MS = 120_000;
 
 const delayFor = (mode: StubMode): number => (mode === 'timeout' ? STUB_TIMEOUT_DELAY_MS : STUB_LATENCY_MS);
 
-const readBody = (request: IncomingMessage): Promise<Buffer | null> =>
-  new Promise((resolve, reject) => {
+type Body = { kind: 'read'; bytes: Buffer } | { kind: 'too-large' } | { kind: 'aborted' };
+
+const readBody = (request: IncomingMessage): Promise<Body> =>
+  new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
-    request.on('data', (chunk: Buffer) => {
+    const collect = (chunk: Buffer): void => {
       size += chunk.length;
-      if (size > MAX_UPLOAD_BYTES) {
-        resolve(null);
-        request.destroy();
+      if (size <= MAX_UPLOAD_BYTES) {
+        chunks.push(chunk);
         return;
       }
-      chunks.push(chunk);
-    });
-    request.on('end', () => resolve(Buffer.concat(chunks)));
-    request.on('error', reject);
+      request.off('data', collect);
+      request.resume();
+      resolve({ kind: 'too-large' });
+    };
+    request.on('data', collect);
+    request.on('end', () => resolve({ kind: 'read', bytes: Buffer.concat(chunks) }));
+    request.on('error', () => resolve({ kind: 'aborted' }));
   });
 
 const send = (response: ServerResponse, { status, body }: StubResponse): void => {
@@ -98,9 +103,12 @@ export type ApiModel = {
   draftFigure: ModelFigureDraft;
 };
 
-const modelFrom = (env: ApiOptions['env']): ApiModel | null => {
-  const name = env.SCENE_READER ?? 'stub';
-  if (!isProviderName(name)) return null;
+const STUB_READER = 'stub';
+
+export const modelFrom = (env: ApiOptions['env']): ApiModel | null => {
+  const name = env.SCENE_READER || STUB_READER;
+  if (name === STUB_READER) return null;
+  if (!isProviderName(name)) throw new Error(`SCENE_READER must be meta, baseten or stub, not "${name}".`);
   const provider = providerFromEnv(name, env);
   const effort = parseEffort(env.READER_EFFORT);
   const options = { timeoutMs: MODEL_TIMEOUT_MS, ...(effort ? { effort } : {}) };
@@ -193,7 +201,25 @@ const JSON_ROUTES: Record<string, 'describe' | 'draft'> = { '/api/describe': 'de
 
 const isApiRoute = (route: string | undefined): route is string => route === UNDERSTAND_ROUTE || (route !== undefined && Object.hasOwn(JSON_ROUTES, route));
 
+const UNREADABLE = 'That request could not be read.';
+const unreadable = (): StubResponse => ({ status: 400, body: { error: UNREADABLE, details: [] } });
+const SERVER_FAILURE: StubResponse = { status: 500, body: { error: 'Something went wrong on the server. Try again.', details: [] } };
+const TOO_LARGE: StubResponse = { status: 413, body: { error: `That photo is too large (${MAX_UPLOAD_BYTES / 1024 / 1024} MB maximum).`, details: [] } };
+
 const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
+
+const answer = async (request: IncomingMessage, route: string, context: RouteContext, body: Buffer): Promise<StubResponse> => {
+  if (route === UNDERSTAND_ROUTE) {
+    const contentType = header(request, 'content-type') ?? '';
+    const subject = parseSubject(new URL(request.url ?? '', 'http://localhost').searchParams.get('subject') ?? undefined);
+    return subject === null ? unknownSubject() : SUBJECT_ROUTES[subject].understand({ ...context, contentType, body });
+  }
+  const parsed = parseJson(body);
+  if (parsed === null) return unreadable();
+  const subject = parseSubject(fieldOf(parsed, 'subject'));
+  const handle = JSON_ROUTES[route];
+  return subject === null || handle === undefined ? unknownSubject() : SUBJECT_ROUTES[subject][handle]({ ...context, parsed });
+};
 
 // The API routes as plain Node middleware, so the dev server and the deployed functions share them.
 export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Middleware => async (request, response, next) => {
@@ -206,23 +232,20 @@ export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Midd
     send(response, { status: 401, body: { error: NO_ACCESS, details: [] } });
     return;
   }
-  const mode = parseStubMode(header(request, 'x-stub-mode'));
   const body = await readBody(request);
-  if (body === null) {
-    send(response, { status: 413, body: { error: 'That photo is too large (15 MB maximum).' } });
+  if (body.kind === 'aborted') return;
+  if (body.kind === 'too-large') {
+    response.setHeader('connection', 'close');
+    send(response, TOO_LARGE);
     return;
   }
-  const context: RouteContext = { model, mode, delayMs: delayFor(mode) };
-  if (route === UNDERSTAND_ROUTE) {
-    const contentType = header(request, 'content-type') ?? '';
-    const subject = parseSubject(new URL(request.url ?? '', 'http://localhost').searchParams.get('subject') ?? undefined);
-    send(response, subject === null ? unknownSubject() : await SUBJECT_ROUTES[subject].understand({ ...context, contentType, body }));
-    return;
+  const mode = parseStubMode(header(request, 'x-stub-mode'));
+  try {
+    send(response, await answer(request, route, { model, mode, delayMs: delayFor(mode) }, body.bytes));
+  } catch (error) {
+    console.error(error);
+    if (!response.headersSent) send(response, SERVER_FAILURE);
   }
-  const parsed = parseJson(body);
-  const subject = parseSubject(fieldOf(parsed, 'subject'));
-  const handle = JSON_ROUTES[route];
-  send(response, subject === null || handle === undefined ? unknownSubject() : await SUBJECT_ROUTES[subject][handle]({ ...context, parsed }));
 };
 
 export const stubApi = ({ env }: ApiOptions): Plugin => ({

@@ -86,7 +86,7 @@ const arrow = (jitter: Jitter, item: SceneItem): string | null => {
   const tip = { x: start.x + ux * ARROW_LENGTH, y: start.y + uy * ARROW_LENGTH };
   const barb = (side: number): Point => ({ x: tip.x - ux * 20 - uy * 12 * side, y: tip.y - uy * 20 + ux * 12 * side });
   const d = [wobblyLine(jitter, start, tip, 2), wobblyLine(jitter, barb(1), tip, 1), wobblyLine(jitter, barb(-1), tip, 1)].join(' ');
-  return stroke(d, RED, 5, `data-arrow="${item.id}"`);
+  return stroke(d, RED, 5, `data-arrow="${escapeText(item.id)}"`);
 };
 
 // The board legend: fixed things are hatched, so a wall never reads as a domino.
@@ -98,11 +98,11 @@ const hatch = (jitter: Jitter, item: SceneItem): string | null => {
     const [y1, y2] = [Math.max(top, left - k), Math.min(bottom, right - k)];
     if (y2 - y1 > 2) lines.push(wobblyLine(jitter, { x: y1 + k, y: y1 }, { x: y2 + k, y: y2 }, 1));
   }
-  return stroke(lines.join(' '), INK, 3, `data-hatch="${item.id}"`);
+  return stroke(lines.join(' '), INK, 3, `data-hatch="${escapeText(item.id)}"`);
 };
 
 const scribble = (jitter: Jitter, mark: Scene['unknownMarks'][number]): string =>
-  stroke(scribblePath(jitter, mark), ORANGE, 4, `data-mark="${mark.id}"`);
+  stroke(scribblePath(jitter, mark), ORANGE, 4, `data-mark="${escapeText(mark.id)}"`);
 
 const label = (entry: Scene['labels'][number]): string =>
   `<text x="${entry.x}" y="${entry.y}" fill="${INK}" font-family="${LABEL_FONT}" font-size="34">${escapeText(entry.text)}</text>`;
@@ -123,7 +123,7 @@ export const sketchScene = (scene: Scene, seed: number, ghost?: Scene): string =
   const { width, height } = scene.drawing;
   const parts = [
     ...(ghost ? ghostStrokes(ghost, seed) : []),
-    ...scene.items.map((item) => stroke(itemPath(jitter, item, byId), itemColour(item), itemWidth(item), `data-item="${item.id}"`)),
+    ...scene.items.map((item) => stroke(itemPath(jitter, item, byId), itemColour(item), itemWidth(item), `data-item="${escapeText(item.id)}"`)),
     ...scene.items.flatMap((item) => hatch(jitter, item) ?? []),
     ...scene.items.flatMap((item) => arrow(jitter, item) ?? []),
     ...scene.unknownMarks.map((mark) => scribble(jitter, mark)),

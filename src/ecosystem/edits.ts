@@ -1,6 +1,5 @@
 import { toDrawing, type Point, type View } from '../present/view';
 import type { Species, Web } from './schema';
-import { startingPopulations } from './model';
 
 export type WebEdits = { removed: ReadonlySet<string>; start: Record<string, number> };
 
@@ -14,7 +13,7 @@ export const toggleRemoved = (edits: WebEdits, id: string): WebEdits => {
   return { ...edits, removed };
 };
 
-export const startMax = (web: Web, id: string): number => START_MAX_FACTOR * (startingPopulations(web)[id] ?? 0);
+export const startMax = (steady: Record<string, number>, id: string): number => START_MAX_FACTOR * (steady[id] ?? 0);
 
 export const setStart = (edits: WebEdits, id: string, value: number, max: number): WebEdits => ({
   ...edits,

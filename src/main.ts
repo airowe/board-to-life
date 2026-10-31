@@ -13,6 +13,7 @@ import { checkFigureGrounding } from './geometry/questions';
 import { validateFigure, type Figure } from './geometry/schema';
 import { checkGrounding } from './scene/questions';
 import { validateScene } from './scene/schema';
+import { createEditQueue, samePoints } from './session/edits';
 import { createSession, type DraftContent } from './session/store';
 import { loadSubject, saveSubject } from './subjectChoice';
 import type { Subject } from './subjects';
@@ -38,21 +39,28 @@ const requireElement = <T extends Element>(selector: string): T => {
 const root = requireElement<HTMLElement>('#app');
 const stubSelect = requireElement<HTMLSelectElement>('#stub-mode');
 const noop = (): void => undefined;
-setUpBoardMode(requireElement<HTMLButtonElement>('#board-mode'), requireElement<HTMLButtonElement>('#fullscreen'), localStorage);
+const storage = {
+  getItem: (key: string): string | null => localStorage.getItem(key),
+  setItem: (key: string, value: string): void => localStorage.setItem(key, value),
+};
+setUpBoardMode(requireElement<HTMLButtonElement>('#board-mode'), requireElement<HTMLButtonElement>('#fullscreen'), storage);
 
 const session = createSession();
 let cleanup: () => void = noop;
 let photoUrl: string | null = null;
 let photoIsSketch = false;
 let photoNote = '';
-let preparedNote = '';
 let checkScreen: CheckScreen | null = null;
 let activeDraftId = 0;
 let activeRead: AbortController | null = null;
+let activeDraftRequest: AbortController | null = null;
+let screenEpoch = 0;
+let photoSequence = 0;
+const edits = createEditQueue();
 let lastDescription = '';
-let subject: Subject = loadSubject(localStorage);
+let subject: Subject = loadSubject(storage);
 
-const leaveScreen = (): void => {
+const tearDownScreen = (): void => {
   activeRead?.abort();
   activeRead = null;
   cleanup();
@@ -60,10 +68,12 @@ const leaveScreen = (): void => {
   checkScreen = null;
 };
 
-const accessCode = rememberAccessCode(location.search, {
-  getItem: (key) => localStorage.getItem(key),
-  setItem: (key, value) => localStorage.setItem(key, value),
-});
+const leaveScreen = (): void => {
+  screenEpoch += 1;
+  tearDownScreen();
+};
+
+const accessCode = rememberAccessCode(location.search, storage);
 const requestHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value, ...accessHeaders(accessCode) });
 
 const showLoading = (message: string): void => {
@@ -138,12 +148,17 @@ const draftQuestions = async (draftId: number, content: DraftContent): Promise<v
   const report = (status: QuestionsStatus): void => {
     if (draftId === activeDraftId) checkScreen?.setQuestionsStatus(status);
   };
+  activeDraftRequest?.abort();
+  const request = new AbortController();
+  activeDraftRequest = request;
   report({ kind: 'drafting' });
   const drafted = await requestJson(
     '/api/draft-questions',
     { method: 'POST', body: draftQuestionsBody(content), headers: { 'content-type': 'application/json', ...requestHeaders() } },
-    { timeoutMs: MODEL_REQUEST_TIMEOUT_MS },
+    { timeoutMs: MODEL_REQUEST_TIMEOUT_MS, signal: request.signal },
   );
+  if (request.signal.aborted) return;
+  if (activeDraftRequest === request) activeDraftRequest = null;
   if (!drafted.ok) return report(draftFailureStatus(content.subject, drafted, retry));
 
   const grounded = groundQuestions(content, (drafted.data as { questions?: unknown } | null)?.questions);
@@ -174,8 +189,8 @@ const understandUrl = (subject: Subject): string => (subject === 'physics' ? '/a
 
 const describeBody = (text: string, subject: Subject): string => JSON.stringify(subject === 'physics' ? { text } : { text, subject });
 
-const readDrawing = async (photo: Blob, readSubject: Subject): Promise<void> => {
-  const retry = (): void => void readDrawing(photo, readSubject);
+const readDrawing = async (photo: Blob, readSubject: Subject, preparedNote: string): Promise<void> => {
+  const retry = (): void => void readDrawing(photo, readSubject, preparedNote);
   const read = new AbortController();
   showReading(read);
   const understood = await requestJson(
@@ -235,24 +250,34 @@ const describeSetup = async (text: string, describeSubject: Subject): Promise<vo
   void draftQuestions(draftId, validated.content);
 };
 
+const INVERTED_NOTE = 'Light ink on a dark or see-through background: the image was flipped to dark ink on white so it reads like a whiteboard. ';
+
 const receivePhoto = async (photo: Blob, photoSubject: Subject): Promise<void> => {
+  photoSequence += 1;
+  const mine = photoSequence;
+  const retry = (): void => void receivePhoto(photo, photoSubject);
   showLoading('Preparing the photo…');
-  const prepared = await preparePhoto(photo);
-  preparedNote = prepared.inverted ? 'Light ink on a dark or see-through background: the image was flipped to dark ink on white so it reads like a whiteboard. ' : '';
-  await readDrawing(prepared.photo, photoSubject);
+  try {
+    const prepared = await preparePhoto(photo);
+    if (mine !== photoSequence) return;
+    await readDrawing(prepared.photo, photoSubject, prepared.inverted ? INVERTED_NOTE : '');
+  } catch (cause) {
+    if (mine !== photoSequence) return;
+    showError({ message: cause instanceof Error ? cause.message : 'The photo could not be prepared.' }, retry);
+  }
 };
 
 function showCheck(): void {
   const url = photoUrl;
   if (!url) return showCapture();
   const current = session.draft();
-  leaveScreen();
+  tearDownScreen();
   if (current?.subject === 'ecosystem') {
     checkScreen = renderWebCheck(root, session, url, photoNote, {
       onPresent: showPresent,
       onRestart: showCapture,
       onEvent: (event) => changeWeb({ ...current.web, event }),
-      onFlip: (eatsId) => void flipWebArrow(current.web, eatsId),
+      onFlip: (eatsId) => flipWebArrow(eatsId),
     });
     return;
   }
@@ -261,7 +286,7 @@ function showCheck(): void {
       onPresent: showPresent,
       onRestart: showCapture,
       onFocus: (focus) => changeFigure(current.figure, focus),
-      onMovePoint: (id, to) => void moveFigurePoint(current.figure, id, to),
+      onMovePoint: (id, to) => moveFigurePoint(id, to),
     });
     return;
   }
@@ -276,32 +301,40 @@ function changeFigure(figure: Figure, focus: Figure['focus']): void {
   void draftQuestions(draftId, content);
 }
 
-async function moveFigurePoint(figure: Figure, id: string, to: Point): Promise<void> {
-  const moved = movePoint(figure, id, to);
-  if (photoIsSketch) {
-    const draftId = activeDraftId;
-    const sketch = await sketchImage({ subject: 'geometry', figure: moved }).catch(() => null);
-    if (draftId !== activeDraftId) return;
-    if (sketch) {
-      if (photoUrl) URL.revokeObjectURL(photoUrl);
-      photoUrl = URL.createObjectURL(sketch);
-    }
-  }
-  changeFigure(moved, moved.focus);
+const redrawnSketch = (content: DraftContent): Promise<Blob | null> =>
+  photoIsSketch ? sketchImage(content).catch(() => null) : Promise.resolve(null);
+
+const useSketch = (sketch: Blob | null): void => {
+  if (!sketch) return;
+  if (photoUrl) URL.revokeObjectURL(photoUrl);
+  photoUrl = URL.createObjectURL(sketch);
+};
+
+function moveFigurePoint(id: string, to: Point): void {
+  const epoch = screenEpoch;
+  edits.add(async () => {
+    const current = session.draft();
+    if (epoch !== screenEpoch || current?.subject !== 'geometry') return;
+    const moved = movePoint(current.figure, id, to);
+    if (samePoints(moved.points, current.figure.points)) return;
+    const sketch = await redrawnSketch({ subject: 'geometry', figure: moved });
+    if (epoch !== screenEpoch) return;
+    useSketch(sketch);
+    changeFigure(moved, moved.focus);
+  });
 }
 
-async function flipWebArrow(web: Web, eatsId: string): Promise<void> {
-  const flipped = flipArrow(web, eatsId);
-  if (photoIsSketch) {
-    const draftId = activeDraftId;
-    const sketch = await sketchImage({ subject: 'ecosystem', web: flipped }).catch(() => null);
-    if (draftId !== activeDraftId) return;
-    if (sketch) {
-      if (photoUrl) URL.revokeObjectURL(photoUrl);
-      photoUrl = URL.createObjectURL(sketch);
-    }
-  }
-  changeWeb(flipped);
+function flipWebArrow(eatsId: string): void {
+  const epoch = screenEpoch;
+  edits.add(async () => {
+    const current = session.draft();
+    if (epoch !== screenEpoch || current?.subject !== 'ecosystem') return;
+    const flipped = flipArrow(current.web, eatsId);
+    const sketch = await redrawnSketch({ subject: 'ecosystem', web: flipped });
+    if (epoch !== screenEpoch) return;
+    useSketch(sketch);
+    changeWeb(flipped);
+  });
 }
 
 function changeWeb(web: Web): void {
@@ -322,12 +355,13 @@ function showPresent(): void {
 }
 
 function showCapture(): void {
+  photoSequence += 1;
   leaveScreen();
   cleanup = renderCapture(root, {
     subject,
     onSubject: (picked) => {
       subject = picked;
-      saveSubject(localStorage, picked);
+      saveSubject(storage, picked);
     },
     onPhoto: (photo, photoSubject) => void receivePhoto(photo, photoSubject),
     onDescribe: (text, describeSubject) => void describeSetup(text, describeSubject),

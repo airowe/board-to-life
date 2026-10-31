@@ -88,8 +88,7 @@ const questionFor = (focus: Focus, parts: Omit<GeometryQuestion, 'id' | 'observe
   observe: { kind: 'figure', focus },
 });
 
-const invariantAnswer = (figure: Figure, focus: Focus): string =>
-  invariantHolds(figure, focus) ? INVARIANT_CHOICES[0] : INVARIANT_CHOICES[1];
+const invariantAnswer = (holds: boolean): string => (holds ? INVARIANT_CHOICES[0] : INVARIANT_CHOICES[1]);
 
 export const templateFigureQuestion = (figure: Figure, focus: Focus): GeometryQuestion => {
   switch (focus.kind) {
@@ -110,21 +109,28 @@ export const templateFigureQuestion = (figure: Figure, focus: Focus): GeometryQu
       const name = polygon ? polygonName(polygon) : focus.polygon;
       const total = polygon ? angleSumOf(polygon) : STRAIGHT_ANGLE;
       const shape = polygon ? shapeName(polygon) : 'shape';
+      const holds = invariantHolds(figure, focus);
+      const answer = invariantAnswer(holds);
       return questionFor(focus, {
         prompt: `Drag ${focus.drag} anywhere. Will the angles of ${name} still add up to ${total}°?`,
         choices: [...INVARIANT_CHOICES],
-        answer: invariantAnswer(figure, focus),
-        explanation: `The angles of a ${shape} always add up to ${total}°, wherever ${focus.drag} goes.`,
+        answer,
+        explanation: holds
+          ? `The angles of a ${shape} always add up to ${total}°, wherever ${focus.drag} goes.`
+          : `In this figure some places for ${focus.drag} change the total, so the angles of ${name} add up to ${total}° only some of the time.`,
         cites: polygon?.vertices ?? [focus.drag],
       });
     }
     case 'equal-angles': {
       const [first, second] = focus.marks.map((id) => markedPoint(figure, id));
+      const holds = invariantHolds(figure, focus);
       return questionFor(focus, {
         prompt: `Drag ${focus.drag} anywhere. Will the marked angles at ${first} and ${second} still be equal?`,
         choices: [...INVARIANT_CHOICES],
-        answer: invariantAnswer(figure, focus),
-        explanation: 'Where a line crosses two parallel lines, the matching angles it makes are always equal.',
+        answer: invariantAnswer(holds),
+        explanation: holds
+          ? 'Where a line crosses two parallel lines, the matching angles it makes are always equal.'
+          : `Moving ${focus.drag} changes the marked angles at ${first} and ${second} by different amounts, so they are equal only some of the time.`,
         cites: [...new Set([focus.drag, first ?? '', second ?? ''])].filter((id) => id !== ''),
       });
     }

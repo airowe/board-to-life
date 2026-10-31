@@ -229,6 +229,22 @@ describe('invariantHolds', () => {
     expect(invariantHolds(sampleFigure('reflection'), REFLECTION_FOCUS)).toBe(true);
   });
 
+  it('holds for the angle sum of a quadrilateral when some drag spots would make its sides cross', () => {
+    const figure: Figure = {
+      ...sampleFigure('triangle'),
+      points: [
+        { id: 'A', x: 300, y: 300, confidence: CONFIDENCE },
+        { id: 'B', x: 900, y: 300, confidence: CONFIDENCE },
+        { id: 'C', x: 900, y: 500, confidence: CONFIDENCE },
+        { id: 'D', x: 400, y: 320, confidence: CONFIDENCE },
+      ],
+      segments: [],
+      marks: [],
+      polygons: [{ id: 'abcd', vertices: ['A', 'B', 'C', 'D'], confidence: CONFIDENCE }],
+    };
+    expect(invariantHolds(figure, { kind: 'angle-sum', polygon: 'abcd', drag: 'D' })).toBe(true);
+  });
+
   it('fails when the drag point is missing', () => {
     expect(invariantHolds(sampleFigure('triangle'), { ...ANGLE_SUM_FOCUS, drag: 'Z' })).toBe(false);
   });

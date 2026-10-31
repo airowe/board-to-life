@@ -3,7 +3,7 @@ import { validateFigure } from '../src/geometry/schema';
 import { obeyWrittenValues } from './figureReader';
 import { validateScene } from '../src/scene/schema';
 import { imageSize } from './imageSize';
-import type { ModelPhoto } from './sceneReader';
+import { failureReason, type ModelPhoto } from './sceneReader';
 import type { StubResponse } from './stub';
 
 export type ModelRead = (photo: ModelPhoto) => Promise<unknown>;
@@ -24,7 +24,7 @@ const readPhoto = async (request: ModelUnderstandRequest, reader: string): Promi
   try {
     return { raw: await request.read({ bytes: request.bytes, contentType: request.contentType, size }) };
   } catch (error) {
-    return { failed: failure(502, `The ${reader} failed: ${error instanceof Error ? error.message : String(error)}`) };
+    return { failed: failure(502, `The ${reader} failed: ${failureReason(error)}`) };
   }
 };
 

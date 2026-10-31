@@ -39,12 +39,14 @@ export const ringRadius = (value: number, start: number): number => {
   return RING_MIN + (RING_MAX - RING_MIN) * fraction;
 };
 
-export type FeedingDot = { from: Point; to: Point; t: number };
+export type FeedingDot = { fromId: string; toId: string; from: Point; to: Point; t: number };
 
 export const feedingDots = (web: Web, step: number): FeedingDot[] => {
   const centres = new Map(web.species.map((entry) => [entry.id, { x: entry.x, y: entry.y }]));
   const drawn = web.eats.filter((arrow) => feedsAlong(web, arrow));
   return drawn.map((arrow, index) => ({
+    fromId: arrow.from,
+    toId: arrow.to,
     from: centres.get(arrow.from) as Point,
     to: centres.get(arrow.to) as Point,
     t: (step / DOT_PERIOD_STEPS + index / drawn.length) % 1,

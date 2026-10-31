@@ -90,4 +90,40 @@ describe('validateWeb', () => {
   it('rejects a version other than 1', () => {
     expect(errorsFor({ ...grasslandWeb(), version: 2 })[0]).toContain('version');
   });
+
+  it('rejects an arrow listed twice with different ids and names the pair', () => {
+    const web = grasslandWeb();
+    web.eats.push(eatsArrow('a4', 'grass', 'rabbit'));
+    expect(errorsFor(web)).toEqual(['arrow "a4" repeats arrow "a1" from "grass" to "rabbit"']);
+  });
+
+  it('allows the same two species to eat each other in opposite directions', () => {
+    const web = grasslandWeb();
+    web.eats.push(eatsArrow('a4', 'rabbit', 'grass'));
+    expect(validateWeb(web).ok).toBe(true);
+  });
+
+  describe('size caps', () => {
+    const MAX_SPECIES = 24;
+    const MAX_ARROWS = 100;
+    const crowd = (count: number) =>
+      webOf(
+        Array.from({ length: count }, (_, index) => speciesAt(`s${index}`, index === 0 ? 'producer' : 'consumer', index * 10, 0)),
+        [],
+      );
+
+    it('accepts exactly the maximum number of species', () => {
+      expect(validateWeb(crowd(MAX_SPECIES)).ok).toBe(true);
+    });
+
+    it('rejects one more species than the maximum and names the collection', () => {
+      expect(errorsFor(crowd(MAX_SPECIES + 1))).toEqual([`species: at most ${MAX_SPECIES} species are allowed`]);
+    });
+
+    it('rejects more arrows than the maximum and names the collection', () => {
+      const web = crowd(MAX_SPECIES);
+      const arrows = Array.from({ length: MAX_ARROWS + 1 }, (_, index) => eatsArrow(`e${index}`, 's0', 's1'));
+      expect(errorsFor({ ...web, eats: arrows })).toEqual([`eats: at most ${MAX_ARROWS} arrows are allowed`]);
+    });
+  });
 });

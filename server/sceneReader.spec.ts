@@ -286,6 +286,19 @@ describe('readSceneWithModel', () => {
     ).rejects.toThrow('meta did not return JSON');
   });
 
+  it('reports a timeout that fires while the answer is still arriving as a timeout', async () => {
+    const slowBody: typeof fetch = (_input, init) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
+      } as Response);
+    await expect(readSceneWithModel(PHOTO, provider, { timeoutMs: 10, fetchImpl: slowBody, retryDelayMs: 0 })).rejects.toThrow(
+      'meta did not answer within 0 seconds',
+    );
+  });
+
   it('gives up after the timeout', async () => {
     const never: typeof fetch = (_input, init) =>
       new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));

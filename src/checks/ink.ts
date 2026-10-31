@@ -61,7 +61,7 @@ export const wobblyPolygon = (jitter: Jitter, points: Point[]): string =>
 export const stroke = (d: string, colour: string, width: number, data: string, opacity = 0.92): string =>
   `<path ${data} d="${d}" fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`;
 
-export const escapeText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const escapeText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export const towards = (from: Point, to: Point, distance: number): Point => {
   const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;

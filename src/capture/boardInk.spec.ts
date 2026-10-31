@@ -21,6 +21,20 @@ const picture = (background: Rgba, ...inks: Rgba[]): Uint8ClampedArray => {
   return Uint8ClampedArray.from(pixels.flat());
 };
 
+// A whiteboard photo with the board half in shadow: two broad tones and a thin line of dark ink.
+const SHADOWED_BOARD: Rgba = [100, 100, 100, 255];
+const LIT_BOARD: Rgba = [190, 190, 190, 255];
+const shadowedBoardPhoto = (): Uint8ClampedArray => {
+  const [shadowed, lit] = [Math.round(PIXEL_COUNT * 0.55), Math.round(PIXEL_COUNT * 0.4)];
+  const inkCount = PIXEL_COUNT - shadowed - lit;
+  const pixels = [
+    ...Array<Rgba>(shadowed).fill(SHADOWED_BOARD),
+    ...Array<Rgba>(lit).fill(LIT_BOARD),
+    ...Array<Rgba>(inkCount).fill(DARK_MARKER),
+  ];
+  return Uint8ClampedArray.from(pixels.flat());
+};
+
 const pixelAt = (data: Uint8ClampedArray, index: number): number[] => Array.from(data.slice(index * 4, index * 4 + 4));
 
 const hueOf = ([r, g, b]: readonly number[]): number => {
@@ -41,6 +55,7 @@ describe('isLightInkOnDark', () => {
     ['coloured ink on a white export', picture(WHITE, RED_INK)],
     ['dark marker on a dimly lit whiteboard photo', picture(DIM_BOARD, DARK_MARKER)],
     ['an empty black image', picture(BLACK)],
+    ['a whiteboard photo half in shadow', shadowedBoardPhoto()],
   ])('is false for %s', (_case, data) => {
     expect(isLightInkOnDark(data)).toBe(false);
   });

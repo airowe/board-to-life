@@ -42,9 +42,9 @@ const defaultRates = (role: Role, level: number): Rates => {
   return CONSUMER_RATES_BY_LEVEL[index] as Rates;
 };
 
-export const ratesFor = (web: Web, overrides: Record<string, Partial<Rates>> = {}): Map<string, Rates> => {
+export const ratesFor = (web: Web): Map<string, Rates> => {
   const levels = trophicLevels(web);
-  return new Map(web.species.map((entry) => [entry.id, { ...defaultRates(entry.role, levels.get(entry.id) ?? FIRST_CONSUMER_LEVEL), ...overrides[entry.id] }]));
+  return new Map(web.species.map((entry) => [entry.id, defaultRates(entry.role, levels.get(entry.id) ?? FIRST_CONSUMER_LEVEL)]));
 };
 
 type Model = {
@@ -63,9 +63,9 @@ export const feedsAlong = (web: Web, arrow: Eats): boolean => {
   return arrow.from !== arrow.to && roleOf(arrow.to) === 'consumer' && prey !== undefined && prey !== 'decomposer';
 };
 
-const buildModel = (web: Web, overrides?: Record<string, Partial<Rates>>): Model => {
+const buildModel = (web: Web): Model => {
   const index = new Map(web.species.map((entry, position) => [entry.id, position]));
-  const ratesById = ratesFor(web, overrides);
+  const ratesById = ratesFor(web);
   const roles = web.species.map((entry) => entry.role);
   const preyOf: number[][] = web.species.map(() => []);
   for (const arrow of web.eats.filter((each) => feedsAlong(web, each))) {
@@ -136,8 +136,8 @@ const warmedUp = (model: Model): number[] => {
 
 const atLeastFloor = (population: number): number => (population < EXTINCT_FLOOR ? 0 : population);
 
-export const startingPopulations = (web: Web, overrides?: Record<string, Partial<Rates>>): Record<string, number> => {
-  const settled = warmedUp(buildModel(web, overrides));
+export const startingPopulations = (web: Web): Record<string, number> => {
+  const settled = warmedUp(buildModel(web));
   return Object.fromEntries(web.species.map((entry, species) => [entry.id, atLeastFloor(at(settled, species))]));
 };
 
@@ -146,10 +146,11 @@ const isGoneAt = (run: Run, step: number): ((id: string) => boolean) => {
   return (id) => run.removed.has(id) || id === removedByEvent;
 };
 
-export const simulate = (web: Web, run: Run, overrides?: Record<string, Partial<Rates>>): Series => {
-  const model = buildModel(web, overrides);
+// `settled` is the web's steady start; pass it when running the same web repeatedly so it is warmed up once.
+export const simulate = (web: Web, run: Run, settled: Record<string, number> = startingPopulations(web)): Series => {
+  const model = buildModel(web);
   const ids = web.species.map((entry) => entry.id);
-  const begin: Record<string, number> = { ...startingPopulations(web, overrides), ...run.start };
+  const begin: Record<string, number> = { ...settled, ...run.start };
   const history = ids.map((): number[] => []);
   let populations = ids.map((id) => begin[id] ?? 0);
   for (let step = 0; step <= run.steps; step += 1) {

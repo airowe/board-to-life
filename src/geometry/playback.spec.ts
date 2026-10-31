@@ -23,6 +23,7 @@ const TICK = 0.5;
 const BIG_TICK = 100;
 const MAX_ANGLE_SUM = '180°';
 const MIRROR_SHIFT = 100;
+const TILT = 100;
 
 describe('transform playback phases', () => {
   it('runs ready, predict, guessing, playing, exploring', () => {
@@ -164,9 +165,13 @@ describe('liveReadouts', () => {
 });
 
 describe('replay', () => {
-  it('keeps the old image, re-asks from the template and plays the new image', () => {
+  it('keeps the old image, re-asks the approved question and plays the new image', () => {
     const figure = sample('reflection');
-    const playback = createFigurePlayback(lessonOf(figure));
+    const template = lessonOf(figure);
+    const [first] = template.questions;
+    if (first === undefined) throw new Error('no question');
+    const approved = { ...first, prompt: 'Where does the teacher think ABC lands?' };
+    const playback = createFigurePlayback({ ...template, questions: [approved] });
     playback.play();
     playback.answer();
     playback.reveal();
@@ -179,15 +184,22 @@ describe('replay', () => {
     expect(playback.phase()).toEqual({ kind: 'ready' });
     playback.play();
     const phase = playback.phase();
-    expect(phase.kind === 'predict' && phase.question).toEqual(
-      templateFigureQuestion(
-        { ...figure, points: figure.points.map((entry) => (entry.id === 'M' || entry.id === 'N' ? { ...entry, x: 600 + MIRROR_SHIFT } : entry)) },
-        { kind: 'transform', transformation: 'flip' },
-      ),
-    );
+    expect(phase.kind === 'predict' && phase.question).toEqual(approved);
     playback.answer();
     playback.reveal();
     playback.tick(BIG_TICK);
     expect(playback.positions()['A′']).toEqual({ x: 1150, y: 250 });
+  });
+
+  it('keeps the approved answer after a parallel line is dragged out of parallel', () => {
+    const lesson = lessonOf(sample('parallel'));
+    const playback = createFigurePlayback(lesson);
+    playback.play();
+    playback.answer();
+    playback.dragPoint('P', { x: 250, y: 300 - TILT });
+    playback.replay();
+    playback.play();
+    const phase = playback.phase();
+    expect(phase.kind === 'predict' && phase.question).toEqual(lesson.questions[0]);
   });
 });

@@ -159,7 +159,10 @@ and `/api/describe` as Node functions bundled from `server/vercel.ts`, which run
 Because each photo is a paid model call, the API answers only requests that carry the access code when `ACCESS_CODE`
 is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
 it as the `x-access-code` header. Without it the API answers 401 and the app says to open the link from the submission
-page. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository.
+page. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository. The
+deployed functions refuse every request with a 503 when a paid `SCENE_READER` is set without `ACCESS_CODE`, or when its
+key is missing or the reader name is unknown, so a missing setting can never open paid calls to anyone. Uploads are
+capped at 4 MB, under Vercel's own request limit.
 
 ## Using it on a classroom board
 
@@ -312,8 +315,9 @@ within 2°. It also checks the answer key: for the triangle and parallel samples
 read figure must answer "Yes, always". In a transformation case, a read that draws the image as an extra polygon fails.
 For a drawing it also checks that each transformed point lands within 60 px (5% of the 1200 px drawing) of where it
 should. A photo's positions are in photo coordinates, so a mock photo is scored like a description: on the angles, the
-transformation's kind, its polygon and its degrees or factor, not on where things land. It stops before any call that
-could take the spend past $3.
+transformation's kind, its polygon, its degrees or factor, and the letters of its mirror or centre, not on where things
+land. It stops before any call that could take the spend past $3. The mirror and centre letters were added to the
+scorer after the run below; re-scoring that run's saved readings with it gave the same 28 of 30.
 
 Measured on 31 October 2026 with Muse Spark on Meta Model API (`check-runs/2026-10-31T12-18-13-906Z-figures`):
 

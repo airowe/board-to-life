@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
+// Long enough for every check drawing to come to rest; a predict point later than this is never reached.
+export const SETTLE_SECONDS = 7;
+export const MAX_SCENE_ENTRIES = 200;
+
 const id = z.string().min(1);
+const listOf = <T extends z.ZodType>(name: string, entry: T) =>
+  z.array(entry).max(MAX_SCENE_ENTRIES, `at most ${MAX_SCENE_ENTRIES} ${name} are allowed`);
 const confidence = z.number().min(0).max(1);
 const coord = z.number();
 const size = z.number().positive();
@@ -40,11 +46,11 @@ const trigger = z.discriminatedUnion('kind', [
 const sceneSchema = z.object({
   version: z.literal(1),
   drawing: z.object({ width: size, height: size }),
-  items: z.array(item),
-  joints: z.array(joint),
-  labels: z.array(label),
-  unknownMarks: z.array(unknownMark),
-  predictPoints: z.array(z.object({ id, trigger })),
+  items: listOf('items', item),
+  joints: listOf('joints', joint),
+  labels: listOf('labels', label),
+  unknownMarks: listOf('unknownMarks', unknownMark),
+  predictPoints: listOf('predictPoints', z.object({ id, trigger })),
 });
 
 export type Scene = z.infer<typeof sceneSchema>;
@@ -116,6 +122,9 @@ const crossReferenceErrors = (scene: Scene): string[] => {
     if (entry.attachesTo !== undefined) requireItem(entry.attachesTo, `label "${entry.id}"`);
   }
   for (const point of scene.predictPoints) {
+    if (point.trigger.kind === 'time' && point.trigger.seconds >= SETTLE_SECONDS) {
+      errors.push(`predict point "${point.id}" triggers at ${point.trigger.seconds} s, after the run ends at ${SETTLE_SECONDS} s`);
+    }
     if (point.trigger.kind === 'contact') {
       requireBody(point.trigger.a, `predict point "${point.id}"`);
       requireBody(point.trigger.b, `predict point "${point.id}"`);

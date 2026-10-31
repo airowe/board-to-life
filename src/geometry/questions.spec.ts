@@ -68,9 +68,9 @@ describe('templateFigureQuestion', () => {
     });
   });
 
-  it('answers "Only sometimes" when the invariant does not hold', () => {
+  it('ignores drag spots where the triangle stops being a triangle', () => {
     const flat = flattenedAt(sampleFigure('triangle'), 'C', C_ONE_DRAG_STEP_FROM_A);
-    expect(templateFigureQuestion(flat, ANGLE_SUM_FOCUS).answer).toBe(SOMETIMES);
+    expect(templateFigureQuestion(flat, ANGLE_SUM_FOCUS).answer).toBe(ALWAYS);
   });
 
   it('asks whether the marked angles at parallel lines stay equal', () => {
@@ -184,5 +184,48 @@ describe('equal-angles answer when the dragged end sits close to a parallel line
   it.each(reads)('%s: with RS tilted away from parallel the angles only sometimes stay equal', (_, figure) => {
     const tilted: Figure = flattenedAt(figure, 'S', { x: figure.points.find((entry) => entry.id === 'S')?.x ?? 0, y: TILTED_S_Y });
     expect(templateFigureQuestion(tilted, EQUAL_ANGLES_FOCUS).answer).toBe(SOMETIMES);
+  });
+});
+
+describe('answer and explanation agree', () => {
+  const TILTED_S_Y = 700;
+  const quadrilateralWithDNearAB = (): Figure => ({
+    ...sampleFigure('triangle'),
+    points: [
+      { id: 'A', x: 300, y: 300, confidence: 1 },
+      { id: 'B', x: 900, y: 300, confidence: 1 },
+      { id: 'C', x: 900, y: 500, confidence: 1 },
+      { id: 'D', x: 400, y: 320, confidence: 1 },
+    ],
+    segments: [],
+    marks: [],
+    polygons: [{ id: 'abcd', vertices: ['A', 'B', 'C', 'D'], confidence: 1 }],
+  });
+  const coInteriorMarks = (): Figure => {
+    const figure = sampleFigure('parallel');
+    return {
+      ...figure,
+      marks: figure.marks.map((entry) =>
+        entry.id === 'm1' ? { id: 'm1', kind: 'angle', at: 'P1', from: 'U', to: 'Q', confidence: 1 } : entry,
+      ),
+    };
+  };
+  const tiltedRead = (): Figure => {
+    const figure = PARALLEL_READ_CASE_5_RUN_1;
+    const end = figure.points.find((entry) => entry.id === 'S');
+    return flattenedAt(figure, 'S', { x: end?.x ?? 0, y: TILTED_S_Y });
+  };
+  const cases: [string, () => Figure, Focus, string][] = [
+    ['a quadrilateral whose drag spots can cross a side', quadrilateralWithDNearAB, { kind: 'angle-sum', polygon: 'abcd', drag: 'D' }, ALWAYS],
+    ['a triangle with C one drag step from A', () => flattenedAt(sampleFigure('triangle'), 'C', C_ONE_DRAG_STEP_FROM_A), ANGLE_SUM_FOCUS, ALWAYS],
+    ['corresponding angles at parallel lines', () => sampleFigure('parallel'), EQUAL_ANGLES_FOCUS, ALWAYS],
+    ['co-interior angles at parallel lines', coInteriorMarks, EQUAL_ANGLES_FOCUS, SOMETIMES],
+    ['marked angles at lines tilted away from parallel', tiltedRead, EQUAL_ANGLES_FOCUS, SOMETIMES],
+  ];
+
+  it.each(cases)('%s', (_name, figureOf, focus, answer) => {
+    const question = templateFigureQuestion(figureOf(), focus);
+    expect(question.answer).toBe(answer);
+    expect(question.explanation.includes('always')).toBe(answer === ALWAYS);
   });
 });

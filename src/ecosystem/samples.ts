@@ -1,4 +1,3 @@
-import type { Rates } from './model';
 import type { Direction } from './outcomes';
 import type { Eats, Species, Web } from './schema';
 
@@ -7,7 +6,6 @@ export type WebSample = {
   id: string;
   title: string;
   web: Web;
-  overrides?: Record<string, Partial<Rates>>;
   expect: { event: Record<string, Direction>; topPredator: Record<string, Direction> };
 };
 

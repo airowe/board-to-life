@@ -14,9 +14,10 @@ import {
   ROTATION_WRITE_WITH_MISPLACED_IMAGE,
 } from "./figureWriter.fixtures";
 import { drawingSize, PROVIDERS } from "./sceneReader";
-import { LayoutError, WRITER_SIZE } from "./sceneWriter";
+import { LayoutError, MIN_RETRY_MS, WRITER_SIZE } from "./sceneWriter";
 
-const TIMEOUT_MS = 1000;
+// The fakes answer at once, so the budget only has to leave room for the retry.
+const TIMEOUT_MS = 2 * MIN_RETRY_MS;
 const DESCRIPTION = "Triangle ABC with a 50° angle at A and a 60° angle at B.";
 const ATTEMPTS = 2;
 const REFLECTION_DESCRIPTION = "A triangle ABC on the left of a vertical mirror line MN. Reflect triangle ABC in the mirror line MN.";

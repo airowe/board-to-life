@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { writtenValueConflicts } from '../geometry/fit';
 import { focusOptions } from '../geometry/focus';
 import { INVARIANT_CHOICES, NO_FIGURE_FOCUS, templateFigureQuestion } from '../geometry/questions';
@@ -6,6 +6,7 @@ import { GEOMETRY_SAMPLES } from '../geometry/samples';
 import type { Figure, Focus, Mark, Transformation } from '../geometry/schema';
 import {
   currentFocusValue,
+  DRAG_THRESHOLD_PX,
   drawingPointAt,
   figureFocusChoices,
   figureAnswerLine,
@@ -15,6 +16,8 @@ import {
   fitWarnings,
   GHOST_GUESS_NOTE,
   NOTHING_TO_PREDICT_FIGURE,
+  pointDrag,
+  type PointerSample,
 } from './checkFigure';
 
 const CONFIDENCE = 0.9;
@@ -231,5 +234,119 @@ describe('drawingPointAt', () => {
   it('stretches each axis on its own, as the overlay does', () => {
     const squashed = { ...SHOWN, height: 200 };
     expect(drawingPointAt(squashed, DRAWING, { x: 340, y: 200 })).toEqual({ x: 600, y: 400 });
+  });
+});
+
+describe('drawingPointAt on a box with no size', () => {
+  const DRAWING = { width: 1200, height: 800 };
+
+  it.each([
+    ['width', { left: 40, top: 100, width: 0, height: 400 }],
+    ['height', { left: 40, top: 100, width: 600, height: 0 }],
+  ])('gives no point when the shown box has no %s', (_, shown) => {
+    expect(drawingPointAt(shown, DRAWING, { x: 340, y: 300 })).toBeNull();
+  });
+});
+
+describe('pointDrag', () => {
+  const SHOWN = { left: 0, top: 0, width: 600, height: 400 };
+  const FINGER = 1;
+  const OTHER_FINGER = 2;
+  const SECONDARY_BUTTON = 2;
+  const figure = (): Figure => sampleFigure('triangle');
+  const startOf = (id: string): { x: number; y: number } => {
+    const found = figure().points.find((entry) => entry.id === id);
+    if (!found) throw new Error(`no point ${id}`);
+    return { x: (found.x * SHOWN.width) / figure().drawing.width, y: (found.y * SHOWN.height) / figure().drawing.height };
+  };
+  const sample = (client: { x: number; y: number }, overrides: Partial<PointerSample> = {}): PointerSample => ({
+    pointerId: FINGER,
+    pointerType: 'touch',
+    button: 0,
+    clientX: client.x,
+    clientY: client.y,
+    ...overrides,
+  });
+  const setUp = (box: () => typeof SHOWN = () => SHOWN) => {
+    const hooks = { box, preview: vi.fn(), release: vi.fn(), drop: vi.fn() };
+    return { hooks, drag: pointDrag(figure(), hooks) };
+  };
+  const A = startOf('A');
+  const PAST_THRESHOLD = { x: A.x + DRAG_THRESHOLD_PX * 2, y: A.y };
+  const WITHIN_THRESHOLD = { x: A.x + DRAG_THRESHOLD_PX / 2, y: A.y + DRAG_THRESHOLD_PX / 2 };
+
+  it('drops a point dragged past the threshold where it was let go, once', () => {
+    const { hooks, drag } = setUp();
+    expect(drag.begin(sample(A), 'A')).toBe(true);
+    drag.move(sample(PAST_THRESHOLD));
+    drag.end(sample(PAST_THRESHOLD), true);
+    drag.end(sample(PAST_THRESHOLD), false);
+    expect(hooks.drop).toHaveBeenCalledTimes(1);
+    expect(hooks.drop).toHaveBeenCalledWith('A', drawingPointAt(SHOWN, figure().drawing, PAST_THRESHOLD));
+    expect(hooks.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a tap with a tiny wobble as a tap, not a move', () => {
+    const { hooks, drag } = setUp();
+    drag.begin(sample(A), 'A');
+    drag.move(sample(WITHIN_THRESHOLD));
+    drag.end(sample(WITHIN_THRESHOLD), true);
+    expect(hooks.drop).not.toHaveBeenCalled();
+    expect(hooks.preview).toHaveBeenLastCalledWith(null);
+    expect(hooks.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('never drops when the drag is cancelled or loses its capture', () => {
+    const { hooks, drag } = setUp();
+    drag.begin(sample(A), 'A');
+    drag.move(sample(PAST_THRESHOLD));
+    drag.end(sample(PAST_THRESHOLD), false);
+    expect(hooks.drop).not.toHaveBeenCalled();
+    expect(hooks.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows only the pointer that started the drag', () => {
+    const { hooks, drag } = setUp();
+    drag.begin(sample(A), 'A');
+    expect(drag.begin(sample(startOf('B'), { pointerId: OTHER_FINGER }), 'B')).toBe(false);
+    drag.move(sample(PAST_THRESHOLD, { pointerId: OTHER_FINGER }));
+    drag.end(sample(PAST_THRESHOLD, { pointerId: OTHER_FINGER }), true);
+    expect(hooks.drop).not.toHaveBeenCalled();
+    expect(hooks.release).not.toHaveBeenCalled();
+    drag.move(sample(PAST_THRESHOLD));
+    drag.end(sample(PAST_THRESHOLD), true);
+    expect(hooks.drop).toHaveBeenCalledTimes(1);
+    expect(hooks.drop).toHaveBeenCalledWith('A', expect.anything());
+  });
+
+  it('ignores a mouse button other than the main one', () => {
+    const { hooks, drag } = setUp();
+    expect(drag.begin(sample(A, { pointerType: 'mouse', button: SECONDARY_BUTTON }), 'A')).toBe(false);
+    drag.move(sample(PAST_THRESHOLD, { pointerType: 'mouse' }));
+    drag.end(sample(PAST_THRESHOLD, { pointerType: 'mouse' }), true);
+    expect(hooks.drop).not.toHaveBeenCalled();
+  });
+
+  it('does not start on an id that is not a point', () => {
+    const { drag } = setUp();
+    expect(drag.begin(sample(A), 'Z')).toBe(false);
+  });
+
+  it('does not drop when the photo has no size at the moment of the move', () => {
+    const { hooks, drag } = setUp(() => ({ ...SHOWN, width: 0, height: 0 }));
+    drag.begin(sample(A), 'A');
+    drag.move(sample(PAST_THRESHOLD));
+    drag.end(sample(PAST_THRESHOLD), true);
+    expect(hooks.drop).not.toHaveBeenCalled();
+  });
+
+  it('can start a new drag after the last one ends', () => {
+    const { hooks, drag } = setUp();
+    drag.begin(sample(A), 'A');
+    drag.end(sample(A), true);
+    expect(drag.begin(sample(A, { pointerId: OTHER_FINGER }), 'A')).toBe(true);
+    drag.move(sample(PAST_THRESHOLD, { pointerId: OTHER_FINGER }));
+    drag.end(sample(PAST_THRESHOLD, { pointerId: OTHER_FINGER }), true);
+    expect(hooks.drop).toHaveBeenCalledTimes(1);
   });
 });

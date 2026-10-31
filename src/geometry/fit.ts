@@ -279,6 +279,18 @@ const withPositions = (figure: Figure, positions: Positions): Figure => ({
 const unreachableMessage = (constraints: Constraint[]): string =>
   `These written values can't all hold at once: ${listOf(constraints.map(({ description }) => description))}.`;
 
+const offDrawingMessage = (constraints: Constraint[]): string =>
+  `These written values can't all hold inside the drawing: ${listOf(constraints.map(({ description }) => description))}.`;
+
+const onDrawing = ({ x, y }: Point, { width, height }: Figure['drawing']): boolean => x >= 0 && x <= width && y >= 0 && y <= height;
+
+const movesOffDrawing = (start: Positions, settled: Positions, drawing: Figure['drawing']): boolean =>
+  Object.entries(settled).some(([id, at]) => {
+    const before = start[id];
+    const moved = before === undefined || distance(before, at) > EPSILON;
+    return moved && !onDrawing(at, drawing);
+  });
+
 const settle = (start: Positions, constraints: Constraint[], crossed: Crossed): Positions | null => {
   let positions = placeCrossings(start, crossed.crossings, crossed.drawing);
   if (allSatisfied(positions, constraints, crossed)) return positions;
@@ -297,9 +309,9 @@ export const fitWrittenValues = (figure: Figure): FitResult => {
   const start = positionsOf(figure);
   if (allSatisfied(start, constraints, crossed)) return { ok: true, figure };
   const settled = settle(start, constraints, crossed);
-  return settled === null
-    ? { ok: false, conflicts: [unreachableMessage(constraints)] }
-    : { ok: true, figure: withPositions(figure, settled) };
+  if (settled === null) return { ok: false, conflicts: [unreachableMessage(constraints)] };
+  if (movesOffDrawing(start, settled, figure.drawing)) return { ok: false, conflicts: [offDrawingMessage(constraints)] };
+  return { ok: true, figure: withPositions(figure, settled) };
 };
 
 export const fittedOrDrawn = (figure: Figure): Figure => {

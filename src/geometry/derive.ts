@@ -72,6 +72,47 @@ export const polygonAngles = (positions: Positions, polygon: Polygon): (number |
   });
 };
 
+const sideOf = (origin: Point, a: Point, b: Point): number => {
+  const turn = cross(origin, a, b);
+  return Math.abs(turn) <= EPSILON ? 0 : Math.sign(turn);
+};
+
+const withinBox = (a: Point, b: Point, point: Point): boolean =>
+  point.x >= Math.min(a.x, b.x) - EPSILON &&
+  point.x <= Math.max(a.x, b.x) + EPSILON &&
+  point.y >= Math.min(a.y, b.y) - EPSILON &&
+  point.y <= Math.max(a.y, b.y) + EPSILON;
+
+const segmentsMeet = ([a1, a2]: [Point, Point], [b1, b2]: [Point, Point]): boolean => {
+  const sides = [sideOf(b1, b2, a1), sideOf(b1, b2, a2), sideOf(a1, a2, b1), sideOf(a1, a2, b2)] as const;
+  const [first, second, third, fourth] = sides;
+  if (first * second < 0 && third * fourth < 0) return true;
+  return (
+    (first === 0 && withinBox(b1, b2, a1)) ||
+    (second === 0 && withinBox(b1, b2, a2)) ||
+    (third === 0 && withinBox(a1, a2, b1)) ||
+    (fourth === 0 && withinBox(a1, a2, b2))
+  );
+};
+
+const sidesOf = (points: Point[]): [Point, Point][] => corners(points).map(({ current, next }) => [current, next]);
+
+const adjacentSides = (first: number, second: number, count: number): boolean =>
+  Math.abs(first - second) <= 1 || Math.abs(first - second) === count - 1;
+
+export const isSimplePolygon = (positions: Positions, polygon: Pick<Polygon, 'vertices'>): boolean => {
+  const points = pointsOf(positions, polygon.vertices);
+  if (points === null) return false;
+  const apart = points.every((point, index) => points.slice(index + 1).every((other) => distance(point, other) >= EPSILON));
+  const sides = sidesOf(points);
+  return (
+    apart &&
+    sides.every((side, index) =>
+      sides.every((other, otherIndex) => adjacentSides(index, otherIndex, sides.length) || !segmentsMeet(side, other)),
+    )
+  );
+};
+
 export const angleSum = (positions: Positions, polygon: Polygon): number | null => {
   const angles = polygonAngles(positions, polygon);
   return angles.some((entry) => entry === null) ? null : (angles as number[]).reduce((sum, entry) => sum + entry, 0);

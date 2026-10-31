@@ -156,12 +156,23 @@ const readCounterpart = (sample: Figure, wanted: Transformation, readFigure: Fig
     : undefined;
 };
 
-const describedMismatches = (wanted: Transformation, read: Transformation): string[] => {
+const centreMismatch = (label: string, wantedCentre: string, readCentre: string, pairing: Pairing): string[] => {
+  const expected = pairing.get(wantedCentre);
+  return expected !== undefined && key(expected) === key(readCentre) ? [] : [`${label}: expected centre ${wantedCentre}, got ${readCentre}`];
+};
+
+const describedMismatches = (wanted: Transformation, read: Transformation, pairing: Pairing): string[] => {
+  if (wanted.kind === 'reflect' && read.kind === 'reflect') {
+    const expected = readIdsOf(pairing, wanted.mirror);
+    return expected !== null && sameSet(read.mirror, expected) ? [] : [`reflection: expected mirror ${wanted.mirror.join('')}, got ${read.mirror.join('')}`];
+  }
   if (wanted.kind === 'rotate' && read.kind === 'rotate') {
-    return turnApart(read.degrees, wanted.degrees) <= ANGLE_TOLERANCE_DEGREES ? [] : [`rotation: expected ${wanted.degrees} degrees, got ${read.degrees} degrees`];
+    const angle = turnApart(read.degrees, wanted.degrees) <= ANGLE_TOLERANCE_DEGREES ? [] : [`rotation: expected ${wanted.degrees} degrees, got ${read.degrees} degrees`];
+    return [...angle, ...centreMismatch('rotation', wanted.centre, read.centre, pairing)];
   }
   if (wanted.kind === 'dilate' && read.kind === 'dilate') {
-    return Math.abs(read.factor - wanted.factor) <= FACTOR_TOLERANCE * wanted.factor ? [] : [`dilation: expected factor ${wanted.factor}, got ${read.factor}`];
+    const factor = Math.abs(read.factor - wanted.factor) <= FACTOR_TOLERANCE * wanted.factor ? [] : [`dilation: expected factor ${wanted.factor}, got ${read.factor}`];
+    return [...factor, ...centreMismatch('dilation', wanted.centre, read.centre, pairing)];
   }
   return [];
 };
@@ -204,7 +215,7 @@ const transformationMismatches = (
   if (!wanted) return [];
   const counterpart = readCounterpart(sample.figure, wanted, readFigure, pairing);
   if (!counterpart) return fact.kind === 'lands' ? [`${wanted.kind} of ${wanted.polygon}: not found in the read figure`] : [];
-  if (mode === 'described') return fact.kind === 'lands' ? describedMismatches(wanted, counterpart) : [];
+  if (mode === 'described') return fact.kind === 'lands' ? describedMismatches(wanted, counterpart, pairing) : [];
   return fact.kind === 'lands' ? landingMismatches(sample, fact, readFigure, read, wanted, counterpart, pairing) : [];
 };
 
