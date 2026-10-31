@@ -5,17 +5,19 @@ import type { Role, Web } from '../ecosystem/schema';
 import type { LivePictures } from '../library/live';
 import type { FallbackEntry, Library } from '../library/manifest';
 import { pictureSource, type PictureSource } from '../library/source';
-import { ENTER_SECONDS, LEAVE_SECONDS, STAGGER_FRACTION, createCrowdTracker, crowdTargets } from '../living/crowd';
+import { ENTER_SECONDS, LEAVE_SECONDS, STAGGER_FRACTION, createCrowdTracker, crowdTargets, type CrowdTracker } from '../living/crowd';
 import { labelsAt, type PinnedLabel } from '../living/labels';
 import { layoutPlace } from '../living/layout';
 import { createPlaceImages, drawPlace, type PlaceFrame } from './placeView';
 
 // Every update restarts the tracker's vigour easing, so a producer's height is re-aimed at most this often while it changes,
 // and only once it has moved by more than VIGOUR_EPSILON. Re-aiming every frame would hold it still.
-const VIGOUR_RESEND_SECONDS = 0.75;
-const VIGOUR_EPSILON = 0.02;
-// After a change, how long the scene keeps moving even with reduced motion: staggered entries, label and picture fades.
-const SETTLE_SECONDS = Math.max(ENTER_SECONDS, LEAVE_SECONDS) * (1 + STAGGER_FRACTION) + 1.5;
+export const VIGOUR_RESEND_SECONDS = 0.75;
+export const VIGOUR_EPSILON = 0.02;
+// Covers the tracker's producer height easing (1.5 s), which outlasts the label and picture fades.
+const EASING_ALLOWANCE_SECONDS = 1.5;
+// After a change, how long the scene keeps drawing even with reduced motion: staggered entries, height easing, fades.
+export const SETTLE_SECONDS = Math.max(ENTER_SECONDS, LEAVE_SECONDS) * (1 + STAGGER_FRACTION) + EASING_ALLOWANCE_SECONDS;
 
 export type ScenePictures = { library: Library; fallback: FallbackEntry[]; live: LivePictures };
 
@@ -25,8 +27,13 @@ export type PlaceScene = {
   draw: (canvas: HTMLCanvasElement, seconds: number, reducedMotion: boolean) => void;
   // True while something in the scene is still easing, apart from the idle motion.
   busy: (seconds: number) => boolean;
+  // Marks the scene as just changed, for example when it comes into view.
+  wake: () => void;
   dispose: () => void;
 };
+
+// `now` is the clock `seconds` are read on (rAF timestamps and performance.now() share it).
+export type SceneOptions = { tracker?: CrowdTracker; now?: () => number };
 
 const sameCounts = (a: Record<string, number>, b: Record<string, number>): boolean =>
   Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([id, count]) => b[id] === count);
@@ -40,13 +47,13 @@ export const createPlaceScene = (
   colours: () => Map<string, string>,
   pictures: ScenePictures,
   onChange: () => void,
+  { tracker = createCrowdTracker(), now = () => performance.now() / 1000 }: SceneOptions = {},
 ): PlaceScene => {
   const { library, fallback, live } = pictures;
   const layout = layoutPlace(web, library);
   const event = eventOf(web);
   const roles: Record<string, Role> = Object.fromEntries(web.species.map((entry) => [entry.id, entry.role]));
   const producers = web.species.filter((entry) => entry.role === 'producer').map((entry) => entry.id);
-  const tracker = createCrowdTracker();
   const images = createPlaceImages(onChange);
   const sourcesNow = (): Record<string, PictureSource> =>
     Object.fromEntries(web.species.map((entry) => [entry.id, pictureSource(entry.name, library, fallback, live.state)]));
@@ -59,15 +66,15 @@ export const createPlaceScene = (
   let sentVigour: Record<string, number> = {};
   let sentAt = -Infinity;
   let changedAt = -Infinity;
-  let lastSeconds = 0;
 
   const unsubscribe = live.onChange(() => {
     try {
       sources = sourcesNow();
-      changedAt = lastSeconds;
+      changedAt = now();
       onChange();
-    } catch {
+    } catch (error) {
       // A picture arriving must never break the lesson; the scene keeps its current pictures.
+      console.warn('Could not show a new picture', error);
     }
   });
 
@@ -101,7 +108,19 @@ export const createPlaceScene = (
     if (targets && seconds - sentAt >= VIGOUR_RESEND_SECONDS && furthestApart(vigour, sentVigour) > VIGOUR_EPSILON) send(targets, seconds, false);
   };
 
-  const frame: PlaceFrame = { web, layout, poses: new Map(), labels, sources, images, live, library, colours: colours(), seconds: 0 };
+  const frame: PlaceFrame = {
+    web,
+    layout,
+    poses: new Map(),
+    labels,
+    sources,
+    images,
+    live,
+    library,
+    colours: colours(),
+    seconds: 0,
+    reducedMotion: false,
+  };
 
   const draw = (canvas: HTMLCanvasElement, seconds: number, reducedMotion: boolean): void => {
     frame.poses = tracker.poses(layout.groups, seconds, reducedMotion);
@@ -109,7 +128,7 @@ export const createPlaceScene = (
     frame.sources = sources;
     frame.colours = colours();
     frame.seconds = seconds;
-    lastSeconds = seconds;
+    frame.reducedMotion = reducedMotion;
     drawPlace(canvas, frame);
   };
 
@@ -117,6 +136,9 @@ export const createPlaceScene = (
     follow,
     draw,
     busy: (seconds) => seconds - changedAt < SETTLE_SECONDS,
+    wake: () => {
+      changedAt = now();
+    },
     dispose: unsubscribe,
   };
 };

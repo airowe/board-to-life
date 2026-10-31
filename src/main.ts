@@ -91,7 +91,7 @@ let presentPictures: ScenePictures | null = null;
 void livePicturesReady.then(async (live) => {
   const loaded = await libraryReady;
   if (loaded && live) presentPictures = { ...loaded, live };
-});
+}).catch(() => undefined);
 
 const requestLivePictures = (content: DraftContent): void => {
   if (content.subject !== 'ecosystem') return;

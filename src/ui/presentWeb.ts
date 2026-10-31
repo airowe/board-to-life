@@ -319,6 +319,7 @@ export const renderWebPresent = (
     chart.hidden = next === 'place';
     for (const [name, tab] of tabs) tab.setAttribute('aria-selected', String(name === next));
     if (next !== 'chart') drag = null;
+    if (next === 'place') scene?.wake();
     shownPhase = null;
     redraw.invalidate();
   };
