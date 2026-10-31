@@ -5,6 +5,8 @@ const confidence = z.number().min(0).max(1);
 const coord = z.number();
 const size = z.number().positive();
 const MIN_POLYGON_VERTICES = 3;
+const STRAIGHT_ANGLE_DEGREES = 180;
+const writtenDegrees = z.number().positive().max(STRAIGHT_ANGLE_DEGREES);
 export const MAX_FIGURE_ITEMS = 200;
 
 const listOf = <T extends z.ZodType>(name: string, item: T) =>
@@ -21,9 +23,9 @@ const polygon = z.object({ id, vertices: listOf('vertices', id).min(MIN_POLYGON_
 const pointPair = z.tuple([id, id]);
 
 const mark = z.discriminatedUnion('kind', [
-  z.object({ id, kind: z.literal('angle'), at: id, from: id, to: id, degrees: z.number().optional(), confidence }),
+  z.object({ id, kind: z.literal('angle'), at: id, from: id, to: id, degrees: writtenDegrees.optional(), confidence }),
   z.object({ id, kind: z.literal('right'), at: id, from: id, to: id, confidence }),
-  z.object({ id, kind: z.literal('length'), from: id, to: id, value: z.number().optional(), unit: z.string().min(1).optional(), confidence }),
+  z.object({ id, kind: z.literal('length'), from: id, to: id, value: size.optional(), unit: z.string().min(1).optional(), confidence }),
   z.object({ id, kind: z.literal('equal'), segments: z.array(pointPair), ticks: z.number().int().positive(), confidence }),
   z.object({ id, kind: z.literal('parallel'), lines: z.array(pointPair), confidence }),
 ]);
@@ -162,6 +164,13 @@ const circleErrors = (figure: Figure): string[] =>
     .filter((entry) => (entry.radius === undefined) === (entry.through === undefined))
     .map((entry) => `circle "${entry.id}" needs exactly one of radius or through`);
 
+const repeatedVertexErrors = (figure: Figure): string[] =>
+  figure.polygons.flatMap((entry) =>
+    [...new Set(entry.vertices.filter((vertex, index) => entry.vertices.indexOf(vertex) !== index))].map(
+      (vertex) => `polygon "${entry.id}" repeats vertex "${vertex}"`,
+    ),
+  );
+
 const transformationPolygonErrors = (figure: Figure): string[] => {
   const polygonIds = new Set(figure.polygons.map((entry) => entry.id));
   return figure.transformations
@@ -175,6 +184,7 @@ const focusErrors = (figure: Figure): string[] => {
   const pointIds = new Set(figure.points.map((entry) => entry.id));
   const polygonIds = new Set(figure.polygons.map((entry) => entry.id));
   const markIds = new Set(figure.marks.map((entry) => entry.id));
+  const angleMarkIds = new Set(figure.marks.filter((entry) => entry.kind === 'angle').map((entry) => entry.id));
   const transformationIds = new Set(figure.transformations.map((entry) => entry.id));
   const missing = (what: string, known: Set<string>, cited: string): string[] =>
     known.has(cited) ? [] : [`focus references missing ${what} "${cited}"`];
@@ -184,7 +194,12 @@ const focusErrors = (figure: Figure): string[] => {
     case 'angle-sum':
       return [...missing('polygon', polygonIds, chosen.polygon), ...missing('point', pointIds, chosen.drag)];
     case 'equal-angles':
-      return [...chosen.marks.flatMap((cited) => missing('mark', markIds, cited)), ...missing('point', pointIds, chosen.drag)];
+      return [
+        ...chosen.marks.flatMap((cited) =>
+          markIds.has(cited) ? (angleMarkIds.has(cited) ? [] : [`focus mark "${cited}" is not an angle mark`]) : missing('mark', markIds, cited),
+        ),
+        ...missing('point', pointIds, chosen.drag),
+      ];
   }
 };
 
@@ -194,6 +209,7 @@ const crossReferenceErrors = (figure: Figure): string[] => {
     ...duplicateIdErrors(figure),
     ...missingPointErrors(figure),
     ...circleErrors(figure),
+    ...repeatedVertexErrors(figure),
     ...transformationPolygonErrors(figure),
     ...focusErrors(figure),
   ];

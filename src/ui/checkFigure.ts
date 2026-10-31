@@ -132,10 +132,63 @@ type DraftFailure = Pick<ApiFailure, 'message' | 'details'>;
 export const figureQuestionsFailureStatus = (failure: DraftFailure, retry: () => void): QuestionsStatus =>
   failure.message === NOTHING_TO_PREDICT_FIGURE ? { kind: 'nothing-to-predict' } : { kind: 'failed', failure, retry };
 
-export const drawingPointAt = (shown: ShownBox, drawing: Figure['drawing'], client: Point): Point => ({
-  x: ((client.x - shown.left) / shown.width) * drawing.width,
-  y: ((client.y - shown.top) / shown.height) * drawing.height,
-});
+export const drawingPointAt = (shown: ShownBox, drawing: Figure['drawing'], client: Point): Point | null =>
+  shown.width === 0 || shown.height === 0
+    ? null
+    : {
+        x: ((client.x - shown.left) / shown.width) * drawing.width,
+        y: ((client.y - shown.top) / shown.height) * drawing.height,
+      };
+
+export const DRAG_THRESHOLD_PX = 6;
+
+export type PointerSample = Pick<PointerEvent, 'pointerId' | 'pointerType' | 'button' | 'clientX' | 'clientY'>;
+
+type PointDragHooks = {
+  box: () => ShownBox;
+  preview: (offset: Point | null) => void;
+  release: () => void;
+  drop: (id: string, to: Point) => void;
+};
+
+export type PointDrag = {
+  begin: (event: PointerSample, id: string) => boolean;
+  move: (event: PointerSample) => void;
+  end: (event: Pick<PointerEvent, 'pointerId'>, commit: boolean) => void;
+};
+
+type ActiveDrag = { pointerId: number; id: string; start: Point; client: Point; dropped: Point | null };
+
+const MAIN_BUTTON = 0;
+
+const clientOf = (event: PointerSample): Point => ({ x: event.clientX, y: event.clientY });
+
+export const pointDrag = (figure: Figure, hooks: PointDragHooks): PointDrag => {
+  let active: ActiveDrag | null = null;
+  return {
+    begin: (event, id) => {
+      const start = figure.points.find((entry) => entry.id === id);
+      if (active || !start || (event.pointerType === 'mouse' && event.button !== MAIN_BUTTON)) return false;
+      active = { pointerId: event.pointerId, id, start, client: clientOf(event), dropped: null };
+      return true;
+    },
+    move: (event) => {
+      if (!active || event.pointerId !== active.pointerId) return;
+      const client = clientOf(event);
+      const moved = Math.hypot(client.x - active.client.x, client.y - active.client.y) > DRAG_THRESHOLD_PX;
+      const dropped = moved ? drawingPointAt(hooks.box(), figure.drawing, client) : null;
+      active.dropped = dropped;
+      hooks.preview(dropped && { x: dropped.x - active.start.x, y: dropped.y - active.start.y });
+    },
+    end: (event, commit) => {
+      if (!active || event.pointerId !== active.pointerId) return;
+      const { id, dropped } = active;
+      active = null;
+      hooks.release();
+      if (commit && dropped) hooks.drop(id, dropped);
+    },
+  };
+};
 
 const lowClass = (confidence: number): string => (confidence < LOW_CONFIDENCE ? ' low' : '');
 
@@ -169,31 +222,33 @@ const overlay = (figure: Figure): SVGElement => {
 };
 
 const draggablePoints = (svg: SVGElement, figure: Figure, onMove: (id: string, to: Point) => void): SVGElement => {
+  let group: Element | null = null;
+  const drag = pointDrag(figure, {
+    box: () => svg.getBoundingClientRect(),
+    preview: (offset) => {
+      if (offset) group?.setAttribute('transform', `translate(${offset.x} ${offset.y})`);
+      else group?.removeAttribute('transform');
+    },
+    release: () => {
+      group?.classList.remove('dragging');
+      group?.removeAttribute('transform');
+      group = null;
+    },
+    drop: onMove,
+  });
   svg.addEventListener('pointerdown', (down: PointerEvent) => {
-    const group = down.target instanceof Element ? down.target.closest('.figure-point') : null;
-    const id = group?.getAttribute('data-id');
-    const start = figure.points.find((entry) => entry.id === id);
-    if (!group || !id || !start) return;
+    const target = down.target instanceof Element ? down.target.closest('.figure-point') : null;
+    const id = target?.getAttribute('data-id');
+    if (!target || !id || !drag.begin(down, id)) return;
     down.preventDefault();
     svg.setPointerCapture(down.pointerId);
-    group.classList.add('dragging');
-    let dropped: Point | null = null;
-    const move = (event: PointerEvent): void => {
-      dropped = drawingPointAt(svg.getBoundingClientRect(), figure.drawing, { x: event.clientX, y: event.clientY });
-      group.setAttribute('transform', `translate(${dropped.x - start.x} ${dropped.y - start.y})`);
-    };
-    const finish = (event: PointerEvent): void => {
-      svg.removeEventListener('pointermove', move);
-      svg.removeEventListener('pointerup', finish);
-      svg.removeEventListener('pointercancel', finish);
-      group.classList.remove('dragging');
-      group.removeAttribute('transform');
-      if (event.type === 'pointerup' && dropped) onMove(id, dropped);
-    };
-    svg.addEventListener('pointermove', move);
-    svg.addEventListener('pointerup', finish);
-    svg.addEventListener('pointercancel', finish);
+    group = target;
+    target.classList.add('dragging');
   });
+  svg.addEventListener('pointermove', drag.move);
+  svg.addEventListener('pointerup', (event: PointerEvent) => drag.end(event, true));
+  svg.addEventListener('pointercancel', (event: PointerEvent) => drag.end(event, false));
+  svg.addEventListener('lostpointercapture', (event: PointerEvent) => drag.end(event, false));
   return svg;
 };
 

@@ -198,6 +198,21 @@ describe('fitWrittenValues', () => {
     expect(drawn).toEqual(before);
   });
 
+  it('refuses a fit that would push a point off the drawing and leaves the input unchanged', () => {
+    const STRAIGHT_ANGLE = 180;
+    const drawn = figureOf(
+      { A: { x: 100, y: 100 }, B: { x: 500, y: 100 }, C: { x: 300, y: 400 } },
+      [{ id: 'm', kind: 'angle', at: 'A', from: 'B', to: 'C', degrees: STRAIGHT_ANGLE }],
+    );
+    const before = structuredClone(drawn);
+    expect(fitWrittenValues(drawn)).toEqual({
+      ok: false,
+      conflicts: ["These written values can't all hold inside the drawing: angle BAC = 180°."],
+    });
+    expect(fittedOrDrawn(drawn)).toBe(drawn);
+    expect(drawn).toEqual(before);
+  });
+
   it('returns a figure with no written values unchanged', () => {
     const drawn = figureOf(nearRightAngle(), [{ id: 'm', kind: 'angle', at: 'A', from: 'B', to: 'C' }], [['A', 'B', 'C']]);
     expect(fitted(drawn)).toEqual(drawn);

@@ -9,6 +9,7 @@ import {
   displayLength,
   distance,
   imageOf,
+  isSimplePolygon,
   perimeter,
   polygonAngles,
   SHAPE_NAMES,
@@ -317,5 +318,29 @@ describe('angleSumOf', () => {
 describe('SHAPE_NAMES', () => {
   it('names polygons from three to six sides', () => {
     expect(SHAPE_NAMES).toEqual({ 3: 'triangle', 4: 'quadrilateral', 5: 'pentagon', 6: 'hexagon' });
+  });
+});
+
+describe('isSimplePolygon', () => {
+  const quad = polygonOf('ABCD', ['A', 'B', 'C', 'D']);
+  const corners = (d: Point): Positions => ({ A: { x: 300, y: 300 }, B: { x: 900, y: 300 }, C: { x: 900, y: 500 }, D: d });
+
+  it.each([
+    ['a convex quadrilateral', corners({ x: 400, y: 500 }), true],
+    ['a concave quadrilateral', corners({ x: 800, y: 400 }), true],
+    ['a quadrilateral whose sides cross', corners({ x: 400, y: 200 }), false],
+    ['a quadrilateral with a corner on a far side', corners({ x: 600, y: 300 }), false],
+    ['a quadrilateral with two corners in one place', corners({ x: 300, y: 300 }), false],
+  ])('says whether %s is simple', (_name, positions, expected) => {
+    expect(isSimplePolygon(positions, quad)).toBe(expected);
+  });
+
+  it('treats a flat triangle as simple but a triangle with two corners in one place as not', () => {
+    expect(isSimplePolygon({ A: { x: 0, y: 0 }, B: { x: 100, y: 0 }, C: { x: 50, y: 0 } }, triangle)).toBe(true);
+    expect(isSimplePolygon({ A: { x: 0, y: 0 }, B: { x: 100, y: 0 }, C: { x: 0, y: 0 } }, triangle)).toBe(false);
+  });
+
+  it('is not simple when a vertex has no position', () => {
+    expect(isSimplePolygon({ A: { x: 0, y: 0 }, B: { x: 100, y: 0 } }, triangle)).toBe(false);
   });
 });

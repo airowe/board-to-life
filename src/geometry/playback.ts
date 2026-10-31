@@ -2,7 +2,7 @@ import type { GeometryLesson } from '../session/store';
 import { angleAt, areParallel, displayLength, polygonAngles, positionsOf, transformAt, type Point, type Positions } from './derive';
 import { clampToDrawing } from './edits';
 import { followCrossings } from './focus';
-import { templateFigureQuestion, type GeometryQuestion } from './questions';
+import type { GeometryQuestion } from './questions';
 import type { Figure, Focus, Mark, Polygon, Transformation } from './schema';
 
 export const TRANSFORM_SECONDS = 2;
@@ -44,17 +44,12 @@ const moveOf = (figure: Figure, focus: Focus | null): Move | null => {
   return transformation && polygon ? { transformation, polygon } : null;
 };
 
-const withPositions = (figure: Figure, positions: Positions): Figure => ({
-  ...figure,
-  points: figure.points.map((entry) => ({ ...entry, ...(positions[entry.id] ?? {}) })),
-});
-
 const shifted = (positions: Positions, by: Point): Positions =>
   Object.fromEntries(Object.entries(positions).map(([id, at]) => [id, { x: at.x + by.x, y: at.y + by.y }]));
 
 export const createFigurePlayback = (lesson: GeometryLesson): FigurePlayback => {
   const { figure } = lesson;
-  let question: GeometryQuestion | null = lesson.questions[0] ?? null;
+  const question: GeometryQuestion | null = lesson.questions[0] ?? null;
   const focus: Focus | null = question?.observe.focus ?? null;
   const move = moveOf(figure, focus);
 
@@ -112,7 +107,6 @@ export const createFigurePlayback = (lesson: GeometryLesson): FigurePlayback => 
     },
     replay: () => {
       previous = played;
-      question = focus ? templateFigureQuestion(withPositions(figure, base), focus) : null;
       ghost = ORIGIN;
       phase = { kind: 'ready' };
     },

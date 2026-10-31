@@ -168,6 +168,44 @@ describe('validateFigure', () => {
     ]);
   });
 
+  it('rejects a polygon that repeats a vertex and names both', () => {
+    const figure = withChange((f) => { f.polygons[0] = { id: 'ABC', vertices: ['A', 'B', 'C', 'A'], confidence: CONFIDENCE }; });
+    expect(errorsFor(figure)).toEqual(['polygon "ABC" repeats vertex "A"']);
+  });
+
+  it.each([0, -3])('rejects a written length of %s and names the mark', (value) => {
+    const figure = withChange((f) => { f.marks.push({ id: 'm9', kind: 'length', from: 'A', to: 'B', value, confidence: CONFIDENCE }); });
+    expect(errorsFor(figure)).toEqual(['marks m9 value: Too small: expected number to be >0']);
+  });
+
+  const STRAIGHT_ANGLE = 180;
+  const RIGHT_ANGLE = 90;
+
+  it.each([
+    [0, 'Too small: expected number to be >0'],
+    [-40, 'Too small: expected number to be >0'],
+    [STRAIGHT_ANGLE + 1, `Too big: expected number to be <=${STRAIGHT_ANGLE}`],
+  ])('rejects a written angle of %s degrees and names the mark', (degrees, message) => {
+    const figure = withChange((f) => { f.marks[0] = { id: 'm1', kind: 'angle', at: 'A', from: 'B', to: 'C', degrees, confidence: CONFIDENCE }; });
+    expect(errorsFor(figure)).toEqual([`marks m1 degrees: ${message}`]);
+  });
+
+  it.each([RIGHT_ANGLE, STRAIGHT_ANGLE])('accepts a written angle of %s degrees', (degrees) => {
+    const figure = withChange((f) => { f.marks[0] = { id: 'm1', kind: 'angle', at: 'A', from: 'B', to: 'C', degrees, confidence: CONFIDENCE }; });
+    expect(validateFigure(figure)).toEqual({ ok: true, figure });
+  });
+
+  it('rejects an equal-angles focus whose marks are not angle marks and names them', () => {
+    const figure = withChange((f) => {
+      f.marks.push(
+        { id: 'm8', kind: 'length', from: 'A', to: 'B', confidence: CONFIDENCE },
+        { id: 'm9', kind: 'right', at: 'B', from: 'A', to: 'C', confidence: CONFIDENCE },
+      );
+      f.focus = { kind: 'equal-angles', marks: ['m8', 'm9'], drag: 'C' };
+    });
+    expect(errorsFor(figure)).toEqual(['focus mark "m8" is not an angle mark', 'focus mark "m9" is not an angle mark']);
+  });
+
   it('rejects a confidence above 1 and names the point', () => {
     const figure = withChange((f) => { f.points[0] = point('A', 100, 800); f.points[0].confidence = 1.5; });
     expect(errorsFor(figure)).toEqual(['points A confidence: Too big: expected number to be <=1']);

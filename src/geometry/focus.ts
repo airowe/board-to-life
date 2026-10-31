@@ -1,5 +1,5 @@
 import { crossingsOf, drawnLines, placeCrossings, type PointPair } from './crossings';
-import { angleAt, angleSum, angleSumOf, area, distance, imageOf, positionsOf, type Point, type Positions } from './derive';
+import { angleAt, angleSum, angleSumOf, area, distance, imageOf, isSimplePolygon, positionsOf, type Point, type Positions } from './derive';
 import { FIT_TOLERANCE_DEGREES, FIT_TOLERANCE_FRACTION } from './fit';
 import type { Figure, Focus, Mark, Polygon, Transformation } from './schema';
 
@@ -276,9 +276,18 @@ const movedTo = (figure: Figure, focus: Focus, drag: string, spot: Point): Posit
   return focus.kind === 'equal-angles' ? followCrossings(positions, figure, focus.marks) : positions;
 };
 
+const keepsItsShape = (figure: Figure, focus: Focus, positions: Positions): boolean => {
+  if (focus.kind !== 'angle-sum') return true;
+  const polygon = polygonById(figure, focus.polygon);
+  return polygon === undefined || isSimplePolygon(positions, polygon);
+};
+
 export const invariantHolds = (figure: Figure, focus: Focus): boolean => {
   const drag = dragPointOf(figure, focus);
   const origin = drag === undefined ? undefined : positionsOf(figure)[drag];
   if (drag === undefined || origin === undefined) return false;
-  return dragSpots(figure, origin, dragRadius(figure, focus, drag, origin)).every((spot) => factHolds(figure, movedTo(figure, focus, drag, spot), focus));
+  return dragSpots(figure, origin, dragRadius(figure, focus, drag, origin))
+    .map((spot) => movedTo(figure, focus, drag, spot))
+    .filter((positions) => keepsItsShape(figure, focus, positions))
+    .every((positions) => factHolds(figure, positions, focus));
 };
