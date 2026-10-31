@@ -345,7 +345,7 @@ describe('apiMiddleware picture', () => {
   it('in stub mode returns the stub image', async () => {
     const response = await post(await serve({}), { subject: 'jellyfish' });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ image: STUB_PICTURE });
+    expect(await response.json()).toEqual({ image: STUB_PICTURE, stub: true });
   });
 
   it('draws the trimmed subject with the model and returns it as base64', async () => {

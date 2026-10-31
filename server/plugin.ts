@@ -24,7 +24,7 @@ import {
   handleUnderstandWeb,
   parseStubMode,
   pictureResponse,
-  STUB_PICTURE,
+  stubPictureResponse,
   type StubMode,
   type StubResponse,
 } from './stub';
@@ -219,7 +219,7 @@ const WRONG_CODE = 'That access code did not match. Open the full link from the 
 const drawPicture = async ({ model }: RouteContext, value: unknown): Promise<StubResponse> => {
   const subject = parsePictureSubject(value);
   if (subject === null) return { status: 400, body: { error: UNDRAWABLE, details: [] } };
-  if (!model?.drawPicture) return pictureResponse(STUB_PICTURE);
+  if (!model?.drawPicture) return stubPictureResponse();
   return pictureResponse((await model.drawPicture(subject)).toString('base64'));
 };
 

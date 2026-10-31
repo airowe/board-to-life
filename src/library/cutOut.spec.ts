@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutOutWhite, WHITE_TOLERANCE, type Rgba } from './cutOut';
+import { cutOutWhite, hasSubject, MIN_SUBJECT_SHARE, WHITE_TOLERANCE, type Rgba } from './cutOut';
 
 type Rgb = [number, number, number];
 const WHITE: Rgb = [255, 255, 255];
@@ -69,5 +69,28 @@ describe('cutOutWhite', () => {
   it('copes with a large all-white image without recursing', () => {
     const result = cutOutWhite(solid(400, 400, WHITE));
     expect(opaquePixels(result)).toEqual([]);
+  });
+});
+
+describe('hasSubject', () => {
+  const SIDE = 100;
+  const withPainted = (count: number): Rgba => {
+    const image = solid(SIDE, SIDE, WHITE);
+    for (let index = 0; index < count; index += 1) paint(image, SIDE / 2 + (index % 10), SIDE / 2 + Math.floor(index / 10), RED);
+    return cutOutWhite(image);
+  };
+  const atThreshold = Math.ceil(SIDE * SIDE * MIN_SUBJECT_SHARE);
+
+  it.each([
+    ['a blank white picture', 0, false],
+    ['a single stray pixel', 1, false],
+    ['just under the threshold', atThreshold - 1, false],
+    ['at the threshold', atThreshold, true],
+  ])('%s: %s painted pixels -> %s', (_label, count, expected) => {
+    expect(hasSubject(withPainted(count))).toBe(expected);
+  });
+
+  it('rejects the stub 1x1 white picture once cut out', () => {
+    expect(hasSubject(cutOutWhite(solid(1, 1, WHITE)))).toBe(false);
   });
 });

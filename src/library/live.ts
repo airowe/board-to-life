@@ -1,5 +1,5 @@
 import { requestJson } from '../api';
-import { cutOutWhite } from './cutOut';
+import { cutOutWhite, hasSubject } from './cutOut';
 import type { Library } from './manifest';
 import { liveCandidates, type LiveState } from './source';
 
@@ -9,7 +9,13 @@ const CACHE_NAME = 'board-to-life-pictures';
 const CACHE_URL_PREFIX = '/__pictures__/';
 const PICTURE_ENDPOINT = '/api/picture';
 
-export type PictureCache = { get: (key: string) => Promise<Blob | null>; put: (key: string, blob: Blob) => Promise<void> };
+export type PictureCache = {
+  get: (key: string) => Promise<Blob | null>;
+  put: (key: string, blob: Blob) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+};
+// `keep` is false for a stand-in (the stub, or a server with no picture model), which must never be cached.
+export type DrawnPicture = { blob: Blob; keep: boolean };
 
 export type LivePictures = {
   request: (names: string[]) => void;
@@ -20,7 +26,7 @@ export type LivePictures = {
 
 type Deps = {
   library: Library;
-  draw: (subject: string) => Promise<Blob>;
+  draw: (subject: string) => Promise<DrawnPicture>;
   cache: PictureCache;
   decode: (blob: Blob) => Promise<CanvasImageSource>;
 };
@@ -40,18 +46,29 @@ export const createLivePictures = ({ library, draw, cache, decode }: Deps): Live
   const listeners = new Set<() => void>();
   const notify = (): void => listeners.forEach((listener) => listener());
 
-  const obtain = async (key: string): Promise<Blob> => {
-    const cached = await quietly(() => cache.get(key), null);
-    if (cached) return cached;
+  const drawFresh = async (key: string): Promise<CanvasImageSource> => {
     const drawn = await draw(key);
-    void quietly(() => cache.put(key, drawn), undefined);
-    return drawn;
+    const image = await decode(drawn.blob);
+    if (drawn.keep) void quietly(() => cache.put(key, drawn.blob), undefined);
+    return image;
+  };
+
+  // A cached picture that no longer decodes (blank, or kept by an older build) is dropped and drawn fresh, once.
+  const obtain = async (key: string): Promise<CanvasImageSource> => {
+    const cached = await quietly(() => cache.get(key), null);
+    if (!cached) return drawFresh(key);
+    try {
+      return await decode(cached);
+    } catch {
+      await quietly(() => cache.delete(key), undefined);
+      return drawFresh(key);
+    }
   };
 
   const start = async (key: string): Promise<void> => {
     entries.set(key, { state: 'pending' });
     try {
-      entries.set(key, { state: 'ready', image: await decode(await obtain(key)) });
+      entries.set(key, { state: 'ready', image: await obtain(key) });
     } catch {
       entries.set(key, { state: 'failed' });
     }
@@ -89,6 +106,10 @@ export const browserCache = (): PictureCache => {
       quietly(async () => {
         await (await open()).put(urlFor(key), new Response(blob, { headers: { 'content-type': blob.type || 'image/png' } }));
       }, undefined),
+    delete: (key) =>
+      quietly(async () => {
+        await (await open()).delete(urlFor(key));
+      }, undefined),
   };
 };
 
@@ -99,17 +120,18 @@ const base64ToBlob = (base64: string): Blob => {
 };
 
 export const drawPicture =
-  (headers: () => Record<string, string>) =>
-  async (subject: string): Promise<Blob> => {
+  (headers: () => Record<string, string>, fetchImpl?: typeof fetch) =>
+  async (subject: string): Promise<DrawnPicture> => {
     const result = await requestJson(
       PICTURE_ENDPOINT,
       { method: 'POST', body: JSON.stringify({ subject }), headers: { 'content-type': 'application/json', ...headers() } },
-      { timeoutMs: PICTURE_REQUEST_TIMEOUT_MS },
+      { timeoutMs: PICTURE_REQUEST_TIMEOUT_MS, ...(fetchImpl ? { fetchImpl } : {}) },
     );
     if (!result.ok) throw new Error(result.message);
-    const image = (result.data as { image?: unknown } | null)?.image;
+    const data = result.data as { image?: unknown; stub?: unknown } | null;
+    const image = data?.image;
     if (typeof image !== 'string' || image === '') throw new Error('The picture response had no image.');
-    return base64ToBlob(image);
+    return { blob: base64ToBlob(image), keep: data?.stub !== true };
   };
 
 const scratchCanvas = (width: number, height: number): OffscreenCanvas | HTMLCanvasElement => {
@@ -128,7 +150,8 @@ export const decodeCutOut = async (blob: Blob): Promise<CanvasImageSource> => {
   context.drawImage(bitmap, 0, 0);
   const source = context.getImageData(0, 0, bitmap.width, bitmap.height);
   const cut = cutOutWhite({ data: source.data, width: source.width, height: source.height });
-  context.putImageData(new ImageData(new Uint8ClampedArray(cut.data), cut.width, cut.height), 0, 0);
   bitmap.close();
+  if (!hasSubject(cut)) throw new Error('The picture came out blank.');
+  context.putImageData(new ImageData(new Uint8ClampedArray(cut.data), cut.width, cut.height), 0, 0);
   return canvas;
 };

@@ -204,3 +204,6 @@ export const STUB_PICTURE =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 export const pictureResponse = (image: string): StubResponse => ({ status: 200, body: { image } });
+
+// The stand-in picture, marked so the browser never keeps it in place of a real drawing.
+export const stubPictureResponse = (): StubResponse => ({ status: 200, body: { image: STUB_PICTURE, stub: true } });

@@ -1,6 +1,8 @@
 export type Rgba = { data: Uint8ClampedArray; width: number; height: number };
 
 export const WHITE_TOLERANCE = 26;
+// A cut-out with less than this share of its pixels left showing is blank (a stand-in or a failed drawing), not a subject.
+export const MIN_SUBJECT_SHARE = 0.01;
 const CHANNELS = 4;
 const MAX_CHANNEL = 255;
 const COLOUR_CHANNELS = 3;
@@ -44,4 +46,11 @@ export const cutOutWhite = (image: Rgba): Rgba => {
   }
 
   return { data, width, height };
+};
+
+export const hasSubject = (image: Rgba): boolean => {
+  const pixels = image.width * image.height;
+  let showing = 0;
+  for (let index = 0; index < pixels; index += 1) if ((image.data[index * CHANNELS + COLOUR_CHANNELS] ?? CLEAR) !== CLEAR) showing += 1;
+  return pixels > 0 && showing >= pixels * MIN_SUBJECT_SHARE;
 };
