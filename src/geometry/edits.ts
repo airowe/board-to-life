@@ -1,5 +1,6 @@
 import { toDrawing, type View } from '../present/view';
 import type { Point, Positions } from './derive';
+import { fittedOrDrawn } from './fit';
 import type { Figure, Polygon } from './schema';
 
 const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
@@ -8,6 +9,17 @@ export const clampToDrawing = (figure: Figure, point: Point): Point => ({
   x: clamp(point.x, 0, figure.drawing.width),
   y: clamp(point.y, 0, figure.drawing.height),
 });
+
+const TEACHER_CONFIRMED = 1;
+
+export const movePoint = (figure: Figure, id: string, to: Point): Figure => {
+  if (!figure.points.some((entry) => entry.id === id)) return figure;
+  const at = clampToDrawing(figure, to);
+  return fittedOrDrawn({
+    ...figure,
+    points: figure.points.map((entry) => (entry.id === id ? { ...entry, ...at, confidence: TEACHER_CONFIRMED } : entry)),
+  });
+};
 
 export const pickPoint = (figure: Figure, positions: Positions, view: View, screen: Point, reachPx: number): string | null => {
   const target = toDrawing(view, screen);

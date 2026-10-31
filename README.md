@@ -333,7 +333,10 @@ Both failures are the same misread:
 - **Rotation drawing, 2 of 2 failed.** Both reads had the right angle (90° counterclockwise) but misplaced the centre
   O, so A′ landed 236 px and 184 px up and to the left of where it should. The reader is told to report a centre at its
   cross, not its letter, and still misplaces it. The mock photo and description reads, which are not scored on
-  position, passed.
+  position, passed. A probe of three prompt variants on this drawing, three reads each (image before text, positions
+  in pixels instead of the 0-1000 grid, and the current prompt), put O 82 to 230 px from the cross with no variant
+  reliably closer, so the prompt is unchanged. Instead the check screen lets the teacher drag any point to where it is
+  on the board before approving; the written values are refitted after the move.
 
 Two earlier runs the same day played fewer. `check-runs/2026-10-31T02-58-29-731Z-figures` played 26 of 30 for $0.5408,
 before the answer-key and extra-polygon checks existed; three of its four transformation descriptions drew the image,

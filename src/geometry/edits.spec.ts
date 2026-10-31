@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { positionsOf } from './derive';
-import { clampToDrawing, insidePolygon, pickPoint } from './edits';
+import { angleAt, positionsOf } from './derive';
+import { clampToDrawing, insidePolygon, movePoint, pickPoint } from './edits';
+import { FIT_TOLERANCE_DEGREES } from './fit';
 import { GEOMETRY_SAMPLES } from './samples';
 import type { View } from '../present/view';
 
@@ -72,5 +73,51 @@ describe('clampToDrawing', () => {
     [{ x: 100, y: 200 }, { x: 100, y: 200 }],
   ])('clamps %j to %j', (input, expected) => {
     expect(clampToDrawing(figure, input)).toEqual(expected);
+  });
+});
+
+describe('movePoint', () => {
+  const CROSS = { x: 600, y: 400 };
+  const MISREAD_CENTRE = { x: 440, y: 440 };
+  const TEACHER_CONFIRMED = 1;
+
+  const pointOf = (figure: ReturnType<typeof sample>, id: string) => figure.points.find((entry) => entry.id === id);
+
+  const misreadRotation = () => {
+    const figure = sample('rotation');
+    return { ...figure, points: figure.points.map((entry) => (entry.id === 'O' ? { ...entry, ...MISREAD_CENTRE, confidence: 0.6 } : entry)) };
+  };
+
+  it('puts a misread centre where the teacher drops it and marks it confirmed', () => {
+    expect(pointOf(movePoint(misreadRotation(), 'O', CROSS), 'O')).toEqual({ id: 'O', ...CROSS, confidence: TEACHER_CONFIRMED });
+  });
+
+  it('leaves every other point where it was when nothing written ties it to the moved one', () => {
+    const before = misreadRotation();
+    const after = movePoint(before, 'O', CROSS);
+    expect(after.points.filter((entry) => entry.id !== 'O')).toEqual(before.points.filter((entry) => entry.id !== 'O'));
+  });
+
+  it.each([
+    ['left and above', { x: -50, y: -80 }, { x: 0, y: 0 }],
+    ['right and below', { x: 5000, y: 9000 }, { x: 1200, y: 800 }],
+  ])('keeps a point dropped off the drawing (%s) on its edge', (_, dropped, kept) => {
+    expect(pointOf(movePoint(misreadRotation(), 'O', dropped), 'O')).toMatchObject(kept);
+  });
+
+  it('returns the figure unchanged for a point it does not have', () => {
+    const figure = misreadRotation();
+    expect(movePoint(figure, 'Z', CROSS)).toBe(figure);
+  });
+
+  it('keeps the written angles true after a vertex is moved', () => {
+    const moved = movePoint(sample('triangle'), 'C', { x: 450, y: 200 });
+    const positions = positionsOf(moved);
+    const corner = (at: string, from: string, to: string) => {
+      const [a, f, t] = [positions[at], positions[from], positions[to]];
+      return a && f && t ? angleAt(a, f, t) : null;
+    };
+    expect(Math.abs((corner('A', 'B', 'C') ?? 0) - 50)).toBeLessThanOrEqual(FIT_TOLERANCE_DEGREES);
+    expect(Math.abs((corner('B', 'C', 'A') ?? 0) - 60)).toBeLessThanOrEqual(FIT_TOLERANCE_DEGREES);
   });
 });
