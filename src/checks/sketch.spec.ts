@@ -71,4 +71,15 @@ describe('sketchScene', () => {
     const scene = sceneFrom({ ...rampBallDominoes, labels: [{ id: 'l', text: 'a < b & c', x: 10, y: 10, confidence: 1 }] });
     expect(sketchScene(scene, SEED)).toContain('>a &lt; b &amp; c</text>');
   });
+
+  it('escapes item ids so a quote or bracket cannot break the markup', () => {
+    const nasty = '"><x';
+    const scene = sceneFrom({
+      ...rampBallDominoes,
+      items: rampBallDominoes.items.map((item) => (item.id === 'domino-3' ? { ...item, id: nasty } : item)),
+    });
+    const svg = sketchScene(scene, SEED);
+    expect(svg).not.toContain(nasty);
+    expect(svg).toContain('data-item="&quot;&gt;&lt;x"');
+  });
 });

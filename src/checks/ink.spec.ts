@@ -45,6 +45,10 @@ describe('escapeText', () => {
   it('escapes the characters that would break the SVG', () => {
     expect(escapeText('a & b < c > d')).toBe('a &amp; b &lt; c &gt; d');
   });
+
+  it('escapes double quotes so the text is safe inside an attribute value', () => {
+    expect(escapeText('say "hi"')).toBe('say &quot;hi&quot;');
+  });
 });
 
 describe('wobblyLine', () => {

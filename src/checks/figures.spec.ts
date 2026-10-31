@@ -169,6 +169,51 @@ describe('scoreFigure dilation factor in described mode', () => {
   });
 });
 
+describe('scoreFigure transformation anchors in described mode', () => {
+  it.each([
+    { wrong: ['A', 'B'], note: 'a different mirror line' },
+    { wrong: ['M', 'A'], note: 'a mirror line with one wrong end' },
+  ])('does not play a reflection read with $note', ({ wrong }) => {
+    const sample = sampleById('reflection');
+    const [flip] = sample.figure.transformations;
+    if (flip?.kind !== 'reflect') throw new Error('reflection sample has no reflection');
+    const [first, second] = wrong;
+    const read = withTransformations(sample.figure, [{ ...flip, mirror: [first ?? 'A', second ?? 'B'] }]);
+    const score = scoreFigure(sample, read, 'described');
+    expect(score.played).toBe(false);
+    expect(score.mismatches).toEqual([`reflection: expected mirror ${flip.mirror.join('')}, got ${wrong.join('')}`]);
+  });
+
+  it('plays a reflection whose mirror ends are listed in the other order', () => {
+    const sample = sampleById('reflection');
+    const [flip] = sample.figure.transformations;
+    if (flip?.kind !== 'reflect') throw new Error('reflection sample has no reflection');
+    const [first, second] = flip.mirror;
+    const read = withTransformations(sample.figure, [{ ...flip, mirror: [second, first] }]);
+    expect(scoreFigure(sample, read, 'described')).toEqual({ played: true, mismatches: [] });
+  });
+
+  it('does not play a rotation about the wrong centre', () => {
+    const sample = sampleById('rotation');
+    const [turn] = sample.figure.transformations;
+    if (turn?.kind !== 'rotate') throw new Error('rotation sample has no rotation');
+    const read = withTransformations(sample.figure, [{ ...turn, centre: 'A' }]);
+    const score = scoreFigure(sample, read, 'described');
+    expect(score.played).toBe(false);
+    expect(score.mismatches).toEqual([`rotation: expected centre ${turn.centre}, got A`]);
+  });
+
+  it('does not play a dilation about the wrong centre', () => {
+    const base = sampleById('rotation');
+    const dilate: Transformation = { id: 'turn', kind: 'dilate', centre: 'O', factor: 2, polygon: 'abc', confidence: 1 };
+    const sample: FigureSample = { ...base, figure: withTransformations(base.figure, [dilate]), expect: [{ kind: 'lands', transformation: 'turn', image: {} }] };
+    const read = withTransformations(sample.figure, [{ ...dilate, centre: 'A' }]);
+    const score = scoreFigure(sample, read, 'described');
+    expect(score.played).toBe(false);
+    expect(score.mismatches).toEqual(['dilation: expected centre O, got A']);
+  });
+});
+
 describe('FIGURE_DESCRIPTION_CASES', () => {
   it('has one non-empty description per sample', () => {
     expect(FIGURE_DESCRIPTION_CASES.map((entry) => entry.sampleId).sort()).toEqual(GEOMETRY_SAMPLES.map((entry) => entry.id).sort());

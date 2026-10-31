@@ -26,10 +26,45 @@ type CaptureHandlers = {
   description?: string;
 };
 
-const stopStream = (video: HTMLVideoElement): void => {
-  const stream = video.srcObject;
-  if (stream instanceof MediaStream) for (const track of stream.getTracks()) track.stop();
-  video.srcObject = null;
+type Streamlike = { getTracks: () => { stop: () => void }[] };
+
+const stopTracks = (stream: Streamlike): void => {
+  for (const track of stream.getTracks()) track.stop();
+};
+
+export const createCamera = <S extends Streamlike>(open: () => Promise<S>): { start: () => Promise<S | null>; stop: () => void } => {
+  let current: S | null = null;
+  let generation = 0;
+  const stop = (): void => {
+    generation += 1;
+    if (current) stopTracks(current);
+    current = null;
+  };
+  const start = async (): Promise<S | null> => {
+    stop();
+    const mine = generation;
+    const opened = await open();
+    if (mine !== generation) {
+      stopTracks(opened);
+      return null;
+    }
+    current = opened;
+    return opened;
+  };
+  return { start, stop };
+};
+
+export const SAMPLE_UNAVAILABLE = 'That sample could not be loaded. Check the connection, or upload a photo instead.';
+
+export const fetchSample = async (url: string, fetcher: typeof fetch = fetch): Promise<Blob | null> => {
+  try {
+    const response = await fetcher(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return blob.type.startsWith('image/') ? blob : null;
+  } catch {
+    return null;
+  }
 };
 
 const grabFrame = (video: HTMLVideoElement): Promise<Blob | null> => {
@@ -60,6 +95,14 @@ export const renderCapture = (
     },
   });
 
+  const camera = createCamera(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }));
+
+  const showCamera = (on: boolean): void => {
+    video.hidden = !on;
+    snap.hidden = !on;
+    if (!on) video.srcObject = null;
+  };
+
   const startWebcam = async (): Promise<void> => {
     status.textContent = '';
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -67,9 +110,10 @@ export const renderCapture = (
       return;
     }
     try {
-      video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-      video.hidden = false;
-      snap.hidden = false;
+      const stream = await camera.start();
+      if (!stream) return;
+      video.srcObject = stream;
+      showCamera(true);
       await video.play();
     } catch (cause) {
       const name = cause instanceof DOMException ? cause.name : '';
@@ -82,9 +126,11 @@ export const renderCapture = (
 
   snap.addEventListener('click', async () => {
     const frame = await grabFrame(video);
-    stopStream(video);
-    if (frame) onPhoto(frame);
-    else status.textContent = 'Could not take a photo from the camera. Try again or upload one.';
+    if (frame) {
+      camera.stop();
+      showCamera(false);
+      onPhoto(frame);
+    } else status.textContent = 'Could not take a photo from the camera. Try again or upload one.';
   });
 
   const takeBoardImage = (files: readonly File[]): void => {
@@ -123,8 +169,9 @@ export const renderCapture = (
   for (const [name, listener] of listeners) document.addEventListener(name, listener as EventListener);
 
   const useSample = async (url: string): Promise<void> => {
-    const response = await fetch(url);
-    onPhoto(await response.blob());
+    const sample = await fetchSample(url);
+    if (sample) onPhoto(sample);
+    else status.textContent = SAMPLE_UNAVAILABLE;
   };
 
   const descriptionBox = h('textarea', {
@@ -235,7 +282,7 @@ export const renderCapture = (
     ),
   );
   return () => {
-    stopStream(video);
+    camera.stop();
     onDragEnd();
     for (const [name, listener] of listeners) document.removeEventListener(name, listener as EventListener);
   };
