@@ -16,6 +16,10 @@ export const referenceLevel = (values: number[], eventStep: number): number => {
 // Gone means below EXTINCT_FRACTION of the reference, or nothing left when there is no reference.
 export const isGone = (value: number, reference: number): boolean => (reference > 0 ? value < reference * EXTINCT_FRACTION : value <= 0);
 
+// Gone at `step` against the settled level, or, once past the event, against the level the event left it at.
+export const isGoneAt = (value: number, values: number[], step: number, settled: number, eventStep: number): boolean =>
+  isGone(value, settled) || (step > eventStep && isGone(value, referenceLevel(values, eventStep)));
+
 const directionOf = (values: number[], eventStep: number): Direction => {
   const reference = referenceLevel(values, eventStep);
   const final = mean(values.slice(-FINAL_WINDOW_STEPS));
