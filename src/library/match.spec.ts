@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseFallback, parseLibrary } from './manifest';
 import { findFallback, findLibrarySubject, guessZone, libraryFile, normaliseName } from './match';
-import type { Zone } from './manifest';
+import type { Library, LibraryEntry, Zone } from './manifest';
 
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 const library = parseLibrary(readJson('public/library/manifest.json'));
@@ -34,6 +34,28 @@ describe('findLibrarySubject', () => {
   });
 });
 
+const entryFor = (subject: string): LibraryEntry => ({
+  id: subject, subject, pose: 'still', group: 'organism', aliases: [], habitat: null, zone: 'floor',
+  file: `${subject}.webp`, width: 1, height: 1,
+});
+const libraryOf = (...subjects: string[]): Library => ({ entries: subjects.map(entryFor) });
+
+describe('findLibrarySubject with irregular plurals', () => {
+  it.each([
+    ['grass', 'grass'], ['species', 'species'], ['bass', 'bass'], ['asparagus', 'asparagus'],
+    ['magpies', 'magpie'], ['magpie', 'magpie'], ['walruses', 'walrus'], ['platypuses', 'platypus'],
+    ['kiwis', 'kiwi'], ['emus', 'emu'], ['gnus', 'gnu'], ['mosquitoes', 'mosquito'], ['wolves', 'wolf'],
+    ['knives', 'knife'], ['bunnies', 'bunny'],
+  ])('matches %j to the library subject %j', (name, subject) => {
+    expect(findLibrarySubject(libraryOf(subject), name)).toBe(subject);
+  });
+
+  it('does not match different words that merely share a prefix', () => {
+    expect(findLibrarySubject(libraryOf('sea-otter'), 'sea')).toBeNull();
+    expect(findLibrarySubject(libraryOf('wolf'), 'wolverine')).toBeNull();
+  });
+});
+
 describe('findFallback', () => {
   it.each([
     ['narwhal', null],
@@ -53,6 +75,19 @@ describe('guessZone', () => {
     ['bat', 'sky'],
     ['bee', 'sky'],
     ['badger', 'floor'],
+    ['beetle', 'floor'],
+    ['combat', 'floor'],
+    ['crown', 'floor'],
+    ['crowd', 'floor'],
+    ['mother', 'floor'],
+    ['mustard', 'floor'],
+    ['clamp', 'floor'],
+    ['newton', 'floor'],
+    ['stingray', 'water'],
+    ['firefly', 'sky'],
+    ['sea star', 'water'],
+    ['catfish', 'water'],
+    ['crows', 'sky'],
   ])('puts %j in the %s zone', (name, zone) => {
     expect(guessZone(name)).toBe(zone);
   });
