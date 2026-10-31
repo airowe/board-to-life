@@ -4,7 +4,8 @@ import type { Library } from './manifest';
 import { liveCandidates, type LiveState } from './source';
 
 export const LIVE_PICTURE_CAP = 4;
-export const PICTURE_REQUEST_TIMEOUT_MS = 70_000;
+// Longer than all of the server's attempts together (server/picture.ts), so the browser never abandons a retry the server is paying for.
+export const PICTURE_REQUEST_TIMEOUT_MS = 130_000;
 const CACHE_NAME = 'board-to-life-pictures';
 const CACHE_URL_PREFIX = '/__pictures__/';
 const PICTURE_ENDPOINT = '/api/picture';

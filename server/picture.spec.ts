@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { PICTURE_STYLE } from '../src/library/style';
-import { drawPictureWithModel, MAX_PICTURE_BYTES, MAX_SUBJECT_LENGTH, parsePictureSubject } from './picture';
+import { PICTURE_REQUEST_TIMEOUT_MS } from '../src/library/live';
+import {
+  drawPictureWithModel,
+  FUNCTION_TIME_LIMIT_MS,
+  MAX_PICTURE_BYTES,
+  MAX_SUBJECT_LENGTH,
+  parsePictureSubject,
+  PICTURE_ATTEMPT_TIMEOUT_MS,
+  PICTURE_ATTEMPTS,
+} from './picture';
 
 const API_KEY = 'test-key';
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x01, 0x02, 0x03]);
@@ -188,5 +197,13 @@ describe('drawPictureWithModel', () => {
     ]);
     await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('too large');
     expect(calls).toHaveLength(2);
+  });
+});
+
+describe('picture deadlines', () => {
+  it('the browser waits longer than every server attempt, and the server stops before the function limit', () => {
+    const serverTotal = PICTURE_ATTEMPTS * PICTURE_ATTEMPT_TIMEOUT_MS;
+    expect(PICTURE_REQUEST_TIMEOUT_MS).toBeGreaterThan(serverTotal);
+    expect(PICTURE_REQUEST_TIMEOUT_MS).toBeLessThan(FUNCTION_TIME_LIMIT_MS);
   });
 });

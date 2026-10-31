@@ -6,11 +6,13 @@ const IMAGE_SIZE = '1024x1024';
 const IMAGE_COUNT = 1;
 const IMAGE_FORMAT = 'png';
 const REASONING_STRENGTH = 'low';
-const ATTEMPTS = 2;
+export const PICTURE_ATTEMPTS = 2;
 const ERROR_PREVIEW_CHARS = 200;
 const HTTP_TOO_MANY_REQUESTS = 429;
 const HTTP_SERVER_ERROR = 500;
-// One deadline per attempt, shared by the request and the download, so two attempts fit inside the function's 150 s limit.
+// The deployed function's time limit (MAX_DURATION_SECONDS in scripts/build-vercel.mjs).
+export const FUNCTION_TIME_LIMIT_MS = 150_000;
+// One deadline per attempt, shared by the request and the download, so every attempt fits inside the function's limit.
 export const PICTURE_ATTEMPT_TIMEOUT_MS = 60_000;
 export const MAX_PICTURE_BYTES = 8 * 1024 * 1024;
 export const MAX_SUBJECT_LENGTH = 40;
@@ -102,7 +104,7 @@ export const drawPictureWithModel = async (subject: string, apiKey: string, opti
     try {
       return await drawOnce(subject, apiKey, fetcher, AbortSignal.timeout(timeoutMs));
     } catch (error) {
-      if (error instanceof PermanentError || attempt >= ATTEMPTS) throw error;
+      if (error instanceof PermanentError || attempt >= PICTURE_ATTEMPTS) throw error;
     }
   }
 };
