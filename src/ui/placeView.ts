@@ -4,9 +4,9 @@ import type { LivePictures } from '../library/live';
 import type { Habitat, Library, Zone } from '../library/manifest';
 import { libraryFile } from '../library/match';
 import type { PictureSource } from '../library/source';
-import type { IndividualPose } from '../living/crowd';
+import { isRooted, type IndividualPose } from '../living/crowd';
 import { LABEL_FADE_STEPS, type PinnedLabel } from '../living/labels';
-import { FLOOR_Y, STAGE, SURFACE_Y_BY_HABITAT, type Group, type PlaceLayout } from '../living/layout';
+import { FLOOR_Y, MAX_WIDTH_PER_HEIGHT, STAGE, SURFACE_Y_BY_HABITAT, poseFileFor, type Group, type PlaceLayout } from '../living/layout';
 import { sizeCanvas } from './canvasSize';
 
 // Tunable by eye. Stage px are the 1536 × 1024 background's pixels; screen px are CSS pixels on the canvas.
@@ -17,8 +17,6 @@ const BACKGROUND_FILL = '#cfe3ea';
 const FLOOR_KEEP_PX = 60;
 // Share of a floater's height that sits below the waterline.
 const SURFACE_SUBMERGE = 0.25;
-// A wide picture is fitted to its group's height, but never wider than this many heights.
-const MAX_WIDTH_PER_HEIGHT = 1.6;
 // Library and live pictures are drawn facing right; Fluent emoji animals mostly face left.
 const LIBRARY_FACING = 1;
 const LIVE_FACING = 1;
@@ -33,7 +31,7 @@ const RING_FILL_ALPHA = 0.18;
 const NAME_FONT = '700 34px system-ui, sans-serif';
 const NAME_GAP = 12;
 // Labels, in screen px: the font scales with the canvas height, within limits.
-const LABEL_FONT_SHARE = 0.032;
+const LABEL_FONT_SHARE = 0.022;
 const LABEL_FONT_MIN_PX = 16;
 const LABEL_FONT_MAX_PX = 40;
 const LABEL_PAD_X_EM = 0.6;
@@ -142,10 +140,10 @@ const imagePicture = (image: CanvasImageSource | null, facing: number): Picture 
   return width > 0 && height > 0 ? { kind: 'image', image, width, height, facing } : null;
 };
 
-const pictureOf = (source: PictureSource, moving: boolean, frame: PlaceFrame, memory: Memory): Picture | null => {
+const pictureOf = (source: PictureSource, pose: 'rest' | 'move', frame: PlaceFrame, memory: Memory): Picture | null => {
   switch (source.kind) {
     case 'library': {
-      const file = fileFor(memory, frame.library, source.subject, moving ? 'move' : 'rest');
+      const file = fileFor(memory, frame.library, source.subject, pose);
       return file === null ? null : imagePicture(frame.images.get(file), LIBRARY_FACING);
     }
     case 'live':
@@ -219,28 +217,30 @@ const trackSource = (memory: Memory, id: string, source: PictureSource, seconds:
   return next;
 };
 
+// Back to front by zone; within a zone, rooted plants stand behind the animals among them.
+const drawOrder = (groups: Group[]): Group[] =>
+  ZONE_ORDER.flatMap((zone) => [true, false].flatMap((rooted) => groups.filter((group) => group.zone === zone && isRooted(group.role) === rooted)));
+
 const drawIndividuals = (ctx: CanvasRenderingContext2D, frame: PlaceFrame, memory: Memory): void => {
   const { layout, poses, seconds } = frame;
-  for (const zone of ZONE_ORDER) {
-    for (const group of layout.groups) {
-      if (group.zone !== zone) continue;
-      const members = [...(poses.get(group.speciesId) ?? [])].sort((a, b) => a.y - b.y);
-      const source = frame.sources[group.speciesId] ?? { kind: 'drawing' };
-      const tracked = trackSource(memory, group.speciesId, source, seconds);
-      const blend = tracked.previous ? clamp01((seconds - tracked.since) / CROSSFADE_SECONDS) : 1;
-      const anchor = anchorOf(group, layout.habitat);
-      const colour = frame.colours.get(group.speciesId) ?? LABEL_INK;
-      // Asking for the travelling pose up front starts it loading before anyone needs it.
-      pictureOf(source, true, frame, memory);
-      for (const pose of members) {
-        const current = pictureOf(source, pose.moving, frame, memory);
-        const previous = tracked.previous && blend < 1 ? pictureOf(tracked.previous, pose.moving, frame, memory) : null;
-        if (previous) drawIndividual(ctx, previous, pose, group, anchor, pose.alpha * (1 - blend), colour);
-        if (current) drawIndividual(ctx, current, pose, group, anchor, pose.alpha * (previous ? blend : 1), colour);
-      }
-      if (source.kind === 'drawing' && members.length > 0) {
-        drawName(ctx, group, anchor, frame.web.species.find((entry) => entry.id === group.speciesId)?.name ?? '', colour);
-      }
+  for (const group of drawOrder(layout.groups)) {
+    const members = [...(poses.get(group.speciesId) ?? [])].sort((a, b) => a.y - b.y);
+    const source = frame.sources[group.speciesId] ?? { kind: 'drawing' };
+    const tracked = trackSource(memory, group.speciesId, source, seconds);
+    const blend = tracked.previous ? clamp01((seconds - tracked.since) / CROSSFADE_SECONDS) : 1;
+    const anchor = anchorOf(group, layout.habitat);
+    const colour = frame.colours.get(group.speciesId) ?? LABEL_INK;
+    // Asking for the travelling pose up front starts it loading before anyone needs it.
+    pictureOf(source, 'move', frame, memory);
+    for (const pose of members) {
+      const file = poseFileFor(group.zone, pose.moving);
+      const current = pictureOf(source, file, frame, memory);
+      const previous = tracked.previous && blend < 1 ? pictureOf(tracked.previous, file, frame, memory) : null;
+      if (previous) drawIndividual(ctx, previous, pose, group, anchor, pose.alpha * (1 - blend), colour);
+      if (current) drawIndividual(ctx, current, pose, group, anchor, pose.alpha * (previous ? blend : 1), colour);
+    }
+    if (source.kind === 'drawing' && members.length > 0) {
+      drawName(ctx, group, anchor, frame.web.species.find((entry) => entry.id === group.speciesId)?.name ?? '', colour);
     }
   }
 };

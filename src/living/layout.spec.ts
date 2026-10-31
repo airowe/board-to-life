@@ -8,7 +8,10 @@ import {
   DEFAULT_HABITAT,
   FLOOR_ANIMAL_HEIGHT,
   FLOOR_Y,
+  MAX_SPREAD_SPACINGS,
+  MAX_WIDTH_PER_HEIGHT,
   PRODUCER_HEIGHT,
+  SPACING_PER_WIDTH,
   SMALL_HEIGHT,
   STAGE,
   SURFACE_HEIGHT,
@@ -16,6 +19,8 @@ import {
   WATER_Y_BY_HABITAT,
   habitatFor,
   layoutPlace,
+  poseFileFor,
+  rowOf,
   type Group,
 } from './layout';
 
@@ -68,21 +73,57 @@ describe('layoutPlace', () => {
     expect(layoutPlace(sampleWeb('ocean'), library).habitat).toBe('kelp-forest');
   });
 
-  it("groups keep the board's left-to-right order", () => {
+  const rows = (groups: Group[]): Group[][] => [...new Set(groups.map(rowOf))].map((row) => groups.filter((group) => rowOf(group) === row));
+
+  it("groups keep the board's left-to-right order, and so does each row", () => {
     const web = sampleWeb('forest');
     const { groups } = layoutPlace(web, library);
     const byBoard = [...web.species].sort((a, b) => a.x - b.x).map((entry) => entry.id);
     expect(groups.map((group) => group.speciesId)).toEqual(byBoard);
-    const centres = groups.map((group) => group.centreX);
-    expect(centres).toEqual([...centres].sort((a, b) => a - b));
+    for (const row of rows(groups)) {
+      const centres = row.map((group) => group.centreX);
+      expect(centres).toEqual([...centres].sort((a, b) => a - b));
+    }
   });
 
-  it.each(WEB_SAMPLES.map((sample) => [sample.id]))("no two groups' spreads overlap in the %s sample", (id) => {
-    const { groups } = layoutPlace(sampleWeb(id), library);
-    groups.slice(1).forEach((group, index) => {
-      const before = groups[index] as Group;
-      expect(group.centreX - group.spread).toBeGreaterThanOrEqual(before.centreX + before.spread);
-    });
+  it.each(WEB_SAMPLES.map((sample) => [sample.id]))("no two groups' spreads overlap within a row in the %s sample", (id) => {
+    for (const row of rows(layoutPlace(sampleWeb(id), library).groups)) {
+      row.slice(1).forEach((group, index) => {
+        const before = row[index] as Group;
+        expect(group.centreX - group.spread).toBeGreaterThanOrEqual(before.centreX + before.spread);
+      });
+    }
+  });
+
+  it('lays out sky, floor animals and rooted producers as separate rows across the whole stage', () => {
+    const { groups } = layoutPlace(sampleWeb('grassland'), library);
+    expect(new Set(groups.map(rowOf)).size).toBe(3);
+    const hawk = groupOf(groups, 'hawk');
+    expect(hawk.spread).toBe(MAX_SPREAD_SPACINGS.sky * hawk.spacing);
+  });
+
+  it.each<[string, string]>([
+    ['grassland', 'fox'],
+    ['grassland', 'rabbit'],
+    ['grassland', 'grass'],
+  ])('spaces the %s sample %s at a share of its resting picture width', (id, speciesId) => {
+    const group = groupOf(layoutPlace(sampleWeb(id), library).groups, speciesId);
+    const entry = library.entries.find((item) => item.subject === speciesId && item.pose !== 'move');
+    if (!entry) throw new Error(`no picture for ${speciesId}`);
+    const width = group.size * Math.min(entry.width / entry.height, MAX_WIDTH_PER_HEIGHT);
+    expect(group.spacing).toBeCloseTo(width * SPACING_PER_WIDTH, 6);
+  });
+
+  it('spaces the sky by the flying picture, not the perched one', () => {
+    const hawk = groupOf(layoutPlace(sampleWeb('grassland'), library).groups, 'hawk');
+    const flying = library.entries.find((item) => item.subject === 'hawk' && item.pose === 'move');
+    if (!flying) throw new Error('no flying hawk');
+    expect(hawk.spacing).toBeCloseTo(hawk.size * Math.min(flying.width / flying.height, MAX_WIDTH_PER_HEIGHT) * SPACING_PER_WIDTH, 6);
+  });
+
+  it('gives an unknown subject a square picture to space by', () => {
+    const quux = groupOf(layoutPlace(unknownWeb(), library).groups, 'quuxling');
+    expect(quux.spacing).toBeCloseTo(quux.size * SPACING_PER_WIDTH, 6);
   });
 
   it.each(WEB_SAMPLES.map((sample) => [sample.id]))('keeps every spread on the stage in the %s sample', (id) => {
@@ -183,5 +224,18 @@ describe('layoutPlace', () => {
 
   it('lays out an empty web as an empty scene', () => {
     expect(layoutPlace(webOf([], []), library)).toEqual({ habitat: DEFAULT_HABITAT, groups: [] });
+  });
+});
+
+describe('poseFileFor', () => {
+  it.each<[Parameters<typeof poseFileFor>[0], boolean, 'rest' | 'move']>([
+    ['sky', false, 'move'],
+    ['sky', true, 'move'],
+    ['floor', false, 'rest'],
+    ['floor', true, 'move'],
+    ['water', false, 'rest'],
+    ['surface', false, 'rest'],
+  ])('a %s subject that is moving: %s uses its %s picture', (zone, moving, expected) => {
+    expect(poseFileFor(zone, moving)).toBe(expected);
   });
 });

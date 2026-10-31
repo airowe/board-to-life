@@ -33,7 +33,8 @@ const DRIFT_PERIOD = [5, 8] as const;
 const WANDER_PERIOD = [6, 10] as const;
 const SWAY_PERIOD = [3, 5] as const;
 const SCALE_VARIETY = 0.1;
-const GOLDEN_FRACTION = 0.618034;
+// Each home is nudged up to this share of the group's spacing either way, so a crowd is not a drill line.
+export const HOME_JITTER = 0.12;
 const TAU = 2 * Math.PI;
 
 export const crowdTargets = (
@@ -89,7 +90,7 @@ const seeded = (seed: number, channel: number): number => {
   return ((hash ^ (hash >>> 16)) >>> 0) / 2 ** 32;
 };
 
-const CHANNEL = { phase: 0, period: 1, depth: 2, scale: 3, facing: 4, phaseY: 5, delay: 6, edge: 7, entryDepth: 8 } as const;
+const CHANNEL = { phase: 0, period: 1, depth: 2, scale: 3, facing: 4, phaseY: 5, delay: 6, edge: 7, entryDepth: 8, jitter: 9 } as const;
 
 const clamp01 = (value: number): number => Math.min(Math.max(value, 0), 1);
 const smoothstep = (value: number): number => value * value * (3 - 2 * value);
@@ -144,11 +145,23 @@ const idleReach = (group: Group): number => {
   return group.zone === 'floor' ? WANDER_PX : DRIFT_PX;
 };
 
+const sideOf = (index: number): 1 | -1 => (index % 2 === 0 ? 1 : -1);
+
+// Slot 0 stands at the centre; later slots alternate right and left, one spacing further out each pair, until the reach
+// is used up. Slots after that fill the half-spacing gaps, so a crowd overlaps only once it has run out of room.
+const latticeOffset = (slot: number, spacing: number, reach: number): number => {
+  const steps = spacing > 0 ? Math.floor(reach / spacing) : 0;
+  const onLattice = 2 * steps + 1;
+  if (slot < onLattice) return slot === 0 ? 0 : sideOf(slot - 1) * Math.ceil(slot / 2) * spacing;
+  const gap = (slot - onLattice) % Math.max(2 * steps, 1);
+  return sideOf(gap) * Math.min((Math.floor(gap / 2) + 0.5) * spacing, reach);
+};
+
 const homeOf = (group: Group, who: Individual) => {
-  const spot = (0.5 + who.slot * GOLDEN_FRACTION) % 1;
   const reach = Math.max(group.spread - idleReach(group), 0);
+  const offset = latticeOffset(who.slot, group.spacing, reach) + between(who.seed, CHANNEL.jitter) * HOME_JITTER * group.spacing;
   return {
-    x: group.centreX + (2 * spot - 1) * reach,
+    x: group.centreX + Math.min(Math.max(offset, -reach), reach),
     y: group.baseY + between(who.seed, CHANNEL.depth) * group.depth,
     scale: 1 + between(who.seed, CHANNEL.scale) * SCALE_VARIETY,
   };

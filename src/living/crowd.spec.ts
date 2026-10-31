@@ -8,6 +8,7 @@ import {
   BASE_ANIMALS,
   BASE_PRODUCERS,
   ENTER_SECONDS,
+  HOME_JITTER,
   LEAVE_SECONDS,
   MAX_PER_GROUP,
   STAGGER_FRACTION,
@@ -64,11 +65,11 @@ describe('crowdTargets', () => {
   });
 });
 
-const FLOOR: Group = { speciesId: 'fox', role: 'consumer', zone: 'floor', centreX: 400, spread: 120, baseY: 880, depth: 12, size: 150 };
-const SURFACE: Group = { speciesId: 'otter', role: 'consumer', zone: 'surface', centreX: 1000, spread: 100, baseY: 123, depth: 0, size: 130 };
-const WATER: Group = { speciesId: 'fish', role: 'consumer', zone: 'water', centreX: 1300, spread: 100, baseY: 560, depth: 60, size: 110 };
-const PRODUCER: Group = { speciesId: 'grass', role: 'producer', zone: 'floor', centreX: 800, spread: 150, baseY: 880, depth: 12, size: 300 };
-const DECOMPOSER: Group = { speciesId: 'fungi', role: 'decomposer', zone: 'floor', centreX: 1150, spread: 60, baseY: 880, depth: 12, size: 150 };
+const FLOOR: Group = { speciesId: 'fox', role: 'consumer', zone: 'floor', centreX: 400, spread: 120, baseY: 880, depth: 12, size: 150, spacing: 50 };
+const SURFACE: Group = { speciesId: 'otter', role: 'consumer', zone: 'surface', centreX: 1000, spread: 100, baseY: 123, depth: 0, size: 130, spacing: 50 };
+const WATER: Group = { speciesId: 'fish', role: 'consumer', zone: 'water', centreX: 1300, spread: 100, baseY: 560, depth: 60, size: 110, spacing: 40 };
+const PRODUCER: Group = { speciesId: 'grass', role: 'producer', zone: 'floor', centreX: 800, spread: 150, baseY: 880, depth: 12, size: 300, spacing: 90 };
+const DECOMPOSER: Group = { speciesId: 'fungi', role: 'decomposer', zone: 'floor', centreX: 1150, spread: 60, baseY: 880, depth: 12, size: 150, spacing: 40 };
 const GROUPS = [FLOOR, SURFACE, WATER, PRODUCER, DECOMPOSER];
 // Latest a staggered newcomer can still be travelling, and latest a staggered leaver can still be showing.
 const ENTERED_BY = ENTER_SECONDS * (1 + STAGGER_FRACTION);
@@ -106,6 +107,35 @@ describe('isRooted', () => {
     ['consumer', false],
   ])('%s rooted: %s', (role, rooted) => {
     expect(isRooted(role)).toBe(rooted);
+  });
+});
+
+describe('createCrowdTracker: homes', () => {
+  // Room for nine members a spacing apart (four either side of the centre), after the 30 px idle wander.
+  const ROOMY: Group = { ...FLOOR, speciesId: 'rabbit', spread: 400, spacing: 84 };
+  const homesOf = (group: Group, count: number): number[] => {
+    const tracker = createCrowdTracker();
+    tracker.update({ [group.speciesId]: count }, 0, { settle: true });
+    return (tracker.poses([group], 0, true).get(group.speciesId) ?? []).map((pose) => pose.x).sort((a, b) => a - b);
+  };
+  const gapsOf = (xs: number[]): number[] => xs.slice(1).map((x, index) => x - (xs[index] as number));
+
+  it.each([BASE_ANIMALS, 9])('a settled crowd of %i stands at least a spacing apart while it has room', (count) => {
+    const homes = homesOf(ROOMY, count);
+    expect(homes).toHaveLength(count);
+    for (const gap of gapsOf(homes)) expect(gap).toBeGreaterThanOrEqual(ROOMY.spacing * (1 - 2 * HOME_JITTER));
+  });
+
+  it('keeps every home inside the spread once the crowd runs out of room', () => {
+    const homes = homesOf(ROOMY, MAX_PER_GROUP);
+    expect(homes).toHaveLength(MAX_PER_GROUP);
+    for (const x of homes) expect(Math.abs(x - ROOMY.centreX)).toBeLessThanOrEqual(ROOMY.spread);
+    for (const gap of gapsOf(homes)) expect(gap).toBeGreaterThan(0);
+  });
+
+  it('a small crowd gathers about the centre rather than at the edges', () => {
+    const homes = homesOf(ROOMY, 3);
+    for (const x of homes) expect(Math.abs(x - ROOMY.centreX)).toBeLessThanOrEqual(ROOMY.spacing * (1 + HOME_JITTER));
   });
 });
 

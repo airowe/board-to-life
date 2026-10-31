@@ -1,6 +1,6 @@
 import type { Role, Species, Web } from '../ecosystem/schema';
 import type { Habitat, Library, LibraryEntry, Zone } from '../library/manifest';
-import { findLibrarySubject, guessZone } from '../library/match';
+import { findLibrarySubject, guessZone, libraryFile } from '../library/match';
 
 export const STAGE = { width: 1536, height: 1024 };
 // Measured on the habitat backgrounds (grassland 0.86, kelp forest 0.875, pond 0.88, woodland 0.89).
@@ -38,9 +38,14 @@ export const SURFACE_HEIGHT = 130;
 
 const STAGE_MARGIN = 48;
 // A group's crowd fills this share of its slot, leaving a gap to its neighbours.
-const SPREAD_FILL = 0.8;
-// A lone group stays a crowd rather than spreading across the whole stage.
-const MAX_SPREAD_PER_HEIGHT = 1.5;
+const SPREAD_FILL = 0.9;
+// A wide picture is fitted to its group's height, but never wider than this many heights.
+export const MAX_WIDTH_PER_HEIGHT = 1.6;
+// Members of a crowd stand this share of a picture's width apart before they start to overlap.
+export const SPACING_PER_WIDTH = 0.6;
+// A lone group stays a crowd rather than spreading across the whole stage: at most this many spacings either side of
+// its centre. The sky is open, so fliers may spread wider.
+export const MAX_SPREAD_SPACINGS: Record<Zone, number> = { floor: 3, water: 3, surface: 3, sky: 5 };
 // How far a member may sit in front of or behind the group's line, so a crowd is not a queue.
 const DEPTH_PX: Record<Zone, number> = { floor: 12, water: 60, surface: 0, sky: 40 };
 // Room kept between a swimmer and the waterline or floor, covering its idle drift.
@@ -48,7 +53,18 @@ const WATER_MARGIN_PX = 20;
 const ANIMAL_HEIGHT: Record<Zone, number> = { floor: FLOOR_ANIMAL_HEIGHT, water: SMALL_HEIGHT, surface: SURFACE_HEIGHT, sky: SMALL_HEIGHT };
 
 // Stage px. `baseY` is the line the crowd stands on, floats at or swims and flies along; members sit up to `depth` above or below it.
-export type Group = { speciesId: string; role: Role; zone: Zone; centreX: number; spread: number; baseY: number; depth: number; size: number };
+// `spacing` is how far apart members stand before the crowd runs out of room.
+export type Group = {
+  speciesId: string;
+  role: Role;
+  zone: Zone;
+  centreX: number;
+  spread: number;
+  baseY: number;
+  depth: number;
+  size: number;
+  spacing: number;
+};
 export type PlaceLayout = { habitat: Habitat; groups: Group[] };
 
 const libraryEntryFor = (library: Library, name: string): LibraryEntry | null => {
@@ -66,6 +82,19 @@ export const habitatFor = (web: Web, library: Library): Habitat => {
   const [first, second] = ranked;
   if (first === undefined || (second !== undefined && second[1] === first[1])) return DEFAULT_HABITAT;
   return first[0];
+};
+
+// Fliers are always shown in flight: a perched bird hanging in mid-air reads wrong.
+export const poseFileFor = (zone: Zone, moving: boolean): 'rest' | 'move' => (zone === 'sky' || moving ? 'move' : 'rest');
+
+// Groups in one row share its width; rows (sky, water, surface, floor animals and rooted producers) overlap freely.
+export const rowOf = (group: Pick<Group, 'zone' | 'role'>): string => `${group.zone}:${group.role === 'consumer' ? 'free' : 'rooted'}`;
+
+const aspectOf = (library: Library, name: string, zone: Zone): number => {
+  const subject = findLibrarySubject(library, name);
+  const file = subject === null ? null : libraryFile(library, subject, poseFileFor(zone, false));
+  const entry = file === null ? undefined : library.entries.find((item) => item.file === file);
+  return entry ? Math.min(entry.width / entry.height, MAX_WIDTH_PER_HEIGHT) : 1;
 };
 
 const zoneOf = (library: Library, species: Species): Zone => libraryEntryFor(library, species.name)?.zone ?? guessZone(species.name);
@@ -90,25 +119,32 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     .sort((a, b) => a.x - b.x)
     .map((species) => {
       const zone = zoneOf(library, species);
-      return { species, zone, size: sizeOf(species.role, zone) };
+      const size = sizeOf(species.role, zone);
+      return { species, zone, size, width: size * aspectOf(library, species.name, zone), row: rowOf({ zone, role: species.role }) };
     });
-  const totalSize = placed.reduce((sum, entry) => sum + entry.size, 0);
-  const pxPerSize = (STAGE.width - 2 * STAGE_MARGIN) / Math.max(totalSize, 1);
-  let left = STAGE_MARGIN;
-  const groups = placed.map(({ species, zone, size }): Group => {
-    const slot = size * pxPerSize;
-    const centreX = left + slot / 2;
-    left += slot;
+  const leftByRow = new Map<string, number>();
+  const pxPerWidthByRow = new Map<string, number>();
+  for (const row of new Set(placed.map((entry) => entry.row))) {
+    const totalWidth = placed.filter((entry) => entry.row === row).reduce((sum, entry) => sum + entry.width, 0);
+    leftByRow.set(row, STAGE_MARGIN);
+    pxPerWidthByRow.set(row, (STAGE.width - 2 * STAGE_MARGIN) / Math.max(totalWidth, 1));
+  }
+  const groups = placed.map(({ species, zone, size, width, row }): Group => {
+    const slot = width * (pxPerWidthByRow.get(row) ?? 0);
+    const left = leftByRow.get(row) ?? STAGE_MARGIN;
+    leftByRow.set(row, left + slot);
     const baseY = lineOf(habitat, zone);
+    const spacing = width * SPACING_PER_WIDTH;
     return {
       speciesId: species.id,
       role: species.role,
       zone,
-      centreX,
-      spread: Math.min((slot / 2) * SPREAD_FILL, size * MAX_SPREAD_PER_HEIGHT),
+      centreX: left + slot / 2,
+      spread: Math.min((slot / 2) * SPREAD_FILL, MAX_SPREAD_SPACINGS[zone] * spacing),
       baseY,
       depth: depthOf(habitat, zone, baseY, size),
       size,
+      spacing,
     };
   });
   return { habitat, groups };
