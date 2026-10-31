@@ -40,15 +40,15 @@ describe('labelsAt', () => {
     expect(kelpLabelsAt(EVENT_STEP)).toEqual([{ speciesId: 'otter', text: 'The sea otters are removed.', since: EVENT_STEP }]);
   });
 
-  it('urchins get "Urchins multiply." after it', () => {
+  it('urchins get "Urchins multiplying." after it', () => {
     const since = firstStepWith('urchin');
     expect(since).toBeGreaterThan(EVENT_STEP);
-    expect(labelFor(kelpLabelsAt(MODEL_STEPS), 'urchin')).toEqual({ speciesId: 'urchin', text: 'Urchins multiply.', since });
+    expect(labelFor(kelpLabelsAt(MODEL_STEPS), 'urchin')).toEqual({ speciesId: 'urchin', text: 'Urchins multiplying.', since });
   });
 
-  it('kelp gets "Kelp thin out."', () => {
+  it('kelp gets "Kelp thinning out."', () => {
     const since = firstStepWith('kelp');
-    expect(labelFor(kelpLabelsAt(MODEL_STEPS), 'kelp')).toEqual({ speciesId: 'kelp', text: 'Kelp thin out.', since });
+    expect(labelFor(kelpLabelsAt(MODEL_STEPS), 'kelp')).toEqual({ speciesId: 'kelp', text: 'Kelp thinning out.', since });
   });
 
   it('labels a change from the first step it passes the threshold', () => {
@@ -77,7 +77,7 @@ describe('labelsAt', () => {
     const pond = sampleWeb('pond');
     const pondEvent = pond.event as WebEvent;
     const labels = labelsAt(pond, pondEvent, run(pond, pondEvent), MODEL_STEPS);
-    expect(labels.map((label) => label.text)).toEqual(['Ducks multiply.', 'Water fleas decline.', 'Algae multiply.']);
+    expect(labels.map((label) => label.text)).toEqual(['Ducks multiplying.', 'Water fleas declining.', 'Algae multiplying.']);
   });
 
   it('a died-out label replaces that species\' decline label', () => {
@@ -87,9 +87,9 @@ describe('labelsAt', () => {
     const series: Series = { ids: ['grass', 'fox'], values: { grass, fox } };
     const declineStep = EVENT_STEP + 1;
     const deadStep = EVENT_STEP + 4;
-    expect(labelsAt(web, DROUGHT, series, deadStep - 1)).toContainEqual({ speciesId: 'fox', text: 'Foxes decline.', since: declineStep });
+    expect(labelsAt(web, DROUGHT, series, deadStep - 1)).toContainEqual({ speciesId: 'fox', text: 'Foxes declining.', since: declineStep });
     const labels = labelsAt(web, DROUGHT, series, deadStep);
-    expect(labels.filter((label) => label.speciesId === 'fox')).toEqual([{ speciesId: 'fox', text: 'Foxes die out.', since: deadStep }]);
+    expect(labels.filter((label) => label.speciesId === 'fox')).toEqual([{ speciesId: 'fox', text: 'Foxes dying out.', since: deadStep }]);
   });
 
   it('drought label has no species', () => {
@@ -163,10 +163,10 @@ describe('labelsAt', () => {
     expect([...organisms].filter((name) => !covered.has(name) && !NOT_A_SPECIES.has(name))).toEqual([]);
   });
 
-  it.each([...PLURALS, ...OTHER_PLURALS])('names a rising "%s" as "%s multiply."', (name, plural) => {
+  it.each([...PLURALS, ...OTHER_PLURALS])('names a rising "%s" as "%s multiplying."', (name, plural) => {
     const web = webOf([{ ...speciesAt('grass', 'producer', 100, 800), name }], []);
     const series: Series = { ids: ['grass'], values: { grass: [...Array<number>(EVENT_STEP + 1).fill(100), 200] } };
-    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 1), 'grass')?.text).toBe(`${plural} multiply.`);
+    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 1), 'grass')?.text).toBe(`${plural} multiplying.`);
   });
 
   it('the removal label uses the irregular plural', () => {
@@ -185,7 +185,7 @@ describe('labels and crowds agree on who is gone', () => {
   const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
   const roles = { grass: 'producer', fox: 'consumer' } as const;
   const steps = Array.from({ length: fox.length - EVENT_STEP }, (_, index) => EVENT_STEP + index);
-  const diesOut = (step: number) => labelFor(labelsAt(web, DROUGHT, series, step), 'fox')?.text === 'Foxes die out.';
+  const diesOut = (step: number) => labelFor(labelsAt(web, DROUGHT, series, step), 'fox')?.text === 'Foxes dying out.';
   const crowdAt = (step: number) => crowdTargets(series, step, { grass: 1000, fox: SETTLED_FOX }, roles, emptyEdits()).fox;
 
   it('says "die out" exactly while the outcome rule calls the fox gone', () => {
@@ -203,7 +203,7 @@ describe('labels and crowds agree on who is gone', () => {
   });
 
   it('goes back to the decline label once the fox recovers', () => {
-    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 8), 'fox')).toEqual({ speciesId: 'fox', text: 'Foxes decline.', since: EVENT_STEP + 1 });
+    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 8), 'fox')).toEqual({ speciesId: 'fox', text: 'Foxes declining.', since: EVENT_STEP + 1 });
     expect(crowdAt(EVENT_STEP + 8)).toBeGreaterThan(0);
   });
 });

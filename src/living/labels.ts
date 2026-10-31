@@ -7,7 +7,7 @@ export const LABEL_FADE_STEPS = 60;
 
 export type PinnedLabel = { speciesId: string | null; text: string; since: number }; // since = step it appeared
 
-// Names that read the same for one or many, so "Kelp thin out." rather than "Kelps thin out.".
+// Names that read the same for one or many, so "Kelp thinning out." rather than "Kelps thinning out.".
 const SAME_PLURAL = new Set([
   'kelp', 'grass', 'algae', 'plankton', 'phytoplankton', 'zooplankton', 'krill', 'seaweed', 'fungi', 'fish', 'deer',
   'sheep', 'moose', 'bison', 'salmon', 'trout', 'moss', 'clover', 'wheat', 'corn', 'larvae', 'mice', 'geese', 'lice',
@@ -43,22 +43,22 @@ const eventLabel = (web: Web, event: WebEvent): PinnedLabel => {
   return { speciesId: event.species, text: `The ${pluralName(name)} are removed.`, since: EVENT_STEP };
 };
 
-// The first clear change since the event, unless the species is gone right now: then "die out", dated from when it went.
+// The first clear change since the event, unless the species is gone right now: then "dying out", dated from when it went.
 const changeLabel = (species: Species, values: number[], step: number): PinnedLabel | null => {
   const reference = referenceLevel(values, EVENT_STEP);
   if (reference <= 0) return null;
   const name = capitalised(pluralName(species.name));
-  const fallText = species.role === 'producer' ? `${name} thin out.` : `${name} decline.`;
+  const fallText = species.role === 'producer' ? `${name} thinning out.` : `${name} declining.`;
   let change: PinnedLabel | null = null;
   let goneSince: number | null = null;
   for (let at = EVENT_STEP + 1; at <= Math.min(step, values.length - 1); at += 1) {
     const value = values[at] ?? 0;
     goneSince = isGone(value, reference) ? (goneSince ?? at) : null;
     if (change !== null) continue;
-    if (value > reference * (1 + CHANGE_THRESHOLD)) change = { speciesId: species.id, text: `${name} multiply.`, since: at };
+    if (value > reference * (1 + CHANGE_THRESHOLD)) change = { speciesId: species.id, text: `${name} multiplying.`, since: at };
     else if (value < reference * (1 - CHANGE_THRESHOLD)) change = { speciesId: species.id, text: fallText, since: at };
   }
-  return goneSince === null ? change : { speciesId: species.id, text: `${name} die out.`, since: goneSince };
+  return goneSince === null ? change : { speciesId: species.id, text: `${name} dying out.`, since: goneSince };
 };
 
 export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
