@@ -230,11 +230,48 @@ describe('createCrowdTracker: entering and leaving', () => {
     expect(new Set(departures).size).toBeGreaterThan(1);
   });
 
-  it('a surface slot drops in from above the stage', () => {
-    const start = first(posesAt({ otter: 1 }, 0), 'otter');
-    expect(start.y).toBeLessThan(0);
-    expect(first(posesAt({ otter: 1 }, ENTERED_BY), 'otter').y).toBeGreaterThan(0);
+  it('a surface slot swims in along its waterline from the nearer edge', () => {
+    const settled = trackerWith({ otter: 1 }, true);
+    const entering = trackerWith({ otter: 1 });
+    const start = first(entering.poses(GROUPS, 0, false), 'otter');
+    expect(isOffStage(start, SURFACE)).toBe(true);
+    expect(start.x).toBeGreaterThan(STAGE.width);
+    for (const seconds of frames(0, ENTERED_BY + FRAME)) {
+      const pose = first(entering.poses(GROUPS, seconds, false), 'otter');
+      expect(pose.y).toBeCloseTo(first(settled.poses(GROUPS, seconds, false), 'otter').y, 6);
+    }
   });
+
+  it('a leaving surface slot stays on its waterline and drifts off the nearer edge', () => {
+    const settled = trackerWith({ otter: 1 }, true);
+    const leaving = trackerWith({ otter: 1 }, true);
+    leaving.update({ otter: 0 }, 0);
+    const showing: IndividualPose[] = [];
+    for (const seconds of frames(0, LEFT_BY)) {
+      const pose = leaving.poses(GROUPS, seconds, false).get('otter')?.[0];
+      if (!pose) break;
+      expect(pose.y).toBeCloseTo(first(settled.poses(GROUPS, seconds, false), 'otter').y, 6);
+      showing.push(pose);
+    }
+    const last = showing.at(-1) as IndividualPose;
+    expect(last.x).toBeGreaterThan(STAGE.width);
+    expect(last).toMatchObject({ moving: true, facing: 1 });
+  });
+
+  it.each(GROUPS.filter((group) => group.role === 'consumer').map((group) => group.speciesId))(
+    'a %s near either end of its journey is faded out, so it never blinks out at full opacity',
+    (id) => {
+      const entering = trackerWith({ [id]: 1 });
+      const leaving = trackerWith({ [id]: 1 }, true);
+      leaving.update({ [id]: 0 }, 0);
+      const firstEntry = first(entering.poses(GROUPS, 0, false), id);
+      expect(firstEntry.alpha).toBeCloseTo(0, 6);
+      const showing = frames(0, LEFT_BY + FRAME)
+        .map((seconds) => leaving.poses(GROUPS, seconds, false).get(id)?.[0])
+        .filter((pose): pose is IndividualPose => pose !== undefined);
+      expect((showing.at(-1) as IndividualPose).alpha).toBeLessThan(0.01);
+    },
+  );
 
   it('a settled start gives home poses at t=0', () => {
     const tracker = trackerWith({ fox: 3, grass: 2 }, true);

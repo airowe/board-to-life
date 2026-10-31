@@ -21,7 +21,9 @@ const LEAVE_SCALE = 0.15;
 // Newcomers start between one and two of their sizes beyond the edge, and up to this far off their line.
 const OFFSTAGE_SCATTER = 1;
 const ENTRY_DEPTH_PX = 24;
-const SURFACE_SCATTER_PX = 60;
+// A traveller is see-through at the start of its journey and fully drawn once it has covered this share of it, so the
+// canvas's spare room around the stage (mirrored sides, sky above) never shows one popping in or out at full opacity.
+const TRAVEL_FADE_SHARE = 0.3;
 const BOB_PX = 6;
 const DRIFT_PX = 20;
 const DRIFT_Y_PX = 6;
@@ -209,16 +211,13 @@ const poseOf = (group: Group, who: Individual, slot: Slot, seconds: number, redu
   if (eased >= 1) return settled;
   // Plants grow in and shrink away where they are, wherever they live; only animals travel.
   if (group.role !== 'consumer') return { ...settled, scale: settled.scale * lerp(LEAVE_SCALE, 1, eased), alpha: look.alpha * eased };
+  // Animals come and go by the nearer side edge; floaters keep to their waterline, the rest arrive a little off their line.
   const away = 1 - eased;
-  if (group.zone === 'surface') {
-    const dropX = between(who.seed, CHANNEL.edge) * SURFACE_SCATTER_PX;
-    const startY = -group.size * (1 + OFFSTAGE_SCATTER * seeded(who.seed, CHANNEL.entryDepth));
-    return { ...settled, x: spot.x + dropX * away, y: lerp(startY, spot.y, eased), moving: true };
-  }
   const edgeX = edgeOf(group, who, home.x);
   const heading = slot.showing ? signOf(home.x - edgeX) : signOf(edgeX - home.x);
-  const y = spot.y + between(who.seed, CHANNEL.entryDepth) * ENTRY_DEPTH_PX * away;
-  return { ...settled, x: lerp(edgeX, spot.x, eased), y, facing: heading, moving: true };
+  const offLine = group.zone === 'surface' ? 0 : between(who.seed, CHANNEL.entryDepth) * ENTRY_DEPTH_PX * away;
+  const alpha = look.alpha * smoothstep(clamp01(progressOf(slot, seconds) / TRAVEL_FADE_SHARE));
+  return { ...settled, x: lerp(edgeX, spot.x, eased), y: spot.y + offLine, alpha, facing: heading, moving: true };
 };
 
 const hiddenSlot = (): Slot => ({ showing: false, from: 0, since: 0, delay: 0, turned: false });
