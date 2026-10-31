@@ -11,6 +11,7 @@ import {
   MAX_SPREAD_SPACINGS,
   MAX_WIDTH_PER_HEIGHT,
   PRODUCER_HEIGHT,
+  ROOTED_MAX_SPREAD_SHARE,
   SPACING_PER_WIDTH,
   SMALL_HEIGHT,
   STAGE,
@@ -100,6 +101,32 @@ describe('layoutPlace', () => {
     expect(new Set(groups.map(rowOf)).size).toBe(3);
     const hawk = groupOf(groups, 'hawk');
     expect(hawk.spread).toBe(MAX_SPREAD_SPACINGS.sky * hawk.spacing);
+  });
+
+  it.each(WEB_SAMPLES.map((sample) => [sample.id]))('keeps every rooted crowd within its share of the stage in the %s sample', (id) => {
+    const rooted = layoutPlace(sampleWeb(id), library).groups.filter((group) => group.role !== 'consumer');
+    expect(rooted.length).toBeGreaterThan(0);
+    for (const group of rooted) expect(2 * group.spread).toBeLessThanOrEqual(ROOTED_MAX_SPREAD_SHARE * STAGE.width);
+  });
+
+  it.each<[string, number]>([
+    ['left', 100],
+    ['middle', 500],
+    ['right', 900],
+  ])('a lone plant drawn on the %s of the board clusters there', (_, boardX) => {
+    const web = webOf([speciesAt('grass', 'producer', boardX, 800), speciesAt('rabbit', 'consumer', 300, 400)], []);
+    const grass = groupOf(layoutPlace(web, library).groups, 'grass');
+    const wanted = 48 + (boardX / web.drawing.width) * (STAGE.width - 2 * 48);
+    const lowest = grass.spread + 48;
+    const highest = STAGE.width - 48 - grass.spread;
+    expect(grass.centreX).toBeCloseTo(Math.min(Math.max(wanted, lowest), highest), 6);
+  });
+
+  it('keeps plants drawn side by side apart and in board order', () => {
+    const web = webOf([speciesAt('grass', 'producer', 480, 800), speciesAt('oak', 'producer', 520, 800)], []);
+    const [grass, oak] = layoutPlace(web, library).groups;
+    if (!grass || !oak) throw new Error('missing groups');
+    expect(oak.centreX - oak.spread).toBeGreaterThanOrEqual(grass.centreX + grass.spread);
   });
 
   it.each<[string, string]>([

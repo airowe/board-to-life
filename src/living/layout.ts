@@ -31,7 +31,8 @@ export const WATER_Y_BY_HABITAT: Record<Habitat, number> = {
 };
 export const DEFAULT_HABITAT: Habitat = 'grassland';
 
-export const PRODUCER_HEIGHT = 300;
+// Low enough that the habitat still shows above the plants.
+export const PRODUCER_HEIGHT = 220;
 export const FLOOR_ANIMAL_HEIGHT = 150;
 export const SMALL_HEIGHT = 110;
 export const SURFACE_HEIGHT = 130;
@@ -46,6 +47,8 @@ export const SPACING_PER_WIDTH = 0.6;
 // A lone group stays a crowd rather than spreading across the whole stage: at most this many spacings either side of
 // its centre. The sky is open, so fliers may spread wider.
 export const MAX_SPREAD_SPACINGS: Record<Zone, number> = { floor: 3, water: 3, surface: 3, sky: 5 };
+// Plants cluster where they were drawn instead of carpeting the floor: a rooted crowd covers at most this share of the stage width.
+export const ROOTED_MAX_SPREAD_SHARE = 0.4;
 // How far a member may sit in front of or behind the group's line, so a crowd is not a queue.
 const DEPTH_PX: Record<Zone, number> = { floor: 12, water: 60, surface: 0, sky: 40 };
 // Room kept between a swimmer and the waterline or floor, covering its idle drift.
@@ -120,7 +123,8 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     .map((species) => {
       const zone = zoneOf(library, species);
       const size = sizeOf(species.role, zone);
-      return { species, zone, size, width: size * aspectOf(library, species.name, zone), row: rowOf({ zone, role: species.role }) };
+      const width = size * aspectOf(library, species.name, zone);
+      return { species, zone, size, width, row: rowOf({ zone, role: species.role }) };
     });
   const leftByRow = new Map<string, number>();
   const pxPerWidthByRow = new Map<string, number>();
@@ -135,12 +139,18 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     leftByRow.set(row, left + slot);
     const baseY = lineOf(habitat, zone);
     const spacing = width * SPACING_PER_WIDTH;
+    const rooted = species.role !== 'consumer';
+    const widest = Math.min((slot / 2) * SPREAD_FILL, MAX_SPREAD_SPACINGS[zone] * spacing);
+    const spread = rooted ? Math.min(widest, (ROOTED_MAX_SPREAD_SHARE * STAGE.width) / 2) : widest;
+    // A plant stands as near its board position as its own slot allows; animals keep to the middle of theirs.
+    const drawnAt = STAGE_MARGIN + (species.x / web.drawing.width) * (STAGE.width - 2 * STAGE_MARGIN);
+    const centreX = rooted ? Math.min(Math.max(drawnAt, left + spread), left + slot - spread) : left + slot / 2;
     return {
       speciesId: species.id,
       role: species.role,
       zone,
-      centreX: left + slot / 2,
-      spread: Math.min((slot / 2) * SPREAD_FILL, MAX_SPREAD_SPACINGS[zone] * spacing),
+      centreX,
+      spread,
       baseY,
       depth: depthOf(habitat, zone, baseY, size),
       size,
