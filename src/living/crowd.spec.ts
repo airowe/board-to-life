@@ -10,8 +10,13 @@ import {
   ENTER_SECONDS,
   LEAVE_SECONDS,
   MAX_PER_GROUP,
+  STAGGER_FRACTION,
+  VIGOUR_MAX,
+  VIGOUR_MIN,
   createCrowdTracker,
   crowdTargets,
+  isRooted,
+  type CrowdTracker,
   type IndividualPose,
 } from './crowd';
 import { parseLibrary } from '../library/manifest';
@@ -62,16 +67,27 @@ const FLOOR: Group = { speciesId: 'fox', role: 'consumer', zone: 'floor', centre
 const SURFACE: Group = { speciesId: 'otter', role: 'consumer', zone: 'surface', centreX: 1000, spread: 100, baseY: 123, depth: 0, size: 130 };
 const WATER: Group = { speciesId: 'fish', role: 'consumer', zone: 'water', centreX: 1300, spread: 100, baseY: 560, depth: 60, size: 110 };
 const PRODUCER: Group = { speciesId: 'grass', role: 'producer', zone: 'floor', centreX: 800, spread: 150, baseY: 880, depth: 12, size: 300 };
-const GROUPS = [FLOOR, SURFACE, WATER, PRODUCER];
-const SETTLED_IN = ENTER_SECONDS + 0.5;
+const DECOMPOSER: Group = { speciesId: 'fungi', role: 'decomposer', zone: 'floor', centreX: 1150, spread: 60, baseY: 880, depth: 12, size: 150 };
+const GROUPS = [FLOOR, SURFACE, WATER, PRODUCER, DECOMPOSER];
+// Latest a staggered newcomer can still be travelling, and latest a staggered leaver can still be showing.
+const ENTERED_BY = ENTER_SECONDS * (1 + STAGGER_FRACTION);
+const LEFT_BY = LEAVE_SECONDS * (1 + STAGGER_FRACTION);
+// Every slot has left its delay and is past half way.
+const MID_ENTRY = ENTER_SECONDS * (STAGGER_FRACTION + 0.5);
+const MID_LEAVE = LEAVE_SECONDS * (STAGGER_FRACTION + 0.5);
+const SETTLED_IN = ENTERED_BY + 0.5;
 const IDLE_TIMES = [SETTLED_IN, SETTLED_IN + 0.7, SETTLED_IN + 2.3, SETTLED_IN + 5.1];
+const FRAME = 1 / 60;
 const HALF = 0.5;
 
-const posesAt = (targets: Record<string, number>, seconds: number, reducedMotion = false): Map<string, IndividualPose[]> => {
+const trackerWith = (targets: Record<string, number>, settle = false): CrowdTracker => {
   const tracker = createCrowdTracker();
-  tracker.update(targets, 0);
-  return tracker.poses(GROUPS, seconds, reducedMotion);
+  tracker.update(targets, 0, { settle });
+  return tracker;
 };
+
+const posesAt = (targets: Record<string, number>, seconds: number, reducedMotion = false): Map<string, IndividualPose[]> =>
+  trackerWith(targets).poses(GROUPS, seconds, reducedMotion);
 
 const first = (poses: Map<string, IndividualPose[]>, id: string): IndividualPose => {
   const pose = poses.get(id)?.[0];
@@ -79,95 +95,179 @@ const first = (poses: Map<string, IndividualPose[]>, id: string): IndividualPose
   return pose;
 };
 
-describe('createCrowdTracker', () => {
+const frames = (from: number, to: number): number[] => Array.from({ length: Math.ceil((to - from) / FRAME) }, (_, index) => from + index * FRAME);
+
+const isOffStage = (pose: IndividualPose, group: Group): boolean => pose.x + group.size / 2 <= 0 || pose.x - group.size / 2 >= STAGE.width || pose.y + group.size / 2 <= 0;
+
+describe('isRooted', () => {
+  it.each<[Role, boolean]>([
+    ['producer', true],
+    ['decomposer', true],
+    ['consumer', false],
+  ])('%s rooted: %s', (role, rooted) => {
+    expect(isRooted(role)).toBe(rooted);
+  });
+});
+
+describe('createCrowdTracker: entering and leaving', () => {
   it('a new slot starts off-stage and reaches its spot after ENTER_SECONDS', () => {
     const start = first(posesAt({ fox: 1 }, 0), 'fox');
-    expect(start.x + FLOOR.size / 2 <= 0 || start.x - FLOOR.size / 2 >= STAGE.width).toBe(true);
+    expect(isOffStage(start, FLOOR)).toBe(true);
     expect(start.moving).toBe(true);
 
-    const travelling = first(posesAt({ fox: 1 }, ENTER_SECONDS * HALF), 'fox');
+    const travelling = first(posesAt({ fox: 1 }, MID_ENTRY), 'fox');
     expect(travelling.moving).toBe(true);
     expect(travelling.facing).toBe(start.x < 0 ? 1 : -1);
 
-    const arrived = first(posesAt({ fox: 1 }, ENTER_SECONDS), 'fox');
-    expect(arrived).toMatchObject({ moving: false, alpha: 1, y: expect.any(Number) });
+    const arrived = first(posesAt({ fox: 1 }, ENTERED_BY), 'fox');
+    expect(arrived).toMatchObject({ moving: false, alpha: 1 });
     expect(Math.abs(arrived.x - FLOOR.centreX)).toBeLessThanOrEqual(FLOOR.spread);
   });
 
-  it('enters with easing, slow at the start and the end', () => {
-    const xAt = (fraction: number) => first(posesAt({ fox: 1 }, ENTER_SECONDS * fraction), 'fox').x;
-    const total = Math.abs(xAt(1) - xAt(0));
-    const early = Math.abs(xAt(0.1) - xAt(0));
-    const middle = Math.abs(xAt(0.55) - xAt(0.45));
-    expect(early).toBeLessThan(total * 0.1);
-    expect(middle).toBeGreaterThan(total * 0.1);
+  it('enters over ENTER_SECONDS with easing, slow at the start and the end', () => {
+    const times = frames(0, ENTERED_BY + FRAME);
+    const alphas = times.map((seconds) => first(posesAt({ fox: 1 }, seconds, true), 'fox').alpha);
+    const starts = times[alphas.lastIndexOf(0)] as number;
+    const ends = times[alphas.indexOf(1)] as number;
+    expect(ends - starts).toBeCloseTo(ENTER_SECONDS, 1);
+    const alphaAt = (fraction: number) => first(posesAt({ fox: 1 }, starts + ENTER_SECONDS * fraction, true), 'fox').alpha;
+    expect(alphaAt(0.1)).toBeLessThan(0.1);
+    expect(alphaAt(0.5)).toBeCloseTo(0.5, 1);
+    expect(alphaAt(0.9)).toBeGreaterThan(0.9);
+  });
+
+  it('two newcomers of one group are not at the same place early in an entry', () => {
+    for (const seconds of [0, ENTER_SECONDS * 0.25, ENTER_SECONDS * 0.5]) {
+      const [one, two, three] = posesAt({ fox: 3 }, seconds).get('fox') ?? [];
+      const xs = [one?.x, two?.x, three?.x] as number[];
+      expect(new Set(xs.map((x) => Math.round(x))).size).toBe(3);
+    }
+  });
+
+  it('newcomers set off at different moments', () => {
+    const departures = [0, 1, 2, 3].map((slot) => {
+      const times = frames(0, ENTERED_BY);
+      const startX = (posesAt({ fox: 4 }, 0).get('fox') ?? [])[slot]?.x;
+      return times.find((seconds) => (posesAt({ fox: 4 }, seconds).get('fox') ?? [])[slot]?.x !== startX);
+    });
+    expect(new Set(departures).size).toBeGreaterThan(1);
   });
 
   it('a surface slot drops in from above the stage', () => {
     const start = first(posesAt({ otter: 1 }, 0), 'otter');
     expect(start.y).toBeLessThan(0);
-    expect(first(posesAt({ otter: 1 }, ENTER_SECONDS), 'otter').y).toBeGreaterThan(0);
+    expect(first(posesAt({ otter: 1 }, ENTERED_BY), 'otter').y).toBeGreaterThan(0);
+  });
+
+  it('a settled start gives home poses at t=0', () => {
+    const tracker = trackerWith({ fox: 3, grass: 2 }, true);
+    const poses = tracker.poses(GROUPS, 0, false);
+    expect(poses.get('fox')).toHaveLength(3);
+    for (const pose of [...(poses.get('fox') ?? []), ...(poses.get('grass') ?? [])]) {
+      expect(pose).toMatchObject({ moving: false, alpha: 1 });
+    }
+    for (const pose of poses.get('fox') ?? []) expect(Math.abs(pose.x - FLOOR.centreX)).toBeLessThanOrEqual(FLOOR.spread);
+  });
+
+  it('after a settled start, later increases still enter', () => {
+    const tracker = trackerWith({ fox: 3 }, true);
+    tracker.update({ fox: 5 }, 1);
+    const [, , , fourth, fifth] = tracker.poses(GROUPS, 1, false).get('fox') ?? [];
+    for (const pose of [fourth, fifth]) expect(pose && isOffStage(pose, FLOOR) && pose.moving).toBe(true);
   });
 
   it('a leaving animal walks off toward the nearer edge, then is gone', () => {
-    const tracker = createCrowdTracker();
-    tracker.update({ fox: 1 }, 0);
-    const home = first(tracker.poses(GROUPS, SETTLED_IN, false), 'fox');
-    tracker.update({ fox: 0 }, SETTLED_IN);
-    const leaving = first(tracker.poses(GROUPS, SETTLED_IN + LEAVE_SECONDS * HALF, false), 'fox');
-    expect(leaving.moving).toBe(true);
-    expect(leaving.alpha).toBe(1);
+    const tracker = trackerWith({ fox: 1 }, true);
+    const home = first(tracker.poses(GROUPS, 0, false), 'fox');
+    tracker.update({ fox: 0 }, 0);
+    const leaving = first(tracker.poses(GROUPS, MID_LEAVE, false), 'fox');
+    expect(leaving).toMatchObject({ moving: true, alpha: 1, facing: -1 });
     expect(leaving.x).toBeLessThan(home.x);
-    expect(leaving.facing).toBe(-1);
-    expect(tracker.poses(GROUPS, SETTLED_IN + LEAVE_SECONDS, false).get('fox')).toEqual([]);
+    expect(tracker.poses(GROUPS, LEFT_BY, false).get('fox')).toEqual([]);
   });
 
-  it('a leaving producer shrinks and fades', () => {
-    const tracker = createCrowdTracker();
-    tracker.update({ grass: 1 }, 0);
-    const full = first(tracker.poses(GROUPS, SETTLED_IN, false), 'grass');
-    tracker.update({ grass: 0 }, SETTLED_IN);
-    const fading = first(tracker.poses(GROUPS, SETTLED_IN + LEAVE_SECONDS * HALF, false), 'grass');
-    expect(fading.x).toBe(full.x);
+  it.each([[PRODUCER], [DECOMPOSER]])('a leaving $role shrinks to 15% and fades in place', (group) => {
+    const tracker = trackerWith({ [group.speciesId]: 1 }, true);
+    const full = first(tracker.poses(GROUPS, 0, false), group.speciesId);
+    tracker.update({ [group.speciesId]: 0 }, 0);
+    const fading = first(tracker.poses(GROUPS, MID_LEAVE, false), group.speciesId);
+    expect(fading).toMatchObject({ x: full.x, moving: false });
     expect(fading.scale).toBeLessThan(full.scale);
     expect(fading.alpha).toBeGreaterThan(0);
     expect(fading.alpha).toBeLessThan(1);
-    const nearlyGone = first(tracker.poses(GROUPS, SETTLED_IN + LEAVE_SECONDS * 0.999, false), 'grass');
-    expect(nearlyGone.scale / full.scale).toBeCloseTo(0.15, 2);
-    expect(tracker.poses(GROUPS, SETTLED_IN + LEAVE_SECONDS, false).get('grass')).toEqual([]);
+    const showing = frames(0, LEFT_BY + FRAME)
+      .map((seconds) => tracker.poses(GROUPS, seconds, false).get(group.speciesId)?.[0])
+      .filter((pose): pose is IndividualPose => pose !== undefined);
+    expect((showing.at(-1) as IndividualPose).scale / full.scale).toBeCloseTo(0.15, 1);
+    expect(tracker.poses(GROUPS, LEFT_BY, false).get(group.speciesId)).toEqual([]);
   });
 
   it('a slot that turns back mid-journey carries on from where it is', () => {
-    const tracker = createCrowdTracker();
-    tracker.update({ fox: 1 }, 0);
-    const turnAt = ENTER_SECONDS * HALF;
-    const before = first(tracker.poses(GROUPS, turnAt, false), 'fox');
-    tracker.update({ fox: 0 }, turnAt);
-    const after = first(tracker.poses(GROUPS, turnAt, false), 'fox');
+    const tracker = trackerWith({ fox: 1 });
+    const before = first(tracker.poses(GROUPS, MID_ENTRY, false), 'fox');
+    tracker.update({ fox: 0 }, MID_ENTRY);
+    const after = first(tracker.poses(GROUPS, MID_ENTRY, false), 'fox');
     expect(after.x).toBeCloseTo(before.x, 6);
+    expect(after.facing).toBe(-before.facing);
   });
 
   it('keeps one pose per showing slot, in slot order', () => {
-    const tracker = createCrowdTracker();
-    tracker.update({ fox: 3, grass: 2 }, 0);
-    const poses = tracker.poses(GROUPS, SETTLED_IN, false);
+    const poses = posesAt({ fox: 3, grass: 2 }, SETTLED_IN);
     expect(poses.get('fox')).toHaveLength(3);
     expect(poses.get('grass')).toHaveLength(2);
     expect(poses.get('otter')).toEqual([]);
   });
 
-  it.each([[FLOOR], [SURFACE], [WATER], [PRODUCER]])('reducedMotion gives zero idle offset ($zone $role)', (group) => {
+  it('facing does not change in the frame after arrival', () => {
+    const groups = [FLOOR, WATER];
+    const tracker = trackerWith({ fox: MAX_PER_GROUP, fish: MAX_PER_GROUP });
+    let arrivals = 0;
+    let previous = tracker.poses(groups, 0, false);
+    for (const seconds of frames(FRAME, ENTERED_BY + FRAME)) {
+      const now = tracker.poses(groups, seconds, false);
+      for (const group of groups) {
+        (now.get(group.speciesId) ?? []).forEach((pose, slot) => {
+          const before = previous.get(group.speciesId)?.[slot] as IndividualPose;
+          if (before.moving && !pose.moving) {
+            arrivals += 1;
+            expect(pose.facing).toBe(before.facing);
+          }
+        });
+      }
+      previous = now;
+    }
+    expect(arrivals).toBe(2 * MAX_PER_GROUP);
+  });
+});
+
+describe('createCrowdTracker: reduced motion', () => {
+  it.each([[FLOOR], [SURFACE], [WATER], [PRODUCER]])('gives zero idle offset ($zone $role)', (group) => {
     const poses = IDLE_TIMES.map((seconds) => first(posesAt({ [group.speciesId]: 1 }, seconds, true), group.speciesId));
     for (const pose of poses) expect(pose).toEqual({ ...(poses[0] as IndividualPose) });
     expect(poses[0]?.rotation).toBe(0);
   });
 
-  it('reducedMotion enters and leaves as a fade in place', () => {
-    const half = first(posesAt({ fox: 1 }, ENTER_SECONDS * HALF, true), 'fox');
-    const arrived = first(posesAt({ fox: 1 }, ENTER_SECONDS, true), 'fox');
-    expect(half).toEqual({ ...arrived, alpha: HALF });
+  it('enters as a fade in place', () => {
+    const half = first(posesAt({ fox: 1 }, MID_ENTRY, true), 'fox');
+    const arrived = first(posesAt({ fox: 1 }, ENTERED_BY, true), 'fox');
+    expect(half.alpha).toBeGreaterThan(0);
+    expect(half.alpha).toBeLessThan(1);
+    expect(half).toEqual({ ...arrived, alpha: half.alpha });
   });
 
+  it('leaves as a fade in place', () => {
+    const tracker = trackerWith({ fox: 1 }, true);
+    const home = first(tracker.poses(GROUPS, 0, true), 'fox');
+    tracker.update({ fox: 0 }, 0);
+    const fading = first(tracker.poses(GROUPS, MID_LEAVE, true), 'fox');
+    expect(fading.alpha).toBeGreaterThan(0);
+    expect(fading.alpha).toBeLessThan(1);
+    expect(fading).toEqual({ ...home, alpha: fading.alpha });
+    expect(tracker.poses(GROUPS, LEFT_BY, true).get('fox')).toEqual([]);
+  });
+});
+
+describe('createCrowdTracker: idling', () => {
   it.each<[Group, keyof IndividualPose, number]>([
     [SURFACE, 'y', 6],
     [WATER, 'x', 20],
@@ -183,12 +283,10 @@ describe('createCrowdTracker', () => {
   });
 
   it('a wandering floor animal faces the way it is going', () => {
-    const tracker = createCrowdTracker();
-    tracker.update({ fox: 1 }, 0);
-    const step = 0.05;
+    const tracker = trackerWith({ fox: 1 });
     for (let seconds = SETTLED_IN; seconds < SETTLED_IN + 10; seconds += 1) {
       const now = first(tracker.poses(GROUPS, seconds, false), 'fox');
-      const next = first(tracker.poses(GROUPS, seconds + step, false), 'fox');
+      const next = first(tracker.poses(GROUPS, seconds + 0.05, false), 'fox');
       if (Math.abs(next.x - now.x) > 0.1) expect(now.facing).toBe(Math.sign(next.x - now.x));
     }
   });
@@ -200,13 +298,87 @@ describe('createCrowdTracker', () => {
     }
   });
 
+  it('another group keeps idling when one species goes to 0', () => {
+    const tracker = trackerWith({ fox: 2, otter: 2 }, true);
+    tracker.update({ fox: 0, otter: 2 }, 1);
+    const ys = IDLE_TIMES.map((seconds) => first(tracker.poses(GROUPS, seconds, false), 'otter').y);
+    expect(new Set(ys).size).toBe(IDLE_TIMES.length);
+    expect(tracker.poses(GROUPS, SETTLED_IN, false).get('otter')).toHaveLength(2);
+    expect(tracker.poses(GROUPS, SETTLED_IN, false).get('fox')).toEqual([]);
+  });
+
   it('poses are deterministic for the same seeds and time', () => {
     const targets = { fox: 5, otter: 3, fish: 4, grass: 6 };
-    for (const seconds of [0, ENTER_SECONDS * HALF, ...IDLE_TIMES]) {
+    for (const seconds of [0, MID_ENTRY, ...IDLE_TIMES]) {
       expect(posesAt(targets, seconds)).toEqual(posesAt(targets, seconds));
     }
   });
+});
 
+describe('createCrowdTracker: clock going backwards', () => {
+  it('treats it as a reset: slots carry on from where they were and still arrive', () => {
+    const tracker = createCrowdTracker();
+    tracker.update({ fox: 1 }, 100);
+    const before = first(tracker.poses(GROUPS, 100 + MID_ENTRY, false), 'fox');
+    const rewound = first(tracker.poses(GROUPS, 0, false), 'fox');
+    expect(Math.abs(rewound.x - before.x)).toBeLessThan(FLOOR.size);
+    expect(rewound.moving).toBe(true);
+    const later = first(tracker.poses(GROUPS, ENTER_SECONDS, false), 'fox');
+    expect(later.moving).toBe(false);
+  });
+
+  it('updates after a rewind take effect from the new clock', () => {
+    const tracker = trackerWith({ fox: 1 }, true);
+    tracker.poses(GROUPS, 50, false);
+    tracker.update({ fox: 0 }, 1);
+    expect(tracker.poses(GROUPS, 1 + LEFT_BY, false).get('fox')).toEqual([]);
+  });
+});
+
+describe('createCrowdTracker: producer vigour', () => {
+  const grassAt = (vigour: number): IndividualPose => {
+    const tracker = createCrowdTracker();
+    tracker.update({ grass: 1 }, 0, { settle: true, vigour: { grass: vigour } });
+    return first(tracker.poses(GROUPS, 0, false), 'grass');
+  };
+
+  it('a producer at half vigour is drawn smaller and a little fainter than at full', () => {
+    const full = grassAt(1);
+    const half = grassAt(0.5);
+    expect(half.scale / full.scale).toBeCloseTo(0.5, 6);
+    expect(half.alpha).toBeLessThan(full.alpha);
+    expect(half.alpha).toBeGreaterThan(0.5);
+  });
+
+  it.each<[number, number]>([
+    [0.01, VIGOUR_MIN],
+    [3, VIGOUR_MAX],
+  ])('clamps vigour %f to %f', (vigour, clamped) => {
+    expect(grassAt(vigour).scale / grassAt(1).scale).toBeCloseTo(clamped, 6);
+  });
+
+  it('a change of vigour eases rather than snapping', () => {
+    const tracker = createCrowdTracker();
+    tracker.update({ grass: 1 }, 0, { settle: true, vigour: { grass: 1 } });
+    const before = first(tracker.poses(GROUPS, 5, false), 'grass').scale;
+    tracker.update({ grass: 1 }, 5, { vigour: { grass: 0.5 } });
+    const scales = frames(5, 15).map((seconds) => first(tracker.poses(GROUPS, seconds, false), 'grass').scale);
+    expect(scales[0]).toBeCloseTo(before, 6);
+    expect(Math.abs((scales[1] as number) - before)).toBeLessThan(before * 0.01);
+    expect(scales.at(-1)).toBeCloseTo(before * 0.5, 6);
+    scales.slice(1).forEach((scale, index) => expect(scale).toBeLessThanOrEqual(scales[index] as number));
+    const steps = scales.slice(1).map((scale, index) => (scales[index] as number) - scale);
+    expect(Math.max(...steps)).toBeLessThan(before * 0.02);
+  });
+
+  it('does not change animals', () => {
+    const tracker = createCrowdTracker();
+    tracker.update({ fox: 1 }, 0, { settle: true, vigour: { fox: 0.5 } });
+    expect(first(tracker.poses(GROUPS, 0, false), 'fox')).toEqual(first(trackerWith({ fox: 1 }, true).poses(GROUPS, 0, false), 'fox'));
+  });
+});
+
+describe('createCrowdTracker: in the pond', () => {
   it('pond swimmers stay below the waterline across many seeds and times', () => {
     const library = parseLibrary(JSON.parse(readFileSync('public/library/manifest.json', 'utf8')));
     const pond = WEB_SAMPLES.find((sample) => sample.id === 'pond')?.web;
