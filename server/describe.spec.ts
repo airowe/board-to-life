@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { rampBallDominoes } from '../src/scene/fixtures';
 import { WEB_SAMPLES } from '../src/ecosystem/samples';
-import { handleDescribeWebWithModel, handleDescribeWithModel } from './describe';
+import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
+import { handleDescribeFigureWithModel, handleDescribeWebWithModel, handleDescribeWithModel } from './describe';
 import { LayoutError } from './sceneWriter';
 
 const describing = (describe: (text: string) => Promise<unknown>, text: unknown = 'a ball rolls into dominoes') =>
@@ -85,5 +86,36 @@ describe('handleDescribeWebWithModel', () => {
   it('names the food web writer for any other failure', async () => {
     const response = await describingWeb(() => Promise.reject(new Error('meta answered 500: overloaded')));
     expect(response).toEqual({ status: 502, body: { error: 'The food web writer failed: meta answered 500: overloaded', details: [] } });
+  });
+});
+
+describe('handleDescribeFigureWithModel', () => {
+  const figure = GEOMETRY_SAMPLES[0]?.figure;
+  const describingFigure = (describe: (text: string) => Promise<unknown>, text: unknown = 'Triangle ABC.') =>
+    handleDescribeFigureWithModel({ text, reader: 'meta', describe });
+
+  it('returns the figure the model laid out', async () => {
+    expect(await describingFigure(() => Promise.resolve(figure))).toEqual({ status: 200, body: { stub: false, reader: 'meta', figure } });
+  });
+
+  it('rejects empty text without calling the model', async () => {
+    let called = false;
+    const response = await describingFigure(() => {
+      called = true;
+      return Promise.resolve(figure);
+    }, '');
+    expect(response.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  it('answers 502 with the details when the layout stays invalid', async () => {
+    const details = ['segment "s1" references missing point "ghost"'];
+    const response = await describingFigure(() => Promise.reject(new LayoutError('invalid', 'The layout failed validation.', details)));
+    expect(response).toEqual({ status: 502, body: { error: 'The layout failed validation.', details } });
+  });
+
+  it('names the figure writer for any other failure', async () => {
+    const response = await describingFigure(() => Promise.reject(new Error('meta answered 500: overloaded')));
+    expect(response).toEqual({ status: 502, body: { error: 'The figure writer failed: meta answered 500: overloaded', details: [] } });
   });
 });

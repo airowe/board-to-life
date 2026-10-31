@@ -3,7 +3,10 @@ import { rampBallDominoes, rampBallDominoesQuestions } from '../src/scene/fixtur
 import { grasslandWeb, speciesAt, webOf } from '../src/ecosystem/fixtures';
 import { templateQuestion } from '../src/ecosystem/questions';
 import type { Web } from '../src/ecosystem/schema';
-import { handleDraftQuestionsWithModel, handleDraftWebQuestionsWithModel } from './draft';
+import { NO_FIGURE_FOCUS, templateFigureQuestion } from '../src/geometry/questions';
+import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
+import type { Figure, Focus } from '../src/geometry/schema';
+import { handleDraftFigureQuestionsWithModel, handleDraftQuestionsWithModel, handleDraftWebQuestionsWithModel } from './draft';
 
 const questions: unknown = structuredClone(rampBallDominoesQuestions);
 const draftReturning = (result: unknown) => () => Promise.resolve(result);
@@ -109,5 +112,61 @@ describe('handleDraftWebQuestionsWithModel', () => {
     const response = await handleDraftWebQuestionsWithModel({ web, drafter: 'meta', draft: draftReturning(aboutFox) });
     expect(response.status).toBe(422);
     expect((response.body as { details: string[] }).details).toEqual(['q-1 observes "fox", which the event removes']);
+  });
+});
+
+describe('handleDraftFigureQuestionsWithModel', () => {
+  const triangle = GEOMETRY_SAMPLES[0]?.figure as Figure;
+  const SUGGESTED: Focus = { kind: 'angle-sum', polygon: 'abc', drag: 'C' };
+  const CHOSEN: Focus = { kind: 'angle-sum', polygon: 'abc', drag: 'A' };
+  const lineOnly: Figure = { ...triangle, polygons: [], marks: [], segments: [triangle.segments[0] as Figure['segments'][number]] };
+  const drafting = (figure: unknown, draft: (figure: Figure, focus: Focus) => Promise<unknown>) =>
+    handleDraftFigureQuestionsWithModel({ figure, drafter: 'meta', draft });
+
+  it('drafts for the suggested focus when the figure has none, and returns grounded questions', async () => {
+    const seen: Focus[] = [];
+    const response = await drafting(triangle, (_figure, focus) => {
+      seen.push(focus);
+      return Promise.resolve([templateFigureQuestion(triangle, focus)]);
+    });
+    expect(seen).toEqual([SUGGESTED]);
+    expect(response).toEqual({ status: 200, body: { stub: false, drafter: 'meta', questions: [templateFigureQuestion(triangle, SUGGESTED)] } });
+  });
+
+  it('drafts for the figure’s own focus when it has one', async () => {
+    const seen: Focus[] = [];
+    const chosen: Figure = { ...triangle, focus: CHOSEN };
+    await drafting(chosen, (_figure, focus) => {
+      seen.push(focus);
+      return Promise.resolve([templateFigureQuestion(chosen, focus)]);
+    });
+    expect(seen).toEqual([CHOSEN]);
+  });
+
+  it('answers 422 without calling the model when there is nothing to predict', async () => {
+    let called = false;
+    const response = await drafting(lineOnly, () => {
+      called = true;
+      return Promise.resolve([]);
+    });
+    expect(response).toEqual({ status: 422, body: { error: NO_FIGURE_FOCUS, details: [] } });
+    expect(called).toBe(false);
+  });
+
+  it('rejects a figure that fails validation', async () => {
+    const response = await drafting({ version: 1 }, () => Promise.resolve([]));
+    expect(response.status).toBe(400);
+    expect((response.body as { error: string }).error).toBe('The figure sent for drafting failed validation.');
+  });
+
+  it('reports a failed model call', async () => {
+    const response = await drafting(triangle, () => Promise.reject(new Error('meta answered 500: overloaded')));
+    expect(response).toEqual({ status: 502, body: { error: 'The question drafter failed: meta answered 500: overloaded', details: [] } });
+  });
+
+  it('rejects a drafted question that cites a point not in the figure', async () => {
+    const ungrounded = [{ ...templateFigureQuestion(triangle, SUGGESTED), cites: ['A', 'Z'] }];
+    const response = await drafting(triangle, () => Promise.resolve(ungrounded));
+    expect(response).toEqual({ status: 422, body: { error: 'A drafted question cited something not in the figure.', details: ['q-1 cites missing point "Z"'] } });
   });
 });

@@ -5,7 +5,10 @@ import { backwardArrows } from '../src/ecosystem/trophic';
 import { templateQuestion } from '../src/ecosystem/questions';
 import type { Web } from '../src/ecosystem/schema';
 import { WEB_SAMPLES } from '../src/ecosystem/samples';
-import { handleDescribe, handleDescribeWeb, handleDraftQuestions, handleDraftWebQuestions, handleUnderstand, handleUnderstandWeb, parseStubMode } from './stub';
+import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
+import { NO_FIGURE_FOCUS, templateFigureQuestion } from '../src/geometry/questions';
+import type { Figure, Focus } from '../src/geometry/schema';
+import { handleDescribe, handleDescribeFigure, handleDescribeWeb, handleDraftFigureQuestions, handleDraftQuestions, handleDraftWebQuestions, handleUnderstand, handleUnderstandFigure, handleUnderstandWeb, parseStubMode } from './stub';
 
 const image = { contentType: 'image/png', bytes: 1024 };
 const noDelay = { delayMs: 0 };
@@ -180,5 +183,77 @@ describe('handleDraftWebQuestions', () => {
     ['timeout', 504],
   ] as const)('reports %s mode', async (mode, status) => {
     expect((await handleDraftWebQuestions({ web, mode, ...noDelay })).status).toBe(status);
+  });
+});
+
+describe('geometry stubs', () => {
+  const firstFigure = GEOMETRY_SAMPLES[0]?.figure;
+  const description = 'Triangle ABC with a 50° angle at A and a 60° angle at B.';
+
+  it('reads and describes the first sample figure', async () => {
+    expect(await handleUnderstandFigure({ ...image, mode: 'ok', ...noDelay })).toEqual({ status: 200, body: { stub: true, figure: firstFigure } });
+    expect(await handleDescribeFigure({ text: description, mode: 'ok', ...noDelay })).toEqual({ status: 200, body: { stub: true, figure: firstFigure } });
+  });
+
+  it('names the figure reader and writer when a figure fails validation in invalid mode', async () => {
+    const read = await handleUnderstandFigure({ ...image, mode: 'invalid', ...noDelay });
+    const described = await handleDescribeFigure({ text: description, mode: 'invalid', ...noDelay });
+    expect(read).toMatchObject({ status: 502, body: { error: 'The figure reader returned a figure that failed validation.' } });
+    expect(described).toMatchObject({ status: 502, body: { error: 'The figure writer returned a figure that failed validation.' } });
+    expect((read.body as { details: string[] }).details.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['error', 503, 'The figure reader is unavailable (stub error mode).'],
+    ['timeout', 504, 'The figure reader took too long (stub timeout mode).'],
+  ] as const)('reports %s mode, naming the figure reader', async (mode, status, error) => {
+    expect(await handleUnderstandFigure({ ...image, mode, ...noDelay })).toEqual({ status, body: { error, details: [] } });
+  });
+
+  it('rejects a non-image upload and an empty description', async () => {
+    expect((await handleUnderstandFigure({ contentType: 'text/plain', bytes: 10, mode: 'ok', ...noDelay })).status).toBe(400);
+    expect((await handleDescribeFigure({ text: '', mode: 'ok', ...noDelay })).status).toBe(400);
+  });
+});
+
+describe('handleDraftFigureQuestions', () => {
+  const triangle = GEOMETRY_SAMPLES[0]?.figure as Figure;
+  const SUGGESTED: Focus = { kind: 'angle-sum', polygon: 'abc', drag: 'C' };
+  const CHOSEN: Focus = { kind: 'angle-sum', polygon: 'abc', drag: 'B' };
+  const lineOnly: Figure = { ...triangle, polygons: [], marks: [], segments: [triangle.segments[0] as Figure['segments'][number]] };
+
+  it('serves the template question for the suggested focus', async () => {
+    expect(await handleDraftFigureQuestions({ figure: triangle, mode: 'ok', ...noDelay })).toEqual({
+      status: 200,
+      body: { stub: true, questions: [templateFigureQuestion(triangle, SUGGESTED)] },
+    });
+  });
+
+  it('serves the template question for the figure’s own focus', async () => {
+    const chosen: Figure = { ...triangle, focus: CHOSEN };
+    expect(await handleDraftFigureQuestions({ figure: chosen, mode: 'ok', ...noDelay })).toEqual({
+      status: 200,
+      body: { stub: true, questions: [templateFigureQuestion(chosen, CHOSEN)] },
+    });
+  });
+
+  it('answers 422 when there is nothing to predict', async () => {
+    expect(await handleDraftFigureQuestions({ figure: lineOnly, mode: 'ok', ...noDelay })).toEqual({ status: 422, body: { error: NO_FIGURE_FOCUS, details: [] } });
+  });
+
+  it('rejects a figure that fails validation', async () => {
+    expect((await handleDraftFigureQuestions({ figure: { version: 1 }, mode: 'ok', ...noDelay })).status).toBe(400);
+  });
+
+  it('rejects an ungrounded draft in ungrounded mode', async () => {
+    const response = await handleDraftFigureQuestions({ figure: triangle, mode: 'ungrounded', ...noDelay });
+    expect(response).toMatchObject({ status: 422, body: { error: 'A drafted question cited something not in the figure.' } });
+  });
+
+  it.each([
+    ['error', 503],
+    ['timeout', 504],
+  ] as const)('reports %s mode', async (mode, status) => {
+    expect((await handleDraftFigureQuestions({ figure: triangle, mode, ...noDelay })).status).toBe(status);
   });
 });

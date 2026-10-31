@@ -3,6 +3,10 @@ import { NOTHING_TO_PREDICT, changingSpecies, checkWebGrounding, eventOf, remove
 import { WEB_SAMPLES } from '../src/ecosystem/samples';
 import { validateWeb, type Web } from '../src/ecosystem/schema';
 import { flipArrow } from '../src/ecosystem/trophic';
+import { suggestedFocus } from '../src/geometry/focus';
+import { NO_FIGURE_FOCUS, checkFigureGrounding, templateFigureQuestion } from '../src/geometry/questions';
+import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
+import { validateFigure } from '../src/geometry/schema';
 import { rampBallDominoes, rampBallDominoesQuestions } from '../src/scene/fixtures';
 import { checkGrounding } from '../src/scene/questions';
 import { validateScene } from '../src/scene/schema';
@@ -16,6 +20,7 @@ export type UnderstandRequest = Timing & { contentType: string; bytes: number };
 export type DescribeRequest = Timing & { text: unknown };
 export type DraftQuestionsRequest = Timing & { scene: unknown };
 export type DraftWebQuestionsRequest = Timing & { web: unknown };
+export type DraftFigureQuestionsRequest = Timing & { figure: unknown };
 
 export const parseStubMode = (value: string | undefined): StubMode =>
   STUB_MODES.find((mode) => mode === value) ?? 'ok';
@@ -30,6 +35,9 @@ const failure = (status: number, error: string, details: string[] = []): StubRes
 const SCENE_READER = 'scene reader';
 const WEB_READER = 'food web reader';
 const WEB_WRITER = 'food web writer';
+const FIGURE_READER = 'figure reader';
+const FIGURE_WRITER = 'figure writer';
+const QUESTION_DRAFTER = 'question drafter';
 
 const simulatedFailure = (mode: StubMode, who = SCENE_READER): StubResponse | null => {
   if (mode === 'error') return failure(503, `The ${who} is unavailable (stub error mode).`);
@@ -142,5 +150,51 @@ export const handleDraftWebQuestions = async (request: DraftWebQuestionsRequest)
   const drafted = request.mode === 'ungrounded' ? [{ ...question, cites: [...question.cites, GHOST_SPECIES] }] : [question];
   const grounded = checkWebGrounding(drafted, web);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the web.', grounded.errors);
+  return { status: 200, body: { stub: true, questions: grounded.questions } };
+};
+
+const SEGMENT_TO_MISSING_POINT = { id: 's-stub', from: 'A', to: 'ghost', confidence: 0.4 };
+
+const figureFromModel = (mode: StubMode): unknown => {
+  const sample = GEOMETRY_SAMPLES[0]?.figure;
+  if (!sample || mode !== 'invalid') return sample;
+  return { ...sample, segments: [...sample.segments, SEGMENT_TO_MISSING_POINT] };
+};
+
+const figureResponse = async (mode: StubMode, delayMs: number, who: string): Promise<StubResponse> => {
+  await wait(delayMs);
+  const simulated = simulatedFailure(mode, who);
+  if (simulated) return simulated;
+  const result = validateFigure(figureFromModel(mode));
+  if (!result.ok) return failure(502, `The ${who} returned a figure that failed validation.`, result.errors);
+  return { status: 200, body: { stub: true, figure: result.figure } };
+};
+
+export const handleUnderstandFigure = (request: UnderstandRequest): Promise<StubResponse> | StubResponse =>
+  request.bytes === 0 || !request.contentType.startsWith('image/')
+    ? failure(400, 'Send a photo of the drawing (an image file).')
+    : figureResponse(request.mode, request.delayMs, FIGURE_READER);
+
+export const handleDescribeFigure = (request: DescribeRequest): Promise<StubResponse> | StubResponse => {
+  const checked = checkDescription(request.text);
+  return checked.ok ? figureResponse(request.mode, request.delayMs, FIGURE_WRITER) : failure(400, checked.error);
+};
+
+const GHOST_POINT = 'ghost';
+
+export const handleDraftFigureQuestions = async (request: DraftFigureQuestionsRequest): Promise<StubResponse> => {
+  const validated = validateFigure(request.figure);
+  if (!validated.ok) return failure(400, 'The figure sent for drafting failed validation.', validated.errors);
+  const figure = validated.figure;
+  const focus = suggestedFocus(figure);
+  if (focus === null) return failure(422, NO_FIGURE_FOCUS);
+  await wait(request.delayMs);
+  const simulated = simulatedFailure(request.mode, QUESTION_DRAFTER);
+  if (simulated) return simulated;
+
+  const question = templateFigureQuestion(figure, focus);
+  const drafted = request.mode === 'ungrounded' ? [{ ...question, cites: [...question.cites, GHOST_POINT] }] : [question];
+  const grounded = checkFigureGrounding(drafted, figure);
+  if (!grounded.ok) return failure(422, 'A drafted question cited something not in the figure.', grounded.errors);
   return { status: 200, body: { stub: true, questions: grounded.questions } };
 };

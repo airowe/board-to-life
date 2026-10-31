@@ -16,6 +16,8 @@ const { observeFallen, SETTLE_SECONDS } = await load('src/checks/replay.ts');
 const { sketchScene } = await load('src/checks/sketch.ts');
 const { WEB_SAMPLES } = await load('src/ecosystem/samples.ts');
 const { sketchWeb } = await load('src/ecosystem/sketch.ts');
+const { GEOMETRY_SAMPLES } = await load('src/geometry/samples.ts');
+const { sketchFigure } = await load('src/geometry/sketch.ts');
 
 const sceneOf = (id) => DRAWING_CASES.find((each) => each.id === id).scene;
 
@@ -100,4 +102,14 @@ for (const [index, sample] of WEB_SAMPLES.entries()) {
   const png = execFileSync('rsvg-convert', ['-'], { input: svg });
   execFileSync('magick', photoArgs('straight', seed, `${outputDir}/web-${sample.id}.jpg`), { input: png });
   console.log(`mocked check-photos/mock/web-${sample.id}.jpg (${sample.title}, straight)`);
+}
+
+// The geometry samples too, named geo-<id>.jpg.
+const FIGURE_SEED_BASE = 241;
+for (const [index, sample] of GEOMETRY_SAMPLES.entries()) {
+  const seed = FIGURE_SEED_BASE + index;
+  const svg = sketchFigure(sample.figure, seed).replace('fill="url(#board)"', `fill="${BOARD_COLOUR}"`);
+  const png = execFileSync('rsvg-convert', ['-'], { input: svg });
+  execFileSync('magick', photoArgs('straight', seed, `${outputDir}/geo-${sample.id}.jpg`), { input: png });
+  console.log(`mocked check-photos/mock/geo-${sample.id}.jpg (${sample.title}, straight)`);
 }

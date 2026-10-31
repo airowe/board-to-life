@@ -1,5 +1,8 @@
 import { NOTHING_TO_PREDICT, changingSpecies, checkWebGrounding, eventOf } from '../src/ecosystem/questions';
 import { validateWeb, type Web } from '../src/ecosystem/schema';
+import { suggestedFocus } from '../src/geometry/focus';
+import { NO_FIGURE_FOCUS, checkFigureGrounding } from '../src/geometry/questions';
+import { validateFigure, type Figure, type Focus } from '../src/geometry/schema';
 import { checkGrounding } from '../src/scene/questions';
 import { validateScene, type Scene } from '../src/scene/schema';
 import { outcomesOf } from './questionDrafter';
@@ -49,5 +52,26 @@ export const handleDraftWebQuestionsWithModel = async (request: ModelWebDraftReq
   }
   const grounded = checkWebGrounding(drafted, web);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the web.', grounded.errors);
+  return { status: 200, body: { stub: false, drafter: request.drafter, questions: grounded.questions } };
+};
+
+export type ModelFigureDraft = (figure: Figure, focus: Focus) => Promise<unknown>;
+export type ModelFigureDraftRequest = { figure: unknown; drafter: string; draft: ModelFigureDraft };
+
+export const handleDraftFigureQuestionsWithModel = async (request: ModelFigureDraftRequest): Promise<StubResponse> => {
+  const validated = validateFigure(request.figure);
+  if (!validated.ok) return failure(400, 'The figure sent for drafting failed validation.', validated.errors);
+  const figure = validated.figure;
+  const focus = suggestedFocus(figure);
+  if (focus === null) return failure(422, NO_FIGURE_FOCUS);
+
+  let drafted: unknown;
+  try {
+    drafted = await request.draft(figure, focus);
+  } catch (error) {
+    return failure(502, `The question drafter failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const grounded = checkFigureGrounding(drafted, figure);
+  if (!grounded.ok) return failure(422, 'A drafted question cited something not in the figure.', grounded.errors);
   return { status: 200, body: { stub: false, drafter: request.drafter, questions: grounded.questions } };
 };

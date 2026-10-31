@@ -302,6 +302,54 @@ What this check does not cover:
   the check supplies it. Whether Muse Spark reads a drawn event is untested.
 - **Real handwriting and real photos.** The drawings are generated and the photos are mock phone photos.
 
+### Figure check set
+
+`npm run figures` reads each of the five geometry samples (a triangle with two written angles, parallel lines cut by a
+transversal, a reflection, a rotation, and a messy triangle whose 50° is written away from its corner) three ways: the
+clean drawing, a mock phone photo of it (`check-photos/mock/geo-*.jpg`), and a typed description. Each read is run
+twice. The script fits the read figure to its written values, then checks the sample's marked angles and its angle sum
+within 2°. It also checks the answer key: for the triangle and parallel samples, the template question built from the
+read figure must answer "Yes, always". In a transformation case, a read that draws the image as an extra polygon fails.
+For a drawing it also checks that each transformed point lands within 60 px (5% of the 1200 px drawing) of where it
+should. A photo's positions are in photo coordinates, so a mock photo is scored like a description: on the angles, the
+transformation's kind, its polygon and its degrees or factor, not on where things land. It stops before any call that
+could take the spend past $3.
+
+Measured on 31 October 2026 with Muse Spark on Meta Model API (`check-runs/2026-10-31T12-18-13-906Z-figures`):
+
+| Input | Played as expected | Cost |
+| --- | --- | --- |
+| Drawing | 8 of 10 | $0.1641 |
+| Mock photo | 10 of 10 | $0.1915 |
+| Typed description | 10 of 10 | $0.1390 |
+| **Total** | **28 of 30** | **$0.4946** |
+
+This run used the full scorer, including the answer-key and extra-polygon checks. The layout writer now drops a second
+polygon in a transformation description when it sits where the shape lands or when the description never names its
+letters, so no typed description drew the image.
+
+Both failures are the same misread:
+
+- **Rotation drawing, 2 of 2 failed.** Both reads had the right angle (90° counterclockwise) but misplaced the centre
+  O, so A′ landed 236 px and 184 px up and to the left of where it should. The reader is told to report a centre at its
+  cross, not its letter, and still misplaces it. The mock photo and description reads, which are not scored on
+  position, passed.
+
+Two earlier runs the same day played fewer. `check-runs/2026-10-31T02-58-29-731Z-figures` played 26 of 30 for $0.5408,
+before the answer-key and extra-polygon checks existed; three of its four transformation descriptions drew the image,
+and it also misread one reflection mirror and one letter. `check-runs/2026-10-31T01-48-07-904Z-figures` played 19 of
+30, for $0.5495. Its parallel reads all failed: Muse Spark placed the crossing points up to 33 px off the transversal,
+and the fit set the marked angle to 65° without keeping crossings on their lines or the marked lines parallel, so the
+matching angle read 57° to 62°. Its messy triangle failed twice, with "50°" recorded as a length of side AB. The fit
+now keeps crossing points on their lines and marked lines parallel, any value with a degree sign is read as an angle,
+and the layout writer is told to add a parallel mark when a description says the lines are parallel.
+
+What this check does not cover:
+
+- **Real handwriting and real photos.** The drawings are generated and the photos are mock phone photos.
+- **Where things land in a photo.** Photo reads are scored on values only, so a photo read with the mirror in the
+  wrong place would still pass.
+
 ## Scene schema v1
 
 Defined in `src/scene/schema.ts`. All positions are in the drawing's own coordinates.

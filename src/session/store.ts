@@ -1,21 +1,27 @@
 import type { WebQuestion } from '../ecosystem/questions';
 import type { Web } from '../ecosystem/schema';
+import type { GeometryQuestion } from '../geometry/questions';
+import type { Figure } from '../geometry/schema';
 import type { PredictQuestion } from '../scene/questions';
 import type { Scene } from '../scene/schema';
+import type { Subject } from '../subjects';
 
 export type PhysicsLesson = { subject: 'physics'; scene: Scene; questions: PredictQuestion[] };
 export type EcosystemLesson = { subject: 'ecosystem'; web: Web; questions: WebQuestion[] };
-export type Lesson = PhysicsLesson | EcosystemLesson;
+export type GeometryLesson = { subject: 'geometry'; figure: Figure; questions: GeometryQuestion[] };
+export type Lesson = PhysicsLesson | EcosystemLesson | GeometryLesson;
 
-export type DraftContent = { subject: 'physics'; scene: Scene } | { subject: 'ecosystem'; web: Web };
+export type DraftContent = { subject: 'physics'; scene: Scene } | { subject: 'ecosystem'; web: Web } | { subject: 'geometry'; figure: Figure };
 
 export type PhysicsDraft = { status: 'draft'; subject: 'physics'; scene: Scene; questions: PredictQuestion[] | null };
 export type EcosystemDraft = { status: 'draft'; subject: 'ecosystem'; web: Web; questions: WebQuestion[] | null };
-export type Draft = PhysicsDraft | EcosystemDraft;
+export type GeometryDraft = { status: 'draft'; subject: 'geometry'; figure: Figure; questions: GeometryQuestion[] | null };
+export type Draft = PhysicsDraft | EcosystemDraft | GeometryDraft;
 
 export type ApprovedPhysicsLesson = PhysicsLesson & { status: 'approved' };
 export type ApprovedEcosystemLesson = EcosystemLesson & { status: 'approved' };
-export type ApprovedLesson = ApprovedPhysicsLesson | ApprovedEcosystemLesson;
+export type ApprovedGeometryLesson = GeometryLesson & { status: 'approved' };
+export type ApprovedLesson = ApprovedPhysicsLesson | ApprovedEcosystemLesson | ApprovedGeometryLesson;
 
 export type Session = {
   startDraft: (content: DraftContent) => number;
@@ -25,13 +31,12 @@ export type Session = {
   presentable: () => ApprovedLesson | null;
 };
 
-const PHYSICS_QUESTION_KIND = 'fallen';
-const ECOSYSTEM_QUESTION_KIND = 'direction';
+const QUESTION_KIND: Record<Subject, string> = { physics: 'fallen', ecosystem: 'direction', geometry: 'figure' };
 
-const questionsMatchSubject = (subject: Draft['subject'], questions: Lesson['questions']): boolean => {
+const questionsMatchSubject = (subject: Subject, questions: Lesson['questions']): boolean => {
   const [first] = questions;
   if (!first) return true;
-  return first.observe.kind === (subject === 'physics' ? PHYSICS_QUESTION_KIND : ECOSYSTEM_QUESTION_KIND);
+  return first.observe.kind === QUESTION_KIND[subject];
 };
 
 type DraftState = { content: DraftContent; questions: Lesson['questions'] | null };

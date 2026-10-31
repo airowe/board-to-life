@@ -35,3 +35,16 @@ export const handleDescribeWebWithModel = async (request: ModelDescribeRequest):
     return failure(502, `The food web writer failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
+
+export const handleDescribeFigureWithModel = async (request: ModelDescribeRequest): Promise<StubResponse> => {
+  const checked = checkDescription(request.text);
+  if (!checked.ok) return failure(400, checked.error);
+
+  try {
+    const figure = await request.describe(checked.text);
+    return { status: 200, body: { stub: false, reader: request.reader, figure } };
+  } catch (error) {
+    if (error instanceof LayoutError) return layoutFailure(error);
+    return failure(502, `The figure writer failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};

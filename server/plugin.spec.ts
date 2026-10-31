@@ -7,7 +7,11 @@ import { grasslandWeb } from '../src/ecosystem/fixtures';
 import { templateQuestion } from '../src/ecosystem/questions';
 import { WEB_SAMPLES } from '../src/ecosystem/samples';
 import type { Web, WebEvent } from '../src/ecosystem/schema';
+import { templateFigureQuestion } from '../src/geometry/questions';
+import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
+import { validateFigure, type Figure, type Focus } from '../src/geometry/schema';
 import { rampBallDominoes } from '../src/scene/fixtures';
+import { obeyWrittenValues } from './figureReader';
 import { apiMiddleware, type ApiModel } from './plugin';
 
 const CODE = 'class-demo-42';
@@ -84,7 +88,9 @@ describe('apiMiddleware', () => {
 describe('apiMiddleware subjects', () => {
   const web = WEB_SAMPLES[0]?.web;
   const drafted: Web = { ...grasslandWeb(), event: { kind: 'remove', species: 'fox' } };
-  const UNKNOWN_SUBJECT = 'Pick a subject: Physics or Ecosystem.';
+  const UNKNOWN_SUBJECT = 'Pick a subject: Physics, Ecosystem or Geometry.';
+  const figure = GEOMETRY_SAMPLES[0]?.figure as Figure;
+  const FIGURE_FOCUS: Focus = { kind: 'angle-sum', polygon: 'abc', drag: 'C' };
   const calls: string[] = [];
   const fake: ApiModel = {
     name: 'fake',
@@ -108,6 +114,18 @@ describe('apiMiddleware subjects', () => {
     describeWeb: () => {
       calls.push('describeWeb');
       return Promise.resolve(web);
+    },
+    readFigure: () => {
+      calls.push('readFigure');
+      return Promise.resolve(figure);
+    },
+    describeFigure: () => {
+      calls.push('describeFigure');
+      return Promise.resolve(figure);
+    },
+    draftFigure: (drafting, focus) => {
+      calls.push('draftFigure');
+      return Promise.resolve([templateFigureQuestion(drafting, focus)]);
     },
   };
   const post = (base: string, path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', body: JSON.stringify(body) });
@@ -182,5 +200,34 @@ describe('apiMiddleware subjects', () => {
     const response = await post(await serve({}, fake), '/api/draft-questions', { scene: rampBallDominoes });
     expect(await response.json()).toMatchObject({ stub: false, questions: [] });
     expect(calls).toEqual([]);
+  });
+
+  it('serves the stub figure for the geometry subject, which validates', async () => {
+    const base = await serve({});
+    const read = await photo(base, '?subject=geometry');
+    const body = (await read.json()) as { stub: boolean; figure: unknown };
+    expect(read.status).toBe(200);
+    expect(body).toEqual({ stub: true, figure: GEOMETRY_SAMPLES[0]?.figure });
+    expect(validateFigure(body.figure).ok).toBe(true);
+    const described = await post(base, '/api/describe', { text: 'Triangle ABC with a 50° angle at A.', subject: 'geometry' });
+    expect(await described.json()).toEqual({ stub: true, figure: GEOMETRY_SAMPLES[0]?.figure });
+  });
+
+  it('reads and describes geometry with the figure reader and writer when a model is set', async () => {
+    const base = await serve({}, fake);
+    expect(await (await photo(base, '?subject=geometry')).json()).toEqual({ stub: false, reader: 'fake', figure: obeyWrittenValues(figure) });
+    expect(await (await post(base, '/api/describe', { text: 'Triangle ABC.', subject: 'geometry' })).json()).toEqual({ stub: false, reader: 'fake', figure });
+    expect(calls).toEqual(['readFigure', 'describeFigure']);
+  });
+
+  it('drafts geometry questions with the figure drafter when a model is set', async () => {
+    const response = await post(await serve({}, fake), '/api/draft-questions', { figure, subject: 'geometry' });
+    expect(await response.json()).toEqual({ stub: false, drafter: 'fake', questions: [templateFigureQuestion(figure, FIGURE_FOCUS)] });
+    expect(calls).toEqual(['draftFigure']);
+  });
+
+  it('serves the template question for geometry with no drafter set', async () => {
+    const response = await post(await serve({}), '/api/draft-questions', { figure, subject: 'geometry' });
+    expect(await response.json()).toEqual({ stub: true, questions: [templateFigureQuestion(figure, FIGURE_FOCUS)] });
   });
 });

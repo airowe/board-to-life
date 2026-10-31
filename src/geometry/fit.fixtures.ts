@@ -1,0 +1,132 @@
+import type { Figure } from './schema';
+
+export const PARALLEL_READ_CASE_4_RUN_2: Figure = {
+  version: 1,
+  drawing: { width: 1200, height: 800 },
+  points: [
+    { id: 'P', x: 246, y: 331.20000000000005, confidence: 0.85 },
+    { id: 'Q', x: 1017.5999999999999, y: 331.20000000000005, confidence: 0.85 },
+    { id: 'R', x: 195.6, y: 548, confidence: 0.85 },
+    { id: 'S', x: 966, y: 548, confidence: 0.85 },
+    { id: 'T', x: 642, y: 160, confidence: 0.8 },
+    { id: 'U', x: 390, y: 664, confidence: 0.8 },
+    { id: 'P1', x: 519.6, y: 331.20000000000005, confidence: 0.95 },
+    { id: 'P2', x: 416.4, y: 547.2, confidence: 0.95 },
+  ],
+  segments: [],
+  lines: [
+    { id: 'PQ', from: 'P', to: 'Q', confidence: 0.9 },
+    { id: 'RS', from: 'R', to: 'S', confidence: 0.9 },
+    { id: 'TU', from: 'T', to: 'U', confidence: 0.9 },
+  ],
+  rays: [],
+  circles: [],
+  polygons: [],
+  marks: [
+    { id: 'm1', kind: 'angle', at: 'P1', from: 'T', to: 'Q', degrees: 65, confidence: 0.92 },
+    { id: 'm2', kind: 'angle', at: 'P2', from: 'T', to: 'S', confidence: 0.85 },
+    { id: 'par1', kind: 'parallel', lines: [['P', 'Q'], ['R', 'S']], confidence: 0.9 },
+  ],
+  transformations: [],
+  labels: [],
+  unknownMarks: [],
+  focus: null,
+};
+
+export const PARALLEL_READ_CASE_5_RUN_1: Figure = {
+  version: 1,
+  drawing: { width: 1200, height: 900 },
+  points: [
+    { id: 'P', x: 358.8, y: 367.2, confidence: 0.9 },
+    { id: 'Q', x: 838.8, y: 366.3, confidence: 0.9 },
+    { id: 'R', x: 339.59999999999997, y: 504, confidence: 0.9 },
+    { id: 'S', x: 806.4, y: 503.1, confidence: 0.9 },
+    { id: 'T', x: 640.8, y: 268.2, confidence: 0.85 },
+    { id: 'U', x: 474, y: 565.2, confidence: 0.85 },
+    { id: 'P1', x: 585.6, y: 366.3, confidence: 0.95 },
+    { id: 'P2', x: 510, y: 503.1, confidence: 0.95 },
+  ],
+  segments: [],
+  lines: [
+    { id: 'lPQ', from: 'P', to: 'Q', confidence: 0.96 },
+    { id: 'lRS', from: 'R', to: 'S', confidence: 0.96 },
+    { id: 'lTU', from: 'T', to: 'U', confidence: 0.96 },
+  ],
+  rays: [],
+  circles: [],
+  polygons: [],
+  marks: [
+    { id: 'm1', kind: 'angle', at: 'P1', from: 'T', to: 'Q', degrees: 65, confidence: 0.93 },
+    { id: 'm2', kind: 'angle', at: 'P2', from: 'P1', to: 'S', confidence: 0.85 },
+    { id: 'par1', kind: 'parallel', lines: [['P', 'Q'], ['R', 'S']], confidence: 0.8 },
+  ],
+  transformations: [],
+  labels: [],
+  unknownMarks: [],
+  focus: null,
+};
+
+export const PARALLEL_READ_CASE_6_RUN_1: Figure = {
+  version: 1,
+  drawing: { width: 1200, height: 800 },
+  points: [
+    { id: 'P', x: 120, y: 280, confidence: 1 },
+    { id: 'Q', x: 1078.449912092437, y: 315.53123921354506, confidence: 1 },
+    { id: 'R', x: 120, y: 520, confidence: 1 },
+    { id: 'S', x: 1080, y: 520, confidence: 1 },
+    { id: 'T', x: 803.8148996035557, y: 51.65317553663132, confidence: 1 },
+    { id: 'U', x: 352.8, y: 736, confidence: 1 },
+    { id: 'P1', x: 672, y: 280, confidence: 1 },
+    { id: 'P2', x: 504, y: 520, confidence: 1 },
+  ],
+  segments: [],
+  lines: [
+    { id: 'lnPQ', from: 'P', to: 'Q', confidence: 1 },
+    { id: 'lnRS', from: 'R', to: 'S', confidence: 1 },
+    { id: 'lnTU', from: 'T', to: 'U', confidence: 1 },
+  ],
+  rays: [],
+  circles: [],
+  polygons: [],
+  marks: [
+    { id: 'm1', kind: 'angle', at: 'P1', from: 'T', to: 'Q', degrees: 65, confidence: 1 },
+    { id: 'm2', kind: 'angle', at: 'P2', from: 'T', to: 'S', confidence: 1 },
+  ],
+  transformations: [],
+  labels: [],
+  unknownMarks: [],
+  focus: null,
+};
+
+export const PARALLEL_READ_LATER_CASE_5_RUN_2: Figure = {
+  version: 1,
+  drawing: { width: 1200, height: 900 },
+  points: [
+    { id: 'P', x: 356.4, y: 376.2, confidence: 0.9 },
+    { id: 'Q', x: 825.6, y: 376.2, confidence: 0.9 },
+    { id: 'R', x: 327.59999999999997, y: 518.4, confidence: 0.9 },
+    { id: 'S', x: 787.1999999999999, y: 518.4, confidence: 0.9 },
+    { id: 'T', x: 615.6, y: 270.90000000000003, confidence: 0.65 },
+    { id: 'U', x: 458.4, y: 571.5, confidence: 0.9 },
+    { id: 'P1', x: 560.4, y: 376.2, confidence: 0.95 },
+    { id: 'P2', x: 486, y: 518.4, confidence: 0.95 },
+  ],
+  segments: [],
+  lines: [
+    { id: 'lPQ', from: 'P', to: 'Q', confidence: 0.95 },
+    { id: 'lRS', from: 'R', to: 'S', confidence: 0.95 },
+    { id: 'lTU', from: 'T', to: 'U', confidence: 0.9 },
+  ],
+  rays: [],
+  circles: [],
+  polygons: [],
+  marks: [
+    { id: 'm1', kind: 'angle', at: 'P1', from: 'T', to: 'Q', degrees: 65, confidence: 0.95 },
+    { id: 'm2', kind: 'angle', at: 'P2', from: 'P1', to: 'S', confidence: 0.85 },
+    { id: 'par1', kind: 'parallel', lines: [['P', 'Q'], ['R', 'S']], confidence: 0.85 },
+  ],
+  transformations: [],
+  labels: [],
+  unknownMarks: [],
+  focus: null,
+};

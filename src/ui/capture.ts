@@ -2,6 +2,7 @@ import { checkDescription, DESCRIPTION_LIMIT } from '../capture/description';
 import { DESCRIPTION_EXAMPLES } from '../capture/examples';
 import { pickBoardImage } from '../capture/pickImage';
 import { WEB_SAMPLES, webSampleUrl } from '../ecosystem/samples';
+import { figureSampleUrl, GEOMETRY_SAMPLES } from '../geometry/samples';
 import { SAMPLES, sampleUrl } from '../samples/scenes';
 import { SUBJECT_LABELS, SUBJECTS, type Subject } from '../subjects';
 import { h } from './dom';
@@ -14,6 +15,7 @@ const SAMPLE_PICKS: Record<Subject, readonly SamplePick[]> = {
     ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
   ],
   ecosystem: WEB_SAMPLES.map((sample) => ({ url: webSampleUrl(sample.id), title: sample.title })),
+  geometry: GEOMETRY_SAMPLES.map((sample) => ({ url: figureSampleUrl(sample.id), title: sample.title })),
 };
 
 type CaptureHandlers = {
