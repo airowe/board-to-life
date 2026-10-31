@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PICTURE_STYLE } from '../src/library/style';
-import { drawPictureWithModel, MAX_SUBJECT_LENGTH, parsePictureSubject } from './picture';
+import { drawPictureWithModel, MAX_PICTURE_BYTES, MAX_SUBJECT_LENGTH, parsePictureSubject } from './picture';
 
 const API_KEY = 'test-key';
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x01, 0x02, 0x03]);
@@ -49,7 +49,7 @@ describe('parsePictureSubject', () => {
 describe('drawPictureWithModel', () => {
   it('asks Muse Image for the subject in the house style and decodes the picture', async () => {
     const { fetcher, calls } = fakeFetch([imageReply()]);
-    const picture = await drawPictureWithModel('jellyfish', API_KEY, fetcher);
+    const picture = await drawPictureWithModel('jellyfish', API_KEY, { fetcher });
     expect(picture.equals(PNG_BYTES)).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe('https://api.meta.ai/v1/images/generations');
@@ -62,25 +62,80 @@ describe('drawPictureWithModel', () => {
 
   it('fetches the picture when the reply gives a url instead of data', async () => {
     const { fetcher, calls } = fakeFetch([Response.json({ data: [{ url: 'https://images.example/jelly.png' }] }), new Response(PNG_BYTES)]);
-    const picture = await drawPictureWithModel('jellyfish', API_KEY, fetcher);
+    const picture = await drawPictureWithModel('jellyfish', API_KEY, { fetcher });
     expect(picture.equals(PNG_BYTES)).toBe(true);
     expect(calls[1]?.url).toBe('https://images.example/jelly.png');
   });
 
   it('retries once after a server error', async () => {
     const { fetcher, calls } = fakeFetch([new Response('oops', { status: SERVER_ERROR }), imageReply()]);
-    expect((await drawPictureWithModel('jellyfish', API_KEY, fetcher)).equals(PNG_BYTES)).toBe(true);
+    expect((await drawPictureWithModel('jellyfish', API_KEY, { fetcher })).equals(PNG_BYTES)).toBe(true);
     expect(calls).toHaveLength(2);
   });
 
   it('throws after the retry also fails', async () => {
     const { fetcher, calls } = fakeFetch([new Response('oops', { status: SERVER_ERROR }), new Response('again', { status: SERVER_ERROR })]);
-    await expect(drawPictureWithModel('jellyfish', API_KEY, fetcher)).rejects.toThrow('500');
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('500');
     expect(calls).toHaveLength(2);
   });
 
   it('throws when the reply holds no picture', async () => {
     const { fetcher } = fakeFetch([Response.json({ data: [] }), Response.json({ data: [] })]);
-    await expect(drawPictureWithModel('jellyfish', API_KEY, fetcher)).rejects.toThrow('no picture');
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('no picture');
+  });
+
+  it.each([[400], [401], [404]])('does not retry a %i', async (status) => {
+    const { fetcher, calls } = fakeFetch([new Response('no', { status }), imageReply()]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow(String(status));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('retries a 429', async () => {
+    const { fetcher, calls } = fakeFetch([new Response('slow down', { status: 429 }), imageReply()]);
+    await drawPictureWithModel('jellyfish', API_KEY, { fetcher });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('gives up on a request that never answers, on both attempts', async () => {
+    const calls: number[] = [];
+    const hanging = ((_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        calls.push(1);
+        init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      })) as unknown as typeof fetch;
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher: hanging, timeoutMs: 20 })).rejects.toThrow();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('gives up on a picture download that never answers', async () => {
+    let downloads = 0;
+    const fetcher = ((url: string, init: RequestInit) => {
+      if (url.endsWith('/images/generations')) return Promise.resolve(Response.json({ data: [{ url: 'https://images.example/a.png' }] }));
+      downloads += 1;
+      return new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(init.signal?.reason)));
+    }) as unknown as typeof fetch;
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher, timeoutMs: 20 })).rejects.toThrow();
+    expect(downloads).toBe(2);
+  });
+
+  it('rejects a picture download that is not ok', async () => {
+    const urlReply = (): Response => Response.json({ data: [{ url: 'https://images.example/a.png' }] });
+    const { fetcher } = fakeFetch([urlReply(), new Response('<error/>', { status: 403 }), urlReply(), new Response('<error/>', { status: 403 })]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('403');
+  });
+
+  it.each([['http://images.example/a.png'], ['file:///etc/passwd'], ['not a url']])('rejects the picture address %j without fetching it', async (url) => {
+    const { fetcher, calls } = fakeFetch([Response.json({ data: [{ url }] })]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('https');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('rejects a picture download over the size cap', async () => {
+    const { fetcher, calls } = fakeFetch([
+      Response.json({ data: [{ url: 'https://images.example/a.png' }] }),
+      new Response(Buffer.alloc(MAX_PICTURE_BYTES + 1)),
+    ]);
+    await expect(drawPictureWithModel('jellyfish', API_KEY, { fetcher })).rejects.toThrow('too large');
+    expect(calls).toHaveLength(2);
   });
 });

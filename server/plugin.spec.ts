@@ -358,5 +358,6 @@ describe('apiMiddleware picture', () => {
     const failing = { name: 'fake', drawPicture: () => Promise.reject(new Error('boom')) } as unknown as ApiModel;
     const response = await post(await serve({}, failing), { subject: 'jellyfish' });
     expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Something went wrong on the server. Try again.', details: [] });
   });
 });
