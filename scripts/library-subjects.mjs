@@ -9,6 +9,29 @@ export const STYLE =
 const OBJECT = `isolated on a plain pure white background, centered, whole subject visible with margin around it, no shadow, no ground, ${STYLE}`;
 const SIDE_RIGHT = 'seen from the side, facing right';
 
+// Where each subject lives and the band of the scene it keeps to. A subject has one habitat
+// (small-fish stays in the kelp forest); props and the sun have none; backgrounds have no zone.
+const TAGS = {
+  kelp: ['kelp-forest', 'floor'], 'sea-urchin': ['kelp-forest', 'floor'], 'sea-star': ['kelp-forest', 'floor'], crab: ['kelp-forest', 'floor'],
+  phytoplankton: ['kelp-forest', 'water'], krill: ['kelp-forest', 'water'], 'small-fish': ['kelp-forest', 'water'], shark: ['kelp-forest', 'water'],
+  'sea-otter': ['kelp-forest', 'surface'], seal: ['kelp-forest', 'surface'],
+  grass: ['grassland', 'floor'], wildflower: ['grassland', 'floor'], rabbit: ['grassland', 'floor'], fox: ['grassland', 'floor'],
+  mouse: ['grassland', 'floor'], snake: ['grassland', 'floor'], grasshopper: ['grassland', 'floor'], hawk: ['grassland', 'sky'],
+  'oak-tree': ['woodland', 'floor'], acorn: ['woodland', 'floor'], caterpillar: ['woodland', 'floor'], deer: ['woodland', 'floor'],
+  wolf: ['woodland', 'floor'], squirrel: ['woodland', 'floor'], bear: ['woodland', 'floor'], fungi: ['woodland', 'floor'],
+  songbird: ['woodland', 'sky'], owl: ['woodland', 'sky'],
+  algae: ['pond', 'surface'], 'water-flea': ['pond', 'water'], tadpole: ['pond', 'water'], frog: ['pond', 'floor'],
+  'dragonfly-larva': ['pond', 'floor'], cattails: ['pond', 'floor'], snail: ['pond', 'floor'], dragonfly: ['pond', 'sky'],
+  duck: ['pond', 'surface'], heron: ['pond', 'floor'],
+  sun: [null, 'sky'],
+};
+
+const tagsFor = (id, group) => {
+  if (group === 'background') return { habitat: id.replace(/^bg-/, ''), zone: null };
+  const [habitat, zone] = TAGS[id] ?? [null, null];
+  return { habitat, zone };
+};
+
 const animal = (id, aliases, look, poses, holes = false) =>
   Object.entries(poses).map(([pose, action]) => ({
     id: `${id}-${pose}`,
@@ -16,6 +39,7 @@ const animal = (id, aliases, look, poses, holes = false) =>
     pose,
     group: 'organism',
     aliases,
+    ...tagsFor(id, 'organism'),
     holes,
     size: '1024x1024',
     prompt: `A single ${look}, ${action}, ${SIDE_RIGHT}, ${OBJECT}`,
@@ -28,6 +52,7 @@ const still = (id, aliases, look, group = 'organism', size = '1024x1024', holes 
   pose: 'still',
   group,
   aliases,
+  ...tagsFor(id, group),
   size,
   prompt: `${look}, ${OBJECT}`,
 });
@@ -38,6 +63,7 @@ const backdrop = (id, aliases, look) => ({
   pose: 'still',
   group: 'background',
   aliases,
+  ...tagsFor(id, 'background'),
   size: '1536x1024',
   prompt: `${look}, seen straight from the side, wide open empty space in the middle, no animals, no people, no objects in the middle, ${STYLE}`,
 });

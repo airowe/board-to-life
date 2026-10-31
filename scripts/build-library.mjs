@@ -94,9 +94,9 @@ const inBatches = async (items, work) => {
 };
 
 const writeManifest = () => {
-  const entries = SUBJECTS.filter((entry) => existsSync(`${OUT_DIR}/${entry.id}.webp`)).map(({ id, subject, pose, group, aliases }) => {
+  const entries = SUBJECTS.filter((entry) => existsSync(`${OUT_DIR}/${entry.id}.webp`)).map(({ id, subject, pose, group, aliases, habitat, zone }) => {
     const [width, height] = magick('identify', '-format', '%w %h', `${OUT_DIR}/${id}.webp`).split(' ').map(Number);
-    return { id, subject, pose, group, aliases, file: `${id}.webp`, width, height };
+    return { id, subject, pose, group, aliases, habitat, zone, file: `${id}.webp`, width, height };
   });
   writeFileSync(`${OUT_DIR}/manifest.json`, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`);
   return entries.length;

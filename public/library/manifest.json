@@ -10,6 +10,8 @@
         "giant kelp",
         "seaweed"
       ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
       "file": "kelp.webp",
       "width": 236,
       "height": 512
@@ -24,6 +26,8 @@
         "urchins",
         "purple urchin"
       ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
       "file": "sea-urchin.webp",
       "width": 512,
       "height": 502
@@ -38,6 +42,8 @@
         "otters",
         "sea otters"
       ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
       "file": "sea-otter-rest.webp",
       "width": 512,
       "height": 354
@@ -52,6 +58,8 @@
         "otters",
         "sea otters"
       ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
       "file": "sea-otter-move.webp",
       "width": 512,
       "height": 239
@@ -66,6 +74,8 @@
         "algae cells",
         "diatoms"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "phytoplankton.webp",
       "width": 512,
       "height": 489
@@ -79,6 +89,8 @@
         "zooplankton",
         "shrimp"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "krill.webp",
       "width": 512,
       "height": 162
@@ -95,6 +107,8 @@
         "minnows",
         "small fish"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "small-fish-rest.webp",
       "width": 512,
       "height": 131
@@ -111,6 +125,8 @@
         "minnows",
         "small fish"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "small-fish-move.webp",
       "width": 512,
       "height": 139
@@ -124,6 +140,8 @@
         "seals",
         "harbor seal"
       ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
       "file": "seal-rest.webp",
       "width": 512,
       "height": 191
@@ -137,6 +155,8 @@
         "seals",
         "harbor seal"
       ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
       "file": "seal-move.webp",
       "width": 512,
       "height": 164
@@ -149,6 +169,8 @@
       "aliases": [
         "sharks"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "shark-rest.webp",
       "width": 512,
       "height": 198
@@ -161,6 +183,8 @@
       "aliases": [
         "sharks"
       ],
+      "habitat": "kelp-forest",
+      "zone": "water",
       "file": "shark-move.webp",
       "width": 512,
       "height": 249
@@ -173,6 +197,8 @@
       "aliases": [
         "crabs"
       ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
       "file": "crab-rest.webp",
       "width": 512,
       "height": 354
@@ -185,6 +211,8 @@
       "aliases": [
         "crabs"
       ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
       "file": "crab-move.webp",
       "width": 512,
       "height": 340
@@ -198,6 +226,8 @@
         "starfish",
         "sea stars"
       ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
       "file": "sea-star.webp",
       "width": 512,
       "height": 480
@@ -211,6 +241,8 @@
         "grasses",
         "grass tuft"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "grass.webp",
       "width": 512,
       "height": 488
@@ -225,6 +257,8 @@
         "flowers",
         "clover"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "wildflower.webp",
       "width": 456,
       "height": 512
@@ -240,6 +274,8 @@
         "hare",
         "rabit"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "rabbit-rest.webp",
       "width": 428,
       "height": 512
@@ -255,6 +291,8 @@
         "hare",
         "rabit"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "rabbit-move.webp",
       "width": 512,
       "height": 420
@@ -269,6 +307,8 @@
         "red fox",
         "foxs"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "fox-rest.webp",
       "width": 477,
       "height": 512
@@ -283,6 +323,8 @@
         "red fox",
         "foxs"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "fox-move.webp",
       "width": 512,
       "height": 234
@@ -297,6 +339,8 @@
         "eagle",
         "falcon"
       ],
+      "habitat": "grassland",
+      "zone": "sky",
       "file": "hawk-rest.webp",
       "width": 347,
       "height": 512
@@ -311,6 +355,8 @@
         "eagle",
         "falcon"
       ],
+      "habitat": "grassland",
+      "zone": "sky",
       "file": "hawk-move.webp",
       "width": 512,
       "height": 297
@@ -324,6 +370,8 @@
         "mice",
         "field mouse"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "mouse-rest.webp",
       "width": 512,
       "height": 415
@@ -337,6 +385,8 @@
         "mice",
         "field mouse"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "mouse-move.webp",
       "width": 512,
       "height": 242
@@ -349,6 +399,8 @@
       "aliases": [
         "snakes"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "snake-rest.webp",
       "width": 512,
       "height": 324
@@ -361,6 +413,8 @@
       "aliases": [
         "snakes"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "snake-move.webp",
       "width": 512,
       "height": 449
@@ -376,6 +430,8 @@
         "insect",
         "insects"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "grasshopper-rest.webp",
       "width": 512,
       "height": 269
@@ -391,6 +447,8 @@
         "insect",
         "insects"
       ],
+      "habitat": "grassland",
+      "zone": "floor",
       "file": "grasshopper-move.webp",
       "width": 512,
       "height": 317
@@ -406,6 +464,8 @@
         "trees",
         "oak tree"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "oak-tree.webp",
       "width": 436,
       "height": 512
@@ -420,6 +480,8 @@
         "nuts",
         "seeds"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "acorn.webp",
       "width": 512,
       "height": 238
@@ -433,6 +495,8 @@
         "caterpillars",
         "larva"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "caterpillar-rest.webp",
       "width": 512,
       "height": 180
@@ -446,6 +510,8 @@
         "caterpillars",
         "larva"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "caterpillar-move.webp",
       "width": 512,
       "height": 354
@@ -462,6 +528,8 @@
         "robin",
         "sparrow"
       ],
+      "habitat": "woodland",
+      "zone": "sky",
       "file": "songbird-rest.webp",
       "width": 512,
       "height": 485
@@ -478,6 +546,8 @@
         "robin",
         "sparrow"
       ],
+      "habitat": "woodland",
+      "zone": "sky",
       "file": "songbird-move.webp",
       "width": 512,
       "height": 398
@@ -491,6 +561,8 @@
         "deers",
         "white-tailed deer"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "deer-rest.webp",
       "width": 469,
       "height": 512
@@ -504,6 +576,8 @@
         "deers",
         "white-tailed deer"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "deer-move.webp",
       "width": 512,
       "height": 326
@@ -517,6 +591,8 @@
         "wolves",
         "grey wolf"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "wolf-rest.webp",
       "width": 512,
       "height": 505
@@ -530,6 +606,8 @@
         "wolves",
         "grey wolf"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "wolf-move.webp",
       "width": 512,
       "height": 294
@@ -542,6 +620,8 @@
       "aliases": [
         "owls"
       ],
+      "habitat": "woodland",
+      "zone": "sky",
       "file": "owl-rest.webp",
       "width": 312,
       "height": 512
@@ -554,6 +634,8 @@
       "aliases": [
         "owls"
       ],
+      "habitat": "woodland",
+      "zone": "sky",
       "file": "owl-move.webp",
       "width": 512,
       "height": 247
@@ -566,6 +648,8 @@
       "aliases": [
         "squirrels"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "squirrel-rest.webp",
       "width": 485,
       "height": 512
@@ -578,6 +662,8 @@
       "aliases": [
         "squirrels"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "squirrel-move.webp",
       "width": 512,
       "height": 337
@@ -591,6 +677,8 @@
         "bears",
         "black bear"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "bear-rest.webp",
       "width": 512,
       "height": 439
@@ -604,6 +692,8 @@
         "bears",
         "black bear"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "bear-move.webp",
       "width": 512,
       "height": 343
@@ -620,6 +710,8 @@
         "decomposers",
         "decomposer"
       ],
+      "habitat": "woodland",
+      "zone": "floor",
       "file": "fungi.webp",
       "width": 512,
       "height": 504
@@ -634,6 +726,8 @@
         "green algae",
         "pond scum"
       ],
+      "habitat": "pond",
+      "zone": "surface",
       "file": "algae.webp",
       "width": 512,
       "height": 312
@@ -648,6 +742,8 @@
         "daphnia",
         "water fleas"
       ],
+      "habitat": "pond",
+      "zone": "water",
       "file": "water-flea.webp",
       "width": 512,
       "height": 280
@@ -660,6 +756,8 @@
       "aliases": [
         "tadpoles"
       ],
+      "habitat": "pond",
+      "zone": "water",
       "file": "tadpole-rest.webp",
       "width": 512,
       "height": 151
@@ -672,6 +770,8 @@
       "aliases": [
         "tadpoles"
       ],
+      "habitat": "pond",
+      "zone": "water",
       "file": "tadpole-move.webp",
       "width": 512,
       "height": 139
@@ -684,6 +784,8 @@
       "aliases": [
         "frogs"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "frog-rest.webp",
       "width": 512,
       "height": 361
@@ -696,6 +798,8 @@
       "aliases": [
         "frogs"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "frog-move.webp",
       "width": 512,
       "height": 360
@@ -710,6 +814,8 @@
         "nymph",
         "larvae"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "dragonfly-larva.webp",
       "width": 512,
       "height": 323
@@ -722,6 +828,8 @@
       "aliases": [
         "dragonflies"
       ],
+      "habitat": "pond",
+      "zone": "sky",
       "file": "dragonfly-rest.webp",
       "width": 512,
       "height": 124
@@ -734,6 +842,8 @@
       "aliases": [
         "dragonflies"
       ],
+      "habitat": "pond",
+      "zone": "sky",
       "file": "dragonfly-move.webp",
       "width": 464,
       "height": 512
@@ -747,6 +857,8 @@
         "ducks",
         "mallard"
       ],
+      "habitat": "pond",
+      "zone": "surface",
       "file": "duck-rest.webp",
       "width": 512,
       "height": 376
@@ -760,6 +872,8 @@
         "ducks",
         "mallard"
       ],
+      "habitat": "pond",
+      "zone": "surface",
       "file": "duck-move.webp",
       "width": 512,
       "height": 338
@@ -773,6 +887,8 @@
         "herons",
         "great blue heron"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "heron-rest.webp",
       "width": 343,
       "height": 512
@@ -786,6 +902,8 @@
         "herons",
         "great blue heron"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "heron-move.webp",
       "width": 512,
       "height": 306
@@ -800,6 +918,8 @@
         "cattail",
         "pond plants"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "cattails.webp",
       "width": 359,
       "height": 512
@@ -812,6 +932,8 @@
       "aliases": [
         "snails"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "snail-rest.webp",
       "width": 512,
       "height": 288
@@ -824,6 +946,8 @@
       "aliases": [
         "snails"
       ],
+      "habitat": "pond",
+      "zone": "floor",
       "file": "snail-move.webp",
       "width": 512,
       "height": 310
@@ -838,6 +962,8 @@
         "the sun",
         "energy"
       ],
+      "habitat": null,
+      "zone": "sky",
       "file": "sun.webp",
       "width": 512,
       "height": 511
@@ -852,6 +978,8 @@
         "marble",
         "metal ball"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "steel-ball.webp",
       "width": 504,
       "height": 512
@@ -864,6 +992,8 @@
       "aliases": [
         "bouncy ball"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "rubber-ball.webp",
       "width": 506,
       "height": 512
@@ -879,6 +1009,8 @@
         "crate",
         "brick"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "wooden-block.webp",
       "width": 504,
       "height": 512
@@ -892,6 +1024,8 @@
         "dominoes",
         "dominos"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "domino.webp",
       "width": 217,
       "height": 512
@@ -907,6 +1041,8 @@
         "lever",
         "seesaw"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "plank.webp",
       "width": 512,
       "height": 119
@@ -919,6 +1055,8 @@
       "aliases": [
         "wall"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "brick-wall.webp",
       "width": 512,
       "height": 477
@@ -933,6 +1071,8 @@
         "trolley",
         "car"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "cart.webp",
       "width": 512,
       "height": 141
@@ -945,6 +1085,8 @@
       "aliases": [
         "pulley wheel"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "pulley.webp",
       "width": 394,
       "height": 512
@@ -960,6 +1102,8 @@
         "kilogram",
         "weight"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "weight.webp",
       "width": 324,
       "height": 512
@@ -973,6 +1117,8 @@
         "pivot",
         "wedge"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "fulcrum.webp",
       "width": 512,
       "height": 479
@@ -986,6 +1132,8 @@
         "bob",
         "pendulum"
       ],
+      "habitat": null,
+      "zone": null,
       "file": "pendulum-bob.webp",
       "width": 398,
       "height": 512
@@ -1001,6 +1149,8 @@
         "kelp forest",
         "marine"
       ],
+      "habitat": "kelp-forest",
+      "zone": null,
       "file": "bg-kelp-forest.webp",
       "width": 1536,
       "height": 1024
@@ -1016,6 +1166,8 @@
         "prairie",
         "field"
       ],
+      "habitat": "grassland",
+      "zone": null,
       "file": "bg-grassland.webp",
       "width": 1536,
       "height": 1024
@@ -1030,6 +1182,8 @@
         "woodland",
         "woods"
       ],
+      "habitat": "woodland",
+      "zone": null,
       "file": "bg-woodland.webp",
       "width": 1536,
       "height": 1024
@@ -1045,6 +1199,8 @@
         "wetland",
         "freshwater"
       ],
+      "habitat": "pond",
+      "zone": null,
       "file": "bg-pond.webp",
       "width": 1536,
       "height": 1024
@@ -1057,6 +1213,8 @@
       "aliases": [
         "desert"
       ],
+      "habitat": "desert",
+      "zone": null,
       "file": "bg-desert.webp",
       "width": 1536,
       "height": 1024
@@ -1072,6 +1230,8 @@
         "room",
         "physics"
       ],
+      "habitat": "tabletop",
+      "zone": null,
       "file": "bg-tabletop.webp",
       "width": 1536,
       "height": 1024
@@ -1086,6 +1246,8 @@
         "laboratory",
         "classroom"
       ],
+      "habitat": "lab",
+      "zone": null,
       "file": "bg-lab.webp",
       "width": 1536,
       "height": 1024
