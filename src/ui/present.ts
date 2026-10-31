@@ -11,8 +11,11 @@ import { cartWheels } from '../scene/cart';
 import { changedFixedItems, gripPoint, moveGrip, pickGrip, rampHandles, type Grip } from '../scene/edit';
 import { outlineOf, rectangle } from '../scene/shapes';
 import { linkPoints } from '../scene/linkPoints';
+import type { Library } from '../library/manifest';
+import { initialSkin, nextSkin, type PhysicsSkin } from '../living/physicsPictures';
 import type { Lesson } from '../session/store';
 import { h } from './dom';
+import { createPhysicsPictures, drawBackdrop, drawPictureItems, SKIN_LABELS, type PhysicsPictures } from './physicsSkin';
 
 const STEP_MS = 1000 / STEPS_PER_SECOND;
 const MAX_FRAME_MS = 100;
@@ -26,12 +29,13 @@ const drawItem = (
   item: SceneItem,
   body: BodySnapshot | undefined,
   bodies: Map<string, BodySnapshot>,
+  ink: string = INK.black,
 ): void => {
   ctx.save();
   ctx.lineWidth = 6;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.strokeStyle = INK.black;
+  ctx.strokeStyle = ink;
   ctx.fillStyle = 'transparent';
   switch (item.kind) {
     case 'ball':
@@ -266,7 +270,9 @@ const drawScene = (
   canvas: HTMLCanvasElement,
   scene: Scene,
   snapshot: BodySnapshot[],
-  board: Board,
+  skin: PhysicsSkin,
+  photoBoard: Board,
+  libraryPictures: PhysicsPictures | null,
   ghost: Ghost | null,
   editing: Editing | null,
 ): void => {
@@ -279,18 +285,24 @@ const drawScene = (
     canvas.width = backing.width;
     canvas.height = backing.height;
   }
-  const { scale, offsetX, offsetY } = viewOf({ width: clientWidth, height: clientHeight }, scene.drawing);
+  const view = viewOf({ width: clientWidth, height: clientHeight }, scene.drawing);
+  const board = skin === 'photo' ? photoBoard : null;
+  const pictures = skin === 'pictures' ? libraryPictures : null;
 
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.fillStyle = INK.board;
   ctx.fillRect(0, 0, clientWidth, clientHeight);
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
+  const backdrop = pictures ? drawBackdrop(ctx, pictures, { width: clientWidth, height: clientHeight }, view, scene) : false;
+  ctx.translate(view.offsetX, view.offsetY);
+  ctx.scale(view.scale, view.scale);
 
   const bodies = new Map(snapshot.map((body) => [body.id, body]));
   if (board) ctx.drawImage(board.canvas, 0, 0, scene.drawing.width, scene.drawing.height);
   if (ghost) drawGhost(ctx, ghost);
-  if (!board) {
+  if (pictures) {
+    drawPictureItems(ctx, scene, bodies, pictures, backdrop, (item, ink) => drawItem(ctx, item, bodies.get(item.id), bodies, ink));
+    drawLabels(ctx, scene, bodies);
+  } else if (!board) {
     for (const item of scene.items) drawItem(ctx, item, bodies.get(item.id), bodies);
     drawLabels(ctx, scene, bodies);
   } else {
@@ -305,7 +317,13 @@ const drawScene = (
 const describeResult = (happened: boolean, item: string): string =>
   happened ? `Yes: ${item} fell over.` : `No: ${item} stayed standing.`;
 
-export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: string | null, onExit: () => void): (() => void) => {
+export const renderPresent = (
+  root: HTMLElement,
+  lesson: Lesson,
+  photoUrl: string | null,
+  onExit: () => void,
+  library: Library | null = null,
+): (() => void) => {
   if (lesson.subject !== 'physics') throw new Error(`present mode cannot show a ${lesson.subject} lesson yet`);
   const playback = createPlayback(lesson, SETTLE_SECONDS);
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Physics animation of the approved scene' });
@@ -320,20 +338,24 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
   let board: Board = null;
   let image: HTMLImageElement | null = null;
   let boardKey = '';
-  let onPhoto = photoUrl !== null;
+  const pictures = library ? createPhysicsPictures(library, () => redraw.invalidate()) : null;
+  let skin = initialSkin(pictures !== null, photoUrl !== null);
   let ghost: Ghost | null = null;
   let drag: { pointerId: number; grip: Grip; offset: { x: number; y: number }; from: Scene } | null = null;
   let note = '';
-  const photoToggle = h('button', { class: 'photo-toggle quiet', hidden: true }, '');
+  const skinToggle = h('button', { class: 'photo-toggle quiet', hidden: true }, '');
+  const following = (): PhysicsSkin => nextSkin(skin, board !== null, pictures !== null);
+  // Shown once there is more than the clean drawing to choose from; it names the skin a press switches to.
   const showToggle = (): void => {
-    photoToggle.hidden = board === null;
-    photoToggle.textContent = onPhoto ? 'Show the clean drawing' : 'Show it on the photo';
+    skinToggle.hidden = board === null && pictures === null;
+    skinToggle.textContent = SKIN_LABELS[following()];
   };
-  photoToggle.addEventListener('click', () => {
-    onPhoto = !onPhoto;
+  skinToggle.addEventListener('click', () => {
+    skin = following();
     showToggle();
     redraw.invalidate();
   });
+  showToggle();
   // The board is painted from the photo as drawn; it is painted again only when the set of moved fixed items changes.
   const refreshBoard = (): void => {
     const movedFixed = changedFixedItems(lesson.scene, playback.scene());
@@ -430,7 +452,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
       const sim = playback.simulation();
       const alpha = moving ? carry / STEP_MS : 1;
       const editing = editable() ? { handles: true, held: drag?.grip.id ?? null } : null;
-      drawScene(canvas, playback.scene(), interpolate(sim.previousSnapshot(), sim.snapshot(), alpha), onPhoto ? board : null, ghost, editing);
+      drawScene(canvas, playback.scene(), interpolate(sim.previousSnapshot(), sim.snapshot(), alpha), skin, board, pictures, ghost, editing);
     }
     showPhase(playback.phase());
     canvas.classList.toggle('editable', editable());
@@ -515,7 +537,7 @@ export const renderPresent = (root: HTMLElement, lesson: Lesson, photoUrl: strin
     canvas,
     caption,
     controls,
-    photoToggle,
+    skinToggle,
     h('button', { class: 'exit quiet', onclick: exit }, 'Exit'),
   );
   root.replaceChildren(stage);

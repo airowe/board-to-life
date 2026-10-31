@@ -20,7 +20,7 @@ import type { Subject } from './subjects';
 import { setUpBoardMode } from './ui/boardToggle';
 import { renderCapture } from './ui/capture';
 import { browserCache, createLivePictures, decodeCutOut, drawPicture } from './library/live';
-import { loadLibrary } from './library/manifest';
+import { loadLibrary, type Library } from './library/manifest';
 import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { questionsFailureStatus } from './ui/questionCards';
 import { renderWebCheck } from './ui/checkWeb';
@@ -85,6 +85,12 @@ const livePicturesReady = libraryReady.then((loaded) =>
     ? createLivePictures({ library: loaded.library, draw: drawPicture(requestHeaders), cache: browserCache(), decode: decodeCutOut })
     : null,
 );
+
+// Physics boards open on library pictures once this has loaded; until then (or if it failed) they open as before.
+let presentLibrary: Library | null = null;
+void libraryReady.then((loaded) => {
+  presentLibrary = loaded?.library ?? null;
+});
 
 // Ready long before a lesson is shown; until then (or if the library failed) food webs open on Chart, as before.
 let presentPictures: ScenePictures | null = null;
@@ -376,7 +382,7 @@ function showPresent(): void {
   leaveScreen();
   if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck, presentPictures);
   else if (lesson.subject === 'geometry') cleanup = renderFigurePresent(root, lesson, photoUrl, showCheck);
-  else cleanup = renderPresent(root, lesson, photoUrl, showCheck);
+  else cleanup = renderPresent(root, lesson, photoUrl, showCheck, presentLibrary);
 }
 
 function showCapture(): void {
