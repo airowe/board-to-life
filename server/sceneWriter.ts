@@ -17,6 +17,8 @@ const { floorY, domino, ballRadius, push, rampFootGap } = LAYOUT_GUIDE;
 
 const MOVABLE_KINDS = new Set(['ball', 'block', 'domino', 'cart', 'lever']);
 const LAYOUT_ATTEMPTS = 2;
+// A second layout is only worth starting with this much of the budget left; the fastest layouts measured took about 10 s.
+export const MIN_RETRY_MS = 10_000;
 const NOTHING_MOVES = 'Nothing in that description can move. Describe objects such as balls, ramps, blocks or dominoes.';
 
 export class LayoutError extends Error {
@@ -53,7 +55,7 @@ export const writerPrompt = (description: string, errors: readonly string[]): st
 export const describeSceneWithModel = async (description: string, provider: ProviderWithKey, options: CallOptions): Promise<unknown> => {
   const deadline = performance.now() + options.timeoutMs;
   let errors: string[] = [];
-  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS && (attempt === 0 || deadline - performance.now() >= MIN_RETRY_MS); attempt += 1) {
     const parsed = await requestModelJson(
       [{ type: 'text', text: writerPrompt(description, errors) }],
       { name: 'whiteboard_scene', schema: MODEL_SCENE_SCHEMA },

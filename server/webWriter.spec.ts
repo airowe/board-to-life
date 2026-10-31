@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { validateWeb } from '../src/ecosystem/schema';
-import { LayoutError } from './sceneWriter';
+import { LayoutError, MIN_RETRY_MS } from './sceneWriter';
 import { PROVIDERS } from './sceneReader';
 import type { ModelWeb } from './webReader';
 import { describeWebWithModel, webWriterPrompt } from './webWriter';
 
-const TIMEOUT_MS = 1000;
+// The fakes answer at once, so the budget only has to leave room for the retry.
+const TIMEOUT_MS = 2 * MIN_RETRY_MS;
 const DESCRIPTION = 'Grass is eaten by rabbits, and rabbits are eaten by foxes.';
 const WRITER_DRAWING = { width: 1200, height: 800 };
 

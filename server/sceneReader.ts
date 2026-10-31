@@ -37,7 +37,7 @@ export const costOf = (name: ProviderName, usage: Usage | null): number => {
   return ((usage.prompt_tokens - cached) * price.input + cached * price.cachedInput + usage.completion_tokens * price.output) / 1_000_000;
 };
 
-export const isProviderName = (name: string): name is ProviderName => name in PROVIDERS;
+export const isProviderName = (name: string): name is ProviderName => Object.hasOwn(PROVIDERS, name);
 
 export const providerFromEnv = (name: ProviderName, env: Record<string, string | undefined>): ProviderWithKey => {
   const provider = PROVIDERS[name];
@@ -294,6 +294,17 @@ export const toScene = (model: ModelScene, photo: ImageSize): unknown => {
   };
 };
 
+const WRONG_SHAPE = 'it answered in the wrong shape.';
+
+// A model reply missing a field surfaces as a TypeError from the converters; the teacher gets a plain reason instead.
+export const failureReason = (error: unknown): string => {
+  if (error instanceof TypeError) {
+    console.error(error);
+    return WRONG_SHAPE;
+  }
+  return error instanceof Error ? error.message : String(error);
+};
+
 export type ModelPhoto = { bytes: Uint8Array; contentType: string; size: ImageSize };
 export type CallRecord = { provider: ProviderName; status: number | null; ms: number; content: string | null; usage: Usage | null; error: string | null };
 export const EFFORTS = ['minimal', 'low', 'medium', 'high'] as const;
@@ -374,7 +385,10 @@ const callModelOnce = async (
       throw new ModelCallError(cause instanceof Error ? cause.message : String(cause), true, { cause });
     }
     record.status = response.status;
-    const body: unknown = await response.json().catch(() => null);
+    const body: unknown = await response.json().catch((cause: unknown) => {
+      if (controller.signal.aborted) throw new ModelCallError(`${provider.name} did not answer within ${Math.round(timeoutMs / 1000)} seconds`, false, { cause });
+      return null;
+    });
     if (!response.ok) {
       throw new ModelCallError(`${provider.name} answered ${response.status}: ${errorMessage(body) ?? 'no error message'}`, isRetryableStatus(response.status));
     }

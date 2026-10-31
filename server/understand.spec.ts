@@ -13,6 +13,12 @@ const READER = 'meta';
 const reads = (scene: unknown): ModelRead => () => Promise.resolve(scene);
 
 describe('handleUnderstandWithModel', () => {
+  it('says the reader answered in the wrong shape instead of showing a raw TypeError', async () => {
+    const read: ModelRead = () => Promise.reject(new TypeError("Cannot read properties of undefined (reading 'map')"));
+    const response = await handleUnderstandWithModel({ contentType: 'image/png', bytes: png, reader: READER, read });
+    expect(response).toEqual({ status: 502, body: { error: 'The scene reader failed: it answered in the wrong shape.', details: [] } });
+  });
+
   it('returns the validated scene and which reader produced it', async () => {
     const response = await handleUnderstandWithModel({ contentType: 'image/png', bytes: png, reader: READER, read: reads(rampBallDominoes) });
     expect(response.status).toBe(200);

@@ -1,6 +1,6 @@
 import { validateWeb } from '../src/ecosystem/schema';
 import { requestModelJson, type CallOptions, type ProviderWithKey } from './sceneReader';
-import { LayoutError, WRITER_SIZE } from './sceneWriter';
+import { LayoutError, MIN_RETRY_MS, WRITER_SIZE } from './sceneWriter';
 import { MODEL_WEB_SCHEMA, toWeb, WEB_FORMAT, type ModelWeb } from './webReader';
 
 const LAYOUT_ATTEMPTS = 2;
@@ -23,7 +23,7 @@ export const webWriterPrompt = (description: string, errors: readonly string[]):
 export const describeWebWithModel = async (description: string, provider: ProviderWithKey, options: CallOptions): Promise<unknown> => {
   const deadline = performance.now() + options.timeoutMs;
   let errors: string[] = [];
-  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS && (attempt === 0 || deadline - performance.now() >= MIN_RETRY_MS); attempt += 1) {
     const parsed = await requestModelJson(
       [{ type: 'text', text: webWriterPrompt(description, errors) }],
       { name: 'food_web', schema: MODEL_WEB_SCHEMA },

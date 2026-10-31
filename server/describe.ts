@@ -1,4 +1,5 @@
 import { checkDescription } from '../src/capture/description';
+import { failureReason } from './sceneReader';
 import { LayoutError } from './sceneWriter';
 import type { StubResponse } from './stub';
 
@@ -19,7 +20,7 @@ export const handleDescribeWithModel = async (request: ModelDescribeRequest): Pr
     return { status: 200, body: { stub: false, reader: request.reader, scene } };
   } catch (error) {
     if (error instanceof LayoutError) return layoutFailure(error);
-    return failure(502, `The scene writer failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The scene writer failed: ${failureReason(error)}`);
   }
 };
 
@@ -32,7 +33,7 @@ export const handleDescribeWebWithModel = async (request: ModelDescribeRequest):
     return { status: 200, body: { stub: false, reader: request.reader, web } };
   } catch (error) {
     if (error instanceof LayoutError) return layoutFailure(error);
-    return failure(502, `The food web writer failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The food web writer failed: ${failureReason(error)}`);
   }
 };
 
@@ -45,6 +46,6 @@ export const handleDescribeFigureWithModel = async (request: ModelDescribeReques
     return { status: 200, body: { stub: false, reader: request.reader, figure } };
   } catch (error) {
     if (error instanceof LayoutError) return layoutFailure(error);
-    return failure(502, `The figure writer failed: ${error instanceof Error ? error.message : String(error)}`);
+    return failure(502, `The figure writer failed: ${failureReason(error)}`);
   }
 };

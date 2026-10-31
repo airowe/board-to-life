@@ -2,7 +2,7 @@ import { imageOf, positionsOf, type Point, type Positions } from '../src/geometr
 import { citedPointIds, validateFigure, type Figure, type Polygon } from '../src/geometry/schema';
 import { FIGURE_FORMAT, MODEL_FIGURE_SCHEMA, obeyWrittenValues, toFigure, type ModelFigure } from './figureReader';
 import { requestModelJson, type CallOptions, type ProviderWithKey } from './sceneReader';
-import { LayoutError, WRITER_SIZE } from './sceneWriter';
+import { LayoutError, MIN_RETRY_MS, WRITER_SIZE } from './sceneWriter';
 
 const LAYOUT_ATTEMPTS = 2;
 export const IMAGE_LANDING_FRACTION = 0.05;
@@ -62,7 +62,7 @@ export const withoutDrawnImages = (figure: Figure, description: string): Figure 
 export const describeFigureWithModel = async (description: string, provider: ProviderWithKey, options: CallOptions): Promise<Figure> => {
   const deadline = performance.now() + options.timeoutMs;
   let errors: string[] = [];
-  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS && (attempt === 0 || deadline - performance.now() >= MIN_RETRY_MS); attempt += 1) {
     const parsed = await requestModelJson(
       [{ type: 'text', text: figureWriterPrompt(description, errors) }],
       { name: 'figure', schema: MODEL_FIGURE_SCHEMA },

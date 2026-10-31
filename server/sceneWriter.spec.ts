@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createSimulation, SETTLE_SECONDS, STEPS_PER_SECOND } from '../src/physics/simulation';
 import { validateScene } from '../src/scene/schema';
 import { ITEM_KINDS, PROVIDERS, READER_PROMPT, toScene, type ModelScene } from './sceneReader';
-import { describeSceneWithModel, LAYOUT_GUIDE, LayoutError, writerPrompt, WRITER_SIZE } from './sceneWriter';
+import { describeSceneWithModel, LAYOUT_GUIDE, LayoutError, MIN_RETRY_MS, writerPrompt, WRITER_SIZE } from './sceneWriter';
 
-const TIMEOUT_MS = 1000;
+// The fakes answer at once, so the budget only has to leave room for the retry.
+const TIMEOUT_MS = 2 * MIN_RETRY_MS;
 const DESCRIPTION = 'A ball rolls down a ramp and knocks over three dominoes.';
 const DRAWING = { width: 1200, height: 800 };
 const OFF_BOARD_X = 1200;
@@ -227,6 +228,16 @@ describe('describeSceneWithModel', () => {
     expect((failure as LayoutError).message).toBe('The layout failed validation.');
     expect((failure as LayoutError).details.length).toBeGreaterThan(0);
     expect(calls).toHaveLength(2);
+  });
+
+  it('does not start a second layout with too little time left to finish it', async () => {
+    const calls: Call[] = [];
+    const failure = await describeSceneWithModel(DESCRIPTION, provider, { timeoutMs: MIN_RETRY_MS, fetchImpl: fakeFetch([invalidLayout, layout], calls) }).catch(
+      (error: unknown) => error,
+    );
+    expect(calls).toHaveLength(1);
+    expect(failure).toBeInstanceOf(LayoutError);
+    expect((failure as LayoutError).kind).toBe('invalid');
   });
 
   it('refuses a scene where nothing can move', async () => {
