@@ -506,7 +506,7 @@ button:disabled {
 
 .caption {
   position: absolute;
-  top: 5vh;
+  top: max(5vh, 72px);
   left: 50%;
   transform: translateX(-50%);
   width: min(90vw, 1100px);
@@ -960,6 +960,10 @@ body.board-mode .exit {
 
 body.board-mode .photo-toggle {
   left: 1rem;
+}
+
+body.board-mode .caption {
+  top: max(5vh, calc(1rem + max(64px, 2.8rem) + 12px));
 }
 
 .describe h2 {
