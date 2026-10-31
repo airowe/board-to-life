@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { emptyEdits, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, simulate, startingPopulations, type Series } from '../ecosystem/model';
@@ -13,7 +14,8 @@ import {
   crowdTargets,
   type IndividualPose,
 } from './crowd';
-import { STAGE, type Group } from './layout';
+import { parseLibrary } from '../library/manifest';
+import { STAGE, SURFACE_Y_BY_HABITAT, layoutPlace, type Group } from './layout';
 
 const SETTLED = { fox: 100, grass: 1000 };
 const ROLES: Record<string, Role> = { fox: 'consumer', grass: 'producer' };
@@ -56,10 +58,10 @@ describe('crowdTargets', () => {
   });
 });
 
-const FLOOR: Group = { speciesId: 'fox', role: 'consumer', zone: 'floor', centreX: 400, spread: 120, baseY: 880, size: 150 };
-const SURFACE: Group = { speciesId: 'otter', role: 'consumer', zone: 'surface', centreX: 1000, spread: 100, baseY: 123, size: 130 };
-const WATER: Group = { speciesId: 'fish', role: 'consumer', zone: 'water', centreX: 1300, spread: 100, baseY: 560, size: 110 };
-const PRODUCER: Group = { speciesId: 'grass', role: 'producer', zone: 'floor', centreX: 800, spread: 150, baseY: 880, size: 300 };
+const FLOOR: Group = { speciesId: 'fox', role: 'consumer', zone: 'floor', centreX: 400, spread: 120, baseY: 880, depth: 12, size: 150 };
+const SURFACE: Group = { speciesId: 'otter', role: 'consumer', zone: 'surface', centreX: 1000, spread: 100, baseY: 123, depth: 0, size: 130 };
+const WATER: Group = { speciesId: 'fish', role: 'consumer', zone: 'water', centreX: 1300, spread: 100, baseY: 560, depth: 60, size: 110 };
+const PRODUCER: Group = { speciesId: 'grass', role: 'producer', zone: 'floor', centreX: 800, spread: 150, baseY: 880, depth: 12, size: 300 };
 const GROUPS = [FLOOR, SURFACE, WATER, PRODUCER];
 const SETTLED_IN = ENTER_SECONDS + 0.5;
 const IDLE_TIMES = [SETTLED_IN, SETTLED_IN + 0.7, SETTLED_IN + 2.3, SETTLED_IN + 5.1];
@@ -202,6 +204,26 @@ describe('createCrowdTracker', () => {
     const targets = { fox: 5, otter: 3, fish: 4, grass: 6 };
     for (const seconds of [0, ENTER_SECONDS * HALF, ...IDLE_TIMES]) {
       expect(posesAt(targets, seconds)).toEqual(posesAt(targets, seconds));
+    }
+  });
+
+  it('pond swimmers stay below the waterline across many seeds and times', () => {
+    const library = parseLibrary(JSON.parse(readFileSync('public/library/manifest.json', 'utf8')));
+    const pond = WEB_SAMPLES.find((sample) => sample.id === 'pond')?.web;
+    if (!pond) throw new Error('no pond sample');
+    const layout = layoutPlace(pond, library);
+    const swimmers = layout.groups.filter((group) => group.zone === 'water');
+    const waterline = SURFACE_Y_BY_HABITAT.pond * STAGE.height;
+    const tracker = createCrowdTracker();
+    tracker.update(Object.fromEntries(swimmers.map((group) => [group.speciesId, MAX_PER_GROUP])), 0);
+    expect(swimmers.length).toBeGreaterThan(0);
+    for (let seconds = SETTLED_IN; seconds < SETTLED_IN + 30; seconds += 0.37) {
+      const poses = tracker.poses(swimmers, seconds, false);
+      for (const group of swimmers) {
+        const members = poses.get(group.speciesId) ?? [];
+        expect(members).toHaveLength(MAX_PER_GROUP);
+        for (const pose of members) expect(pose.y - group.size / 2).toBeGreaterThan(waterline);
+      }
     }
   });
 });

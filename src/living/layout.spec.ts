@@ -12,11 +12,16 @@ import {
   SMALL_HEIGHT,
   STAGE,
   SURFACE_HEIGHT,
-  SURFACE_Y,
+  SURFACE_Y_BY_HABITAT,
+  WATER_Y_BY_HABITAT,
   habitatFor,
   layoutPlace,
   type Group,
 } from './layout';
+
+// Measured on bg-pond.webp: the water's surface band runs from 0.505 to 0.555 of the height.
+const POND_WATER_BAND = [0.5, 0.56] as const;
+const KELP_SURFACE_Y = 0.12;
 
 const library = parseLibrary(JSON.parse(readFileSync('public/library/manifest.json', 'utf8')));
 
@@ -100,16 +105,49 @@ describe('layoutPlace', () => {
     expect(hawk.baseY).toBeLessThan(STAGE.height / 2);
   });
 
-  it('surface groups sit at SURFACE_Y', () => {
+  it('surface groups sit at SURFACE_Y for their habitat (kelp forest 0.12)', () => {
     const otter = groupOf(layoutPlace(sampleWeb('ocean'), library).groups, 'otter');
-    expect(otter).toMatchObject({ zone: 'surface', baseY: SURFACE_Y * STAGE.height });
+    expect(SURFACE_Y_BY_HABITAT['kelp-forest']).toBe(KELP_SURFACE_Y);
+    expect(otter).toMatchObject({ zone: 'surface', baseY: KELP_SURFACE_Y * STAGE.height });
   });
 
-  it('water groups sit between the surface and the floor', () => {
-    const minnow = groupOf(layoutPlace(sampleWeb('pond'), library).groups, 'minnow');
-    expect(minnow.zone).toBe('water');
-    expect(minnow.baseY).toBeGreaterThan(SURFACE_Y * STAGE.height);
-    expect(minnow.baseY).toBeLessThan(FLOOR_Y * STAGE.height);
+  it.each([['duck'], ['algae']])('pond surface group %s sits at the pond waterline', (speciesId) => {
+    const group = groupOf(layoutPlace(sampleWeb('pond'), library).groups, speciesId);
+    expect(group).toMatchObject({ zone: 'surface', baseY: SURFACE_Y_BY_HABITAT.pond * STAGE.height });
+    expect(group.baseY).toBeGreaterThanOrEqual(POND_WATER_BAND[0] * STAGE.height);
+    expect(group.baseY).toBeLessThanOrEqual(POND_WATER_BAND[1] * STAGE.height);
+  });
+
+  const kelpWithSwimmers = (): Web =>
+    webOf([speciesAt('kelp', 'producer', 100, 800), speciesAt('krill', 'consumer', 300, 500), speciesAt('shark', 'consumer', 600, 200)], []);
+
+  it.each<[string, () => Web, Habitat]>([
+    ['pond sample', () => sampleWeb('pond'), 'pond'],
+    ['kelp forest with swimmers', kelpWithSwimmers, 'kelp-forest'],
+  ])('water groups in the %s sit between its surface and floor', (_, makeWeb, habitat) => {
+    const layout = layoutPlace(makeWeb(), library);
+    expect(layout.habitat).toBe(habitat);
+    const water = layout.groups.filter((group) => group.zone === 'water');
+    expect(water.length).toBeGreaterThan(0);
+    for (const group of water) {
+      expect(group.baseY).toBe(WATER_Y_BY_HABITAT[habitat] * STAGE.height);
+      expect(group.baseY - group.depth - group.size / 2).toBeGreaterThan(SURFACE_Y_BY_HABITAT[habitat] * STAGE.height);
+      expect(group.baseY + group.depth + group.size / 2).toBeLessThan(FLOOR_Y * STAGE.height);
+    }
+  });
+
+  it('gives floor and water crowds some depth, and surface crowds none', () => {
+    const { groups } = layoutPlace(sampleWeb('pond'), library);
+    expect(groupOf(groups, 'heron').depth).toBeGreaterThan(0);
+    expect(groupOf(groups, 'minnow').depth).toBeGreaterThan(0);
+    expect(groupOf(groups, 'duck').depth).toBe(0);
+  });
+
+  it('land habitats stand surface floaters on the floor', () => {
+    const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('rabbit', 'consumer', 300, 400), speciesAt('duck', 'consumer', 600, 400)], []);
+    const layout = layoutPlace(web, library);
+    expect(layout.habitat).toBe('grassland');
+    expect(groupOf(layout.groups, 'duck')).toMatchObject({ zone: 'surface', baseY: FLOOR_Y * STAGE.height });
   });
 
   it('an unknown "jellyfish" is placed in water', () => {

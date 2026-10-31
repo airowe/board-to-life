@@ -2,7 +2,6 @@ import type { WebEdits } from '../ecosystem/edits';
 import type { Series } from '../ecosystem/model';
 import { EXTINCT_FRACTION } from '../ecosystem/outcomes';
 import type { Role } from '../ecosystem/schema';
-import type { Zone } from '../library/manifest';
 import { STAGE, type Group } from './layout';
 
 export const BASE_ANIMALS = 4;
@@ -22,8 +21,6 @@ const BOB_PERIOD = [2.6, 4] as const;
 const DRIFT_PERIOD = [5, 8] as const;
 const WANDER_PERIOD = [6, 10] as const;
 const SWAY_PERIOD = [3, 5] as const;
-// How far a slot's resting line sits in front of or behind the group's line, so a crowd is not a queue.
-const DEPTH_PX: Record<Zone, number> = { floor: 12, water: 60, surface: 0, sky: 40 };
 const SCALE_VARIETY = 0.1;
 const GOLDEN_FRACTION = 0.618034;
 const TAU = 2 * Math.PI;
@@ -118,7 +115,7 @@ const homeOf = (group: Group, who: Individual) => {
   const reach = Math.max(group.spread - idleReach(group), 0);
   return {
     x: group.centreX + (2 * spot - 1) * reach,
-    y: group.baseY + (2 * seeded(who.seed, CHANNEL.depth) - 1) * DEPTH_PX[group.zone],
+    y: group.baseY + (2 * seeded(who.seed, CHANNEL.depth) - 1) * group.depth,
     scale: 1 + (2 * seeded(who.seed, CHANNEL.scale) - 1) * SCALE_VARIETY,
   };
 };
