@@ -197,14 +197,14 @@ The "Stub mode" menu in the header makes the stubs misbehave so the error screen
 
 ## Living scenes
 
-Food webs open on a **Place** view: a habitat background (kelp forest, grassland, woodland, pond or desert) with each
+Food webs open on a **Place** view: a habitat background (kelp forest, grassland, woodland or pond) with each
 species drawn as illustrated pictures. Crowds are sized by the population model, and animals enter, leave and idle.
 Short labels pin to a species as its change shows ("Rabbits multiplying.", "Grass thinning out."). **Chart** is the
 board's species and arrows, and editing happens there. **Time** is the population chart. The same playback drives all
 three.
 
 Physics boards open with library pictures on a tabletop by default, including boards made from a photo. The button
-cycles to the photo and to the clean drawing. Physics boards use a tabletop or lab background.
+cycles to the photo and to the clean drawing. Physics boards always use the tabletop background.
 
 **The picture library.** 81 pictures: 74 cut-out subjects (most animals have a resting and a moving pose) and 7
 backgrounds. Muse Image (`muse-image-1.0`) drew them once, in one house style. `scripts/build-library.mjs` builds them
@@ -213,7 +213,8 @@ library took about two minutes and cost about 88 cents, including redraws.
 
 **Subjects outside the library** are drawn live by Muse Image through `POST /api/picture` (behind the access code), at
 most 4 per board, while the teacher is on the check screen. The browser cuts each one out of its white background and
-keeps it on the device. In a live check, a typed ocean web with jellyfish and sea turtles got both pictures back (2
+keeps it on the device. A picture that comes out blank once cut out is not used (the emoji shows instead), and the
+stub's stand-in picture is never kept. In a live check, a typed ocean web with jellyfish and sea turtles got both pictures back (2
 calls, both 200) before the teacher approved the reading. A second web with the same species reused the device copies
 and made no new picture calls.
 
@@ -225,7 +226,9 @@ and made no new picture calls.
 4. A Fluent Emoji 3D picture (156 animal and nature emoji, MIT licence in `public/library/fallback/LICENSE`).
 5. The drawing the app shows today.
 
-With `prefers-reduced-motion` set, there is no idle motion and fades are instant. Demo screenshots are in
+With `prefers-reduced-motion` set, there is no idle motion, label and picture crossfades are instant, and animals no
+longer walk or swim in and out: individuals joining or leaving a crowd fade in or out where they stand, over the same
+2.4 seconds as a normal entry. Demo screenshots are in
 `art/screens/`.
 
 ## Quality gates
