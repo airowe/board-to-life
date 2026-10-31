@@ -19,6 +19,8 @@ import { loadSubject, saveSubject } from './subjectChoice';
 import type { Subject } from './subjects';
 import { setUpBoardMode } from './ui/boardToggle';
 import { renderCapture } from './ui/capture';
+import { browserCache, createLivePictures, decodeCutOut, drawPicture } from './library/live';
+import { loadLibrary } from './library/manifest';
 import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { questionsFailureStatus } from './ui/questionCards';
 import { renderWebCheck } from './ui/checkWeb';
@@ -75,6 +77,19 @@ const leaveScreen = (): void => {
 
 const accessCode = rememberAccessCode(location.search, storage);
 const requestHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value, ...accessHeaders(accessCode) });
+
+const libraryReady = loadLibrary().catch(() => null);
+const livePicturesReady = libraryReady.then((loaded) =>
+  loaded
+    ? createLivePictures({ library: loaded.library, draw: drawPicture(requestHeaders), cache: browserCache(), decode: decodeCutOut })
+    : null,
+);
+
+const requestLivePictures = (content: DraftContent): void => {
+  if (content.subject !== 'ecosystem') return;
+  const names = content.web.species.map((species) => species.name);
+  void livePicturesReady.then((pictures) => pictures?.request(names));
+};
 
 const showLoading = (message: string): void => {
   leaveScreen();
@@ -206,6 +221,7 @@ const readDrawing = async (photo: Blob, readSubject: Subject, preparedNote: stri
   if (!validated.ok) return showError({ message: VALIDATION_FAILED[readSubject], details: validated.errors }, retry);
 
   const draftId = session.startDraft(validated.content);
+  requestLivePictures(validated.content);
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(photo);
@@ -241,6 +257,7 @@ const describeSetup = async (text: string, describeSubject: Subject): Promise<vo
   activeRead = null;
 
   const draftId = session.startDraft(validated.content);
+  requestLivePictures(validated.content);
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(sketch);
