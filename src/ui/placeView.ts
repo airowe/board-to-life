@@ -167,28 +167,41 @@ const pictureOf = (source: PictureSource, pose: 'rest' | 'move', frame: PlaceFra
 };
 
 // The whole stage, as large as fits: no individual or label is ever cropped. Spare width is shared either side; spare
-// height goes above, so the floor stays on the canvas's bottom edge. The background is mirrored out into the spare room.
+// height goes above, so the floor stays on the canvas's bottom edge. drawBackground fills the spare room.
 export const stageView = (width: number, height: number): View => {
   const view = viewOf({ width, height }, STAGE);
   return { ...view, offsetY: height - STAGE.height * view.scale };
 };
 
-// The background at stage size, with a mirrored copy against each edge to fill whatever the canvas shows beyond it.
-const drawBackground = (ctx: CanvasRenderingContext2D, image: HTMLImageElement): void => {
+// Rows at the top of the background that are stretched upward to fill spare height: always sky (or open water).
+const SKY_STRIP_ROWS = 4;
+// Spare height smaller than this (screen px) is rounding, not room to fill.
+const MIN_SKY_FILL_PX = 0.5;
+
+// The room above the stage, in stage px, when the canvas is taller than the stage; null when there is none.
+export const skyFill = (view: View): { x: number; y: number; width: number; height: number } | null => {
+  if (view.offsetY < MIN_SKY_FILL_PX) return null;
+  const height = view.offsetY / view.scale;
+  return { x: 0, y: -height, width: STAGE.width, height };
+};
+
+// The background at stage size. Spare width shows a mirrored copy against each side (hills stay upright); spare height
+// shows the background's top rows stretched upward, so the sky simply carries on.
+const drawBackground = (ctx: CanvasRenderingContext2D, image: HTMLImageElement, view: View): void => {
   const { width, height } = STAGE;
-  const copies: [number, number, number, number][] = [
-    [1, 1, 0, 0],
-    [-1, 1, 0, 0],
-    [-1, 1, 2 * width, 0],
-    [1, -1, 0, 0],
-  ];
-  for (const [flipX, flipY, shiftX, shiftY] of copies) {
+  ctx.drawImage(image, 0, 0, width, height);
+  for (const [flip, shift] of [
+    [-1, 0],
+    [-1, 2 * width],
+  ] as const) {
     ctx.save();
-    ctx.translate(shiftX, shiftY);
-    ctx.scale(flipX, flipY);
+    ctx.translate(shift, 0);
+    ctx.scale(flip, 1);
     ctx.drawImage(image, 0, 0, width, height);
     ctx.restore();
   }
+  const sky = skyFill(view);
+  if (sky) ctx.drawImage(image, 0, 0, image.naturalWidth, SKY_STRIP_ROWS, sky.x, sky.y, sky.width, sky.height);
 };
 
 const drawIndividual = (
@@ -418,7 +431,7 @@ export const drawPlace = (canvas: HTMLCanvasElement, frame: PlaceFrame): void =>
   ctx.translate(view.offsetX, view.offsetY);
   ctx.scale(view.scale, view.scale);
   const background = frame.images.get(`bg-${frame.layout.habitat}.webp`);
-  if (background) drawBackground(ctx, background);
+  if (background) drawBackground(ctx, background, view);
   ctx.restore();
 
   drawLeaders(ctx, extents);

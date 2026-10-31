@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STAGE } from '../living/layout';
-import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha, stageView } from './placeView';
+import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha, skyFill, stageView } from './placeView';
 
 describe('crossfadeBlend', () => {
   const SINCE = 10;
@@ -68,5 +68,29 @@ describe('stageView', () => {
     expect(Math.max(right - left - width, bottom - top - HEIGHT)).toBeCloseTo(0, 6);
     expect(left).toBeCloseTo(width - right, 6);
     expect(bottom).toBeCloseTo(HEIGHT, 6);
+  });
+});
+
+describe('skyFill', () => {
+  const HEIGHT = 600;
+
+  it.each([
+    ['1:1', 1],
+    ['2:3', 2 / 3],
+    ['5:4', 5 / 4],
+  ])('on a %s canvas fills the room above the stage, from the canvas top down to the stage top, edge to edge', (_, aspect) => {
+    const view = stageView(HEIGHT * aspect, HEIGHT);
+    const fill = skyFill(view);
+    if (!fill) throw new Error('expected room above the stage');
+    expect(fill.y + fill.height).toBeCloseTo(0, 6);
+    expect(view.offsetY + fill.y * view.scale).toBeCloseTo(0, 6);
+    expect(fill).toMatchObject({ x: 0, width: STAGE.width });
+  });
+
+  it.each([
+    ['3:2', 3 / 2],
+    ['16:9', 16 / 9],
+  ])('on a %s canvas has nothing to fill', (_, aspect) => {
+    expect(skyFill(stageView(HEIGHT * aspect, HEIGHT))).toBeNull();
   });
 });
