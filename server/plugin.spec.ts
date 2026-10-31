@@ -49,12 +49,16 @@ describe('apiMiddleware', () => {
   });
 
   it.each([
-    ['without a code', {}],
-    ['with the wrong code', { [ACCESS_HEADER]: 'guess' }],
-  ])('turns a request away %s when a code is configured', async (_case, headers) => {
+    ['without a code', {}, 'This demo needs its access link. Open the link from the submission page, then try again.'],
+    [
+      'with the wrong code',
+      { [ACCESS_HEADER]: 'guess' },
+      'That access code did not match. Open the full link from the submission page, including everything after ?code=, then try again.',
+    ],
+  ])('turns a request away %s when a code is configured', async (_case, headers, error) => {
     const response = await postPhoto(await serve({ ACCESS_CODE: CODE }), headers);
     expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: expect.stringContaining('access link'), details: [] });
+    expect(await response.json()).toEqual({ error, details: [] });
   });
 
   it('turns away a drafting request without the code too', async () => {
