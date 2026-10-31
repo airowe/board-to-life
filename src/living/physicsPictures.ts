@@ -10,11 +10,14 @@ export const FULCRUM_SIZE = { width: 56, height: 48 };
 export const PHYSICS_BACKGROUND = 'bg-tabletop';
 // Walls are tiled with bricks rather than stretched: one course this tall in drawing units (a domino is about 110).
 export const BRICK_COURSE_HEIGHT = 24;
+// How far the backdrop's table line may miss the board's floor, in canvas px, before a floor band is drawn instead.
+export const FLOOR_TOLERANCE_PX = 4;
 // Counted on brick-wall.webp.
 export const BRICK_COURSES_IN_PICTURE = 5;
 
 export type SpriteBox = { cx: number; cy: number; width: number; height: number; angle: number };
-export type Placement = { scale: number; offsetX: number; offsetY: number };
+// floorError: where the background's floor lands minus where the board's floor is, in canvas px (negative: the table line is higher).
+export type Placement = { scale: number; offsetX: number; offsetY: number; floorError: number };
 export type PhysicsSkin = 'pictures' | 'photo' | 'clean';
 export type PictureFit = { mode: 'stretch' | 'contain'; anchor: 'top' | 'centre' | 'bottom' };
 // In the box's own frame: relative to its centre, before it is turned.
@@ -23,10 +26,13 @@ type Size = { width: number; height: number };
 
 const STRETCH: PictureFit = { mode: 'stretch', anchor: 'centre' };
 const CENTRED: PictureFit = { mode: 'contain', anchor: 'centre' };
-// The plank is stretched along its ramp or lever by design; every other picture keeps its own shape.
-// A weight hangs from its hook, a fulcrum's tip is the pivot, and a cart stands on its wheels.
+// The plank is stretched along its ramp or lever by design, and dominoes and blocks fill their whole body, since
+// the class watches whether that body tips. Every other picture keeps its own shape: a weight hangs from its hook,
+// a fulcrum's tip is the pivot, and a cart stands on its wheels.
 const FITS: Record<string, PictureFit> = {
   plank: STRETCH,
+  domino: STRETCH,
+  'wooden-block': STRETCH,
   weight: { mode: 'contain', anchor: 'top' },
   fulcrum: { mode: 'contain', anchor: 'top' },
   cart: { mode: 'contain', anchor: 'bottom' },
@@ -113,7 +119,8 @@ export const spriteBox = (item: SceneItem, body: BodySnapshot | undefined): Spri
       angle: body.angle,
     };
   }
-  return { cx: body.x, cy: body.y, width: item.width, height: item.height, angle: body.angle };
+  const height = item.kind === 'lever' ? item.height * PLANK_THICKNESS_FACTOR : item.height;
+  return { cx: body.x, cy: body.y, width: item.width, height, angle: body.angle };
 };
 
 export const pictureFit = (subject: string): PictureFit => FITS[subject] ?? CENTRED;
@@ -142,8 +149,12 @@ export const backgroundPlacement = (canvas: Size, background: Size & { floorY: n
   const scale = Math.max(canvas.width / background.width, canvas.height / background.height);
   const lowest = canvas.height - background.height * scale;
   const wanted = boardFloorOnCanvas - background.floorY * scale;
-  return { scale, offsetX: (canvas.width - background.width * scale) / 2, offsetY: Math.min(0, Math.max(lowest, wanted)) };
+  const offsetY = Math.min(0, Math.max(lowest, wanted));
+  return { scale, offsetX: (canvas.width - background.width * scale) / 2, offsetY, floorError: offsetY - wanted };
 };
+
+// When the cover cannot bring the table line to the board's floor, pieces would float above it or sink into it.
+export const needsFloorBand = (placement: Placement): boolean => Math.abs(placement.floorError) > FLOOR_TOLERANCE_PX;
 
 const bottomOf = (body: Body): number | null => {
   if (body.kind === 'pivot') return body.y;

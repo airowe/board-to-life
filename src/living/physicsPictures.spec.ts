@@ -3,12 +3,14 @@ import type { BodySnapshot } from '../physics/simulation';
 import type { Scene, SceneItem } from '../scene/schema';
 import { FLOOR_Y, STAGE } from './layout';
 import {
+  FLOOR_TOLERANCE_PX,
   FULCRUM_SIZE,
   PLANK_THICKNESS_FACTOR,
   backgroundFloor,
   backgroundPlacement,
   boardFloorY,
   initialSkin,
+  needsFloorBand,
   nextSkin,
   physicsSubject,
   BRICK_COURSE_HEIGHT,
@@ -60,7 +62,7 @@ const subjectIn = (items: SceneItem[], id: string): string | null => {
 };
 
 describe('physicsSubject', () => {
-  it.each<[SceneItem, string | null]>([
+  const LONE: [SceneItem, string | null][] = [
     [ball('ball', 300, 700), 'steel-ball'],
     [block('block', 300, 700), 'wooden-block'],
     [{ id: 'domino', kind: 'domino', x: 300, y: 685, width: 20, height: 110, angle: 0, confidence: CONFIDENCE }, 'domino'],
@@ -73,7 +75,8 @@ describe('physicsSubject', () => {
     [floor, null],
     [rope('a', 'b'), null],
     [spring('a', 'b'), null],
-  ])('draws a lone %s as %s', (item, subject) => {
+  ];
+  it.each(LONE.map(([item, subject]) => [item.kind, item, subject] as const))('draws a lone %s as %s', (_, item, subject) => {
     expect(physicsSubject(item, sceneOf([item, ball('a', 100, 100), ball('b', 200, 100)]))).toBe(subject);
   });
 
@@ -137,6 +140,11 @@ describe('spriteBox', () => {
     });
   });
 
+  it('lays a plank along a lever, thickened like a ramp', () => {
+    const lever: SceneItem = { id: 'lever', kind: 'lever', x: 600, y: 572, width: 680, height: 16, angle: 0, confidence: CONFIDENCE };
+    expect(spriteBox(lever, { id: 'lever', x: 600, y: 572, angle: 0.1 })).toEqual({ cx: 600, cy: 572, width: 680, height: 16 * PLANK_THICKNESS_FACTOR, angle: 0.1 });
+  });
+
   it('includes the wheels in a cart, dropped along its turned body', () => {
     const cart: SceneItem = { id: 'cart', kind: 'cart', x: 0, y: 0, width: 140, height: 60, wheelRadius: 20, angle: 0, confidence: CONFIDENCE };
     const box = spriteBox(cart, { id: 'cart', x: 200, y: 300, angle: Math.PI / 2 });
@@ -195,6 +203,18 @@ describe('backgroundPlacement', () => {
     const reachable = wanted >= lowest && wanted <= highest;
     if (reachable) expect(Math.abs(floorOnCanvas - target)).toBeLessThanOrEqual(PIXEL);
     else expect(placement.offsetY).toBeCloseTo(wanted < lowest ? lowest : highest, 6);
+  });
+
+  it.each(cases)('on a %s canvas reports how far the background floor misses a board floor at %s', (_, canvas, share) => {
+    const target = canvas.height * share;
+    const placement = backgroundPlacement(canvas, background, target);
+    near(placement.floorError, placement.offsetY + background.floorY * placement.scale - target);
+  });
+
+  it('reports the worked 3:2 miss: the cover is exact, so the table line stays at the shared fraction', () => {
+    const canvas = { width: 1536, height: 1024 };
+    const boardFloor = (740 / 800) * canvas.height;
+    near(backgroundPlacement(canvas, background, boardFloor).floorError, (FLOOR_Y - 740 / 800) * canvas.height);
   });
 
   it('scales a 3:1 canvas by its width, so the floor can travel', () => {
@@ -267,9 +287,9 @@ describe('pictureFit', () => {
     ['cart', { mode: 'contain', anchor: 'bottom' }],
     ['pulley', { mode: 'contain', anchor: 'centre' }],
     ['steel-ball', { mode: 'contain', anchor: 'centre' }],
-    ['wooden-block', { mode: 'contain', anchor: 'centre' }],
-    ['domino', { mode: 'contain', anchor: 'centre' }],
-  ])('fits %s as %o', (subject, fit) => {
+    ['wooden-block', { mode: 'stretch', anchor: 'centre' }],
+    ['domino', { mode: 'stretch', anchor: 'centre' }],
+  ])('fits %s as %j', (subject, fit) => {
     expect(pictureFit(subject)).toEqual(fit);
   });
 });
@@ -283,6 +303,13 @@ describe('pictureRect', () => {
   it('stretches a plank over its whole box', () => {
     const plank: SpriteBox = { cx: 0, cy: 0, width: 570, height: 24, angle: 0.77 };
     expect(pictureRect(plank, PLANK_PICTURE, pictureFit('plank'))).toEqual({ x: -285, y: -12, width: 570, height: 24 });
+  });
+
+  it('fills a thin domino box exactly with the wider domino picture, so it shows the whole body that tips', () => {
+    const domino: SceneItem = { id: 'domino', kind: 'domino', x: 300, y: 685, width: 20, height: 110, angle: 0, confidence: CONFIDENCE };
+    const box = spriteBox(domino, { id: 'domino', x: 300, y: 685, angle: 0.3 });
+    if (!box) throw new Error('expected a box for the domino');
+    expect(pictureRect(box, { width: 217, height: 512 }, pictureFit('domino'))).toEqual({ x: -10, y: -55, width: 20, height: 110 });
   });
 
   it('keeps a tall weight its own shape, hung from the top centre of a square box', () => {
@@ -335,5 +362,19 @@ describe('brickTileSize', () => {
 
   it('does not depend on the wall it fills', () => {
     expect(brickTileSize(BRICK_PICTURE)).toEqual(brickTileSize(BRICK_PICTURE));
+  });
+});
+
+describe('needsFloorBand', () => {
+  const placementMissingBy = (floorError: number) => ({ scale: 1, offsetX: 0, offsetY: 0, floorError });
+
+  it.each([
+    ['lands on the board floor', 0, false],
+    ['is just within the tolerance above', -FLOOR_TOLERANCE_PX, false],
+    ['is just within the tolerance below', FLOOR_TOLERANCE_PX, false],
+    ['sits above the board floor, as on a 3:2 screen', -66, true],
+    ['sits below the board floor', FLOOR_TOLERANCE_PX + 1, true],
+  ])('when the table line %s (%s px) draws a band: %s', (_, error, band) => {
+    expect(needsFloorBand(placementMissingBy(error))).toBe(band);
   });
 });

@@ -338,7 +338,7 @@ export const renderPresent = (
   let board: Board = null;
   let image: HTMLImageElement | null = null;
   let boardKey = '';
-  const pictures = library ? createPhysicsPictures(library, () => redraw.invalidate()) : null;
+  const pictures = library ? createPhysicsPictures(library, lesson.scene, () => redraw.invalidate()) : null;
   let skin = initialSkin(pictures !== null, photoUrl !== null);
   let ghost: Ghost | null = null;
   let drag: { pointerId: number; grip: Grip; offset: { x: number; y: number }; from: Scene } | null = null;
