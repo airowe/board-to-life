@@ -22,11 +22,11 @@ describe('startMax', () => {
   it('is four times the steady start of that species', () => {
     const web = grasslandWeb();
     const steady = startingPopulations(web);
-    for (const { id } of web.species) expect(startMax(web, id)).toBeCloseTo(START_MAX_FACTOR * (steady[id] as number), 6);
+    for (const { id } of web.species) expect(startMax(steady, id)).toBeCloseTo(START_MAX_FACTOR * (steady[id] as number), 6);
   });
 
   it('is zero for a species that is not in the web', () => {
-    expect(startMax(grasslandWeb(), 'dragon')).toBe(0);
+    expect(startMax(startingPopulations(grasslandWeb()), 'dragon')).toBe(0);
   });
 });
 

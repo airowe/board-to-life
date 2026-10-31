@@ -1,6 +1,6 @@
 import type { EcosystemLesson } from '../session/store';
 import { emptyEdits, type WebEdits } from './edits';
-import { EVENT_STEP, MODEL_STEPS, simulate, type Series } from './model';
+import { EVENT_STEP, MODEL_STEPS, simulate, startingPopulations, type Series } from './model';
 import { directionsAfter, type Direction } from './outcomes';
 import { eventOf, removedSpecies, templateQuestion, type WebQuestion } from './questions';
 
@@ -28,9 +28,10 @@ export const createWebPlayback = (lesson: EcosystemLesson): WebPlayback => {
   const { web } = lesson;
   const event = eventOf(web);
   const eventRemoves = removedSpecies(event);
+  const settled = startingPopulations(web);
 
   const run = (edits: WebEdits): Series =>
-    simulate(web, { steps: MODEL_STEPS, event, eventStep: EVENT_STEP, removed: edits.removed, start: edits.start });
+    simulate(web, { steps: MODEL_STEPS, event, eventStep: EVENT_STEP, removed: edits.removed, start: edits.start }, settled);
 
   let series = run(emptyEdits());
   let previous: Series | null = null;

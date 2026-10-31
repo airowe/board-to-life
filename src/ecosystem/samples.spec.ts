@@ -8,7 +8,7 @@ import { suggestedEvent } from './trophic';
 const runWith = (event: WebEvent | null): Run => ({ steps: MODEL_STEPS, event, eventStep: EVENT_STEP, removed: new Set<string>() });
 
 const directionsFor = (sample: WebSample, web: Web, event: WebEvent | null): Record<string, Direction> =>
-  directionsAfter(simulate(web, runWith(event), sample.overrides), EVENT_STEP);
+  directionsAfter(simulate(web, runWith(event)), EVENT_STEP);
 
 const sampleById = (id: string): WebSample => {
   const sample = WEB_SAMPLES.find((entry) => entry.id === id);
@@ -53,10 +53,6 @@ describe('WEB_SAMPLES', () => {
   it.each(cases)('%s plays out removing its top predator as expected', (_, sample) => {
     const web = withoutEvent(sample.web);
     expect(directionsFor(sample, web, suggestedEvent(web))).toEqual(sample.expect.topPredator);
-  });
-
-  it('needs no rate overrides, because the default rates meet every pin', () => {
-    expect(WEB_SAMPLES.filter((sample) => sample.overrides !== undefined).map((sample) => sample.id)).toEqual([]);
   });
 });
 
