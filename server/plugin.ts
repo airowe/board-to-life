@@ -207,6 +207,7 @@ const SERVER_FAILURE: StubResponse = { status: 500, body: { error: 'Something we
 const TOO_LARGE: StubResponse = { status: 413, body: { error: `That photo is too large (${MAX_UPLOAD_BYTES / 1024 / 1024} MB maximum).`, details: [] } };
 
 const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
+const WRONG_CODE = 'That access code did not match. Open the full link from the submission page, including everything after ?code=, then try again.';
 
 const answer = async (request: IncomingMessage, route: string, context: RouteContext, body: Buffer): Promise<StubResponse> => {
   if (route === UNDERSTAND_ROUTE) {
@@ -228,8 +229,9 @@ export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Midd
     next();
     return;
   }
-  if (!hasAccess(env.ACCESS_CODE, header(request, ACCESS_HEADER))) {
-    send(response, { status: 401, body: { error: NO_ACCESS, details: [] } });
+  const code = header(request, ACCESS_HEADER);
+  if (!hasAccess(env.ACCESS_CODE, code)) {
+    send(response, { status: 401, body: { error: code === undefined ? NO_ACCESS : WRONG_CODE, details: [] } });
     return;
   }
   const body = await readBody(request);

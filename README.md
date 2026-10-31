@@ -159,7 +159,7 @@ and `/api/describe` as Node functions bundled from `server/vercel.ts`, which run
 Because each photo is a paid model call, the API answers only requests that carry the access code when `ACCESS_CODE`
 is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
 it as the `x-access-code` header. Without it the API answers 401 and the app says to open the link from the submission
-page. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository. The
+page; with a code that does not match, the 401 says so and asks for the full link. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository. The
 deployed functions refuse every request with a 503 when a paid `SCENE_READER` is set without `ACCESS_CODE`, or when its
 key is missing or the reader name is unknown, so a missing setting can never open paid calls to anyone. Uploads are
 capped at 4 MB, under Vercel's own request limit.
