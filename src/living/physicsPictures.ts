@@ -8,11 +8,29 @@ export const PLANK_THICKNESS_FACTOR = 1.5;
 // In drawing units, twice the clean drawing's pivot triangle; the fulcrum's tip is the pivot point.
 export const FULCRUM_SIZE = { width: 56, height: 48 };
 export const PHYSICS_BACKGROUND = 'bg-tabletop';
+// Walls are tiled with bricks rather than stretched: one course this tall in drawing units (a domino is about 110).
+export const BRICK_COURSE_HEIGHT = 24;
+// Counted on brick-wall.webp.
+export const BRICK_COURSES_IN_PICTURE = 5;
 
 export type SpriteBox = { cx: number; cy: number; width: number; height: number; angle: number };
 export type Placement = { scale: number; offsetX: number; offsetY: number };
 export type PhysicsSkin = 'pictures' | 'photo' | 'clean';
+export type PictureFit = { mode: 'stretch' | 'contain'; anchor: 'top' | 'centre' | 'bottom' };
+// In the box's own frame: relative to its centre, before it is turned.
+export type PictureRect = { x: number; y: number; width: number; height: number };
 type Size = { width: number; height: number };
+
+const STRETCH: PictureFit = { mode: 'stretch', anchor: 'centre' };
+const CENTRED: PictureFit = { mode: 'contain', anchor: 'centre' };
+// The plank is stretched along its ramp or lever by design; every other picture keeps its own shape.
+// A weight hangs from its hook, a fulcrum's tip is the pivot, and a cart stands on its wheels.
+const FITS: Record<string, PictureFit> = {
+  plank: STRETCH,
+  weight: { mode: 'contain', anchor: 'top' },
+  fulcrum: { mode: 'contain', anchor: 'top' },
+  cart: { mode: 'contain', anchor: 'bottom' },
+};
 
 const SKIN_ORDER: readonly PhysicsSkin[] = ['pictures', 'photo', 'clean'];
 
@@ -96,6 +114,23 @@ export const spriteBox = (item: SceneItem, body: BodySnapshot | undefined): Spri
     };
   }
   return { cx: body.x, cy: body.y, width: item.width, height: item.height, angle: body.angle };
+};
+
+export const pictureFit = (subject: string): PictureFit => FITS[subject] ?? CENTRED;
+
+export const pictureRect = (box: SpriteBox, picture: Size, fit: PictureFit): PictureRect => {
+  const [halfWidth, halfHeight] = [box.width / 2, box.height / 2];
+  if (fit.mode === 'stretch') return { x: -halfWidth, y: -halfHeight, width: box.width, height: box.height };
+  const scale = Math.min(box.width / picture.width, box.height / picture.height);
+  const [width, height] = [picture.width * scale, picture.height * scale];
+  const y = fit.anchor === 'top' ? -halfHeight : fit.anchor === 'bottom' ? halfHeight - height : -height / 2;
+  return { x: -width / 2, y, width, height };
+};
+
+// One tile of the brick pattern in drawing units, the same for every wall so the bricks match across walls.
+export const brickTileSize = (picture: Size): Size => {
+  const height = BRICK_COURSE_HEIGHT * BRICK_COURSES_IN_PICTURE;
+  return { width: (picture.width * height) / picture.height, height };
 };
 
 // Every background shares one floor line, at the same fraction of its height.

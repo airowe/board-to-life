@@ -11,8 +11,15 @@ import {
   initialSkin,
   nextSkin,
   physicsSubject,
+  BRICK_COURSE_HEIGHT,
+  BRICK_COURSES_IN_PICTURE,
+  brickTileSize,
+  pictureFit,
+  pictureRect,
   spriteBox,
   type PhysicsSkin,
+  type PictureFit,
+  type SpriteBox,
 } from './physicsPictures';
 
 const DRAWING = { width: 1200, height: 800 };
@@ -248,5 +255,85 @@ describe('skins', () => {
     ['clean', 'photo'],
   ])('without pictures toggles from %s to %s, as before', (skin, next) => {
     expect(nextSkin(skin, true, false)).toBe(next);
+  });
+});
+
+describe('pictureFit', () => {
+  it.each<[string, PictureFit]>([
+    ['plank', { mode: 'stretch', anchor: 'centre' }],
+    ['weight', { mode: 'contain', anchor: 'top' }],
+    ['pendulum-bob', { mode: 'contain', anchor: 'centre' }],
+    ['fulcrum', { mode: 'contain', anchor: 'top' }],
+    ['cart', { mode: 'contain', anchor: 'bottom' }],
+    ['pulley', { mode: 'contain', anchor: 'centre' }],
+    ['steel-ball', { mode: 'contain', anchor: 'centre' }],
+    ['wooden-block', { mode: 'contain', anchor: 'centre' }],
+    ['domino', { mode: 'contain', anchor: 'centre' }],
+  ])('fits %s as %o', (subject, fit) => {
+    expect(pictureFit(subject)).toEqual(fit);
+  });
+});
+
+describe('pictureRect', () => {
+  const square: SpriteBox = { cx: 500, cy: 400, width: 60, height: 60, angle: 0.4 };
+  const WEIGHT_PICTURE = { width: 324, height: 512 };
+  const PULLEY_PICTURE = { width: 394, height: 512 };
+  const PLANK_PICTURE = { width: 512, height: 119 };
+
+  it('stretches a plank over its whole box', () => {
+    const plank: SpriteBox = { cx: 0, cy: 0, width: 570, height: 24, angle: 0.77 };
+    expect(pictureRect(plank, PLANK_PICTURE, pictureFit('plank'))).toEqual({ x: -285, y: -12, width: 570, height: 24 });
+  });
+
+  it('keeps a tall weight its own shape, hung from the top centre of a square box', () => {
+    const rect = pictureRect(square, WEIGHT_PICTURE, pictureFit('weight'));
+    near(rect.height, 60);
+    near(rect.width, (60 * WEIGHT_PICTURE.width) / WEIGHT_PICTURE.height);
+    near(rect.x, -rect.width / 2);
+    near(rect.y, -30);
+  });
+
+  it('keeps a pulley its own shape, centred in its box', () => {
+    const rect = pictureRect({ ...square, width: 28, height: 28 }, PULLEY_PICTURE, pictureFit('pulley'));
+    near(rect.width / rect.height, PULLEY_PICTURE.width / PULLEY_PICTURE.height);
+    near(rect.height, 28);
+    near(rect.x + rect.width / 2, 0);
+    near(rect.y + rect.height / 2, 0);
+  });
+
+  it('sits a wide picture on the bottom of a tall box', () => {
+    const rect = pictureRect({ ...square, width: 140, height: 80 }, { width: 512, height: 141 }, pictureFit('cart'));
+    near(rect.width, 140);
+    near(rect.height, (140 * 141) / 512);
+    near(rect.y + rect.height, 40);
+  });
+
+  it.each([
+    ['wide', { width: 512, height: 100 }],
+    ['tall', { width: 100, height: 512 }],
+    ['square', { width: 256, height: 256 }],
+  ])('never lets a %s contained picture spill out of its box', (_, picture) => {
+    for (const anchor of ['top', 'centre', 'bottom'] as const) {
+      const rect = pictureRect({ ...square, width: 80, height: 50 }, picture, { mode: 'contain', anchor });
+      expect(rect.x).toBeGreaterThanOrEqual(-40 - 1e-9);
+      expect(rect.y).toBeGreaterThanOrEqual(-25 - 1e-9);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(40 + 1e-9);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(25 + 1e-9);
+      near(rect.width / rect.height, picture.width / picture.height);
+    }
+  });
+});
+
+describe('brickTileSize', () => {
+  const BRICK_PICTURE = { width: 512, height: 477 };
+
+  it('scales the brick picture so one course is the brick course height, keeping its shape', () => {
+    const tile = brickTileSize(BRICK_PICTURE);
+    near(tile.height, BRICK_COURSE_HEIGHT * BRICK_COURSES_IN_PICTURE);
+    near(tile.width / tile.height, BRICK_PICTURE.width / BRICK_PICTURE.height);
+  });
+
+  it('does not depend on the wall it fills', () => {
+    expect(brickTileSize(BRICK_PICTURE)).toEqual(brickTileSize(BRICK_PICTURE));
   });
 });

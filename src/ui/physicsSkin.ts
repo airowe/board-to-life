@@ -1,7 +1,19 @@
 import type { BodySnapshot } from '../physics/simulation';
 import type { Library } from '../library/manifest';
 import { libraryFile } from '../library/match';
-import { backgroundFloor, backgroundPlacement, boardFloorY, physicsSubject, PHYSICS_BACKGROUND, spriteBox, type PhysicsSkin } from '../living/physicsPictures';
+import {
+  backgroundFloor,
+  backgroundPlacement,
+  boardFloorY,
+  brickTileSize,
+  physicsSubject,
+  PHYSICS_BACKGROUND,
+  pictureFit,
+  pictureRect,
+  spriteBox,
+  type PhysicsSkin,
+  type SpriteBox,
+} from '../living/physicsPictures';
 import type { View } from '../present/view';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { createPlaceImages, type PlaceImages } from './placeView';
@@ -20,18 +32,48 @@ export const SKIN_LABELS: Record<PhysicsSkin, string> = {
 const MOVING_KINDS: readonly SceneItem['kind'][] = ['ball', 'block', 'domino', 'cart', 'lever'];
 const layerOf = (item: SceneItem): number => (isLink(item) ? 1 : MOVING_KINDS.includes(item.kind) ? 2 : 0);
 
-export type PhysicsPictures = { library: Library; images: PlaceImages; files: Map<string, string | null> };
+// Patterns belong to the canvas they were made on; the presenter draws on a single canvas.
+export type PhysicsPictures = { library: Library; images: PlaceImages; files: Map<string, string | null>; bricks: CanvasPattern | null };
 
 export const createPhysicsPictures = (library: Library, onLoad: () => void): PhysicsPictures => ({
   library,
   images: createPlaceImages(onLoad),
   files: new Map(),
+  bricks: null,
 });
 
 const pictureOf = (pictures: PhysicsPictures, subject: string): HTMLImageElement | null => {
   if (!pictures.files.has(subject)) pictures.files.set(subject, libraryFile(pictures.library, subject, 'rest'));
   const file = pictures.files.get(subject);
   return file ? pictures.images.get(file) : null;
+};
+
+// A wall is filled with courses of bricks at one fixed size, clipped to its box, so a tall thin wall is not a squashed picture.
+const brickPattern = (ctx: CanvasRenderingContext2D, pictures: PhysicsPictures, image: HTMLImageElement): CanvasPattern | null => {
+  if (pictures.bricks) return pictures.bricks;
+  const pattern = ctx.createPattern(image, 'repeat');
+  if (!pattern) return null;
+  const tile = brickTileSize({ width: image.naturalWidth, height: image.naturalHeight });
+  pattern.setTransform(new DOMMatrix().scale(tile.width / image.naturalWidth, tile.height / image.naturalHeight));
+  pictures.bricks = pattern;
+  return pattern;
+};
+
+const drawPicture = (ctx: CanvasRenderingContext2D, pictures: PhysicsPictures, subject: string, image: HTMLImageElement, box: SpriteBox): void => {
+  ctx.save();
+  ctx.translate(box.cx, box.cy);
+  ctx.rotate(box.angle);
+  const bricks = subject === 'brick-wall' ? brickPattern(ctx, pictures, image) : null;
+  if (bricks) {
+    // The pattern starts at the wall's top left corner, so a wall begins on a whole course.
+    ctx.translate(-box.width / 2, -box.height / 2);
+    ctx.fillStyle = bricks;
+    ctx.fillRect(0, 0, box.width, box.height);
+  } else {
+    const rect = pictureRect(box, { width: image.naturalWidth, height: image.naturalHeight }, pictureFit(subject));
+    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  }
+  ctx.restore();
 };
 
 // The tabletop behind everything, in canvas (CSS) pixels, with its floor laid on the board's floor where it can be.
@@ -45,7 +87,7 @@ export const drawBackdrop = (ctx: CanvasRenderingContext2D, pictures: PhysicsPic
   return true;
 };
 
-// Each item as its library picture stretched over its sprite box; ropes, springs and any picture still loading
+// Each item as its library picture fitted to its sprite box (walls as bricks); ropes, springs and any picture still loading
 // fall back to the clean drawing. The floor is the backdrop's own, unless the backdrop has not loaded.
 export const drawPictureItems = (
   ctx: CanvasRenderingContext2D,
@@ -65,14 +107,7 @@ export const drawPictureItems = (
     const subject = physicsSubject(item, scene);
     const image = subject ? pictureOf(pictures, subject) : null;
     const box = spriteBox(item, bodies.get(item.id));
-    if (!image || !box) {
-      drawPlain(item);
-      continue;
-    }
-    ctx.save();
-    ctx.translate(box.cx, box.cy);
-    ctx.rotate(box.angle);
-    ctx.drawImage(image, -box.width / 2, -box.height / 2, box.width, box.height);
-    ctx.restore();
+    if (!subject || !image || !box) drawPlain(item);
+    else drawPicture(ctx, pictures, subject, image, box);
   }
 };
