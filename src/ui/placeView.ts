@@ -21,10 +21,10 @@ const SURFACE_SUBMERGE = 0.25;
 const LIBRARY_FACING = 1;
 const LIVE_FACING = 1;
 const EMOJI_FACING = -1;
-const CROSSFADE_SECONDS = 0.5;
-const LABEL_FADE_SECONDS = LABEL_FADE_STEPS / STEPS_PER_SECOND_SHOWN;
+export const CROSSFADE_SECONDS = 0.5;
+export const LABEL_FADE_SECONDS = LABEL_FADE_STEPS / STEPS_PER_SECOND_SHOWN;
 // The longest frame a fade advances by, so a hidden tab does not finish every fade in one jump.
-const MAX_FADE_STEP_SECONDS = 0.1;
+export const MAX_FADE_STEP_SECONDS = 0.1;
 // A species with no picture at all is drawn as today's ring, with its name under the group (stage px).
 const RING_WIDTH = 6;
 const RING_FILL_ALPHA = 0.18;
@@ -61,6 +61,19 @@ export type PlaceFrame = {
   colours: Map<string, string>;
   // Wall-clock seconds, the same clock the crowd tracker runs on.
   seconds: number;
+  // Fades are instant: a picture or label swaps at once rather than easing in.
+  reducedMotion: boolean;
+};
+
+// How far a picture swap has gone, from 0 (the old picture) to 1 (the new one).
+export const crossfadeBlend = (seconds: number, since: number, reducedMotion: boolean): number =>
+  reducedMotion ? 1 : Math.min(Math.max((seconds - since) / CROSSFADE_SECONDS, 0), 1);
+
+// A label's opacity after `elapsed` seconds, rising while it is present and falling once it is dropped.
+export const labelAlpha = (alpha: number, present: boolean, elapsed: number, reducedMotion: boolean): number => {
+  if (reducedMotion) return present ? 1 : 0;
+  const step = Math.min(Math.max(elapsed, 0), MAX_FADE_STEP_SECONDS) / LABEL_FADE_SECONDS;
+  return Math.min(Math.max(alpha + (present ? step : -step), 0), 1);
 };
 
 // Loads `/library/<file>` (or `/library/fallback/<file>` for `fallback/<file>`) on first ask; null until it has loaded.
@@ -118,7 +131,6 @@ const memoryOf = (canvas: HTMLCanvasElement): Memory => {
 };
 
 const clamp = (value: number, low: number, high: number): number => Math.min(Math.max(value, low), Math.max(low, high));
-const clamp01 = (value: number): number => clamp(value, 0, 1);
 
 const sourceKey = (source: PictureSource): string => {
   if (source.kind === 'library') return `library:${source.subject}`;
@@ -227,7 +239,7 @@ const drawIndividuals = (ctx: CanvasRenderingContext2D, frame: PlaceFrame, memor
     const members = [...(poses.get(group.speciesId) ?? [])].sort((a, b) => a.y - b.y);
     const source = frame.sources[group.speciesId] ?? { kind: 'drawing' };
     const tracked = trackSource(memory, group.speciesId, source, seconds);
-    const blend = tracked.previous ? clamp01((seconds - tracked.since) / CROSSFADE_SECONDS) : 1;
+    const blend = tracked.previous ? crossfadeBlend(seconds, tracked.since, frame.reducedMotion) : 1;
     const anchor = anchorOf(group, layout.habitat);
     const colour = frame.colours.get(group.speciesId) ?? LABEL_INK;
     // Asking for the travelling pose up front starts it loading before anyone needs it.
@@ -285,8 +297,8 @@ const placeLabel = (
 
 const labelKey = (label: PinnedLabel): string => `${label.speciesId ?? ''}|${label.text}`;
 
-const fadeLabels = (memory: Memory, labels: PinnedLabel[], seconds: number): void => {
-  const step = memory.seconds === null ? 0 : clamp(seconds - memory.seconds, 0, MAX_FADE_STEP_SECONDS) / LABEL_FADE_SECONDS;
+const fadeLabels = (memory: Memory, labels: PinnedLabel[], seconds: number, reducedMotion: boolean): void => {
+  const elapsed = memory.seconds === null ? 0 : seconds - memory.seconds;
   for (const state of memory.labels.values()) state.present = false;
   for (const label of labels) {
     const key = labelKey(label);
@@ -295,7 +307,7 @@ const fadeLabels = (memory: Memory, labels: PinnedLabel[], seconds: number): voi
     memory.labels.set(key, state);
   }
   for (const [key, state] of memory.labels) {
-    state.alpha = clamp01(state.alpha + (state.present ? step : -step));
+    state.alpha = labelAlpha(state.alpha, state.present, elapsed, reducedMotion);
     if (!state.present && state.alpha <= 0) memory.labels.delete(key);
   }
 };
@@ -380,7 +392,7 @@ export const drawPlace = (canvas: HTMLCanvasElement, frame: PlaceFrame): void =>
   const view = coverView(width, height);
   const toScreen = (point: Point): Point => ({ x: view.offsetX + point.x * view.scale, y: view.offsetY + point.y * view.scale });
 
-  fadeLabels(memory, frame.labels, frame.seconds);
+  fadeLabels(memory, frame.labels, frame.seconds, frame.reducedMotion);
   memory.seconds = frame.seconds;
   const extents = layoutLabels(ctx, memory, frame, { width, height }, toScreen);
 
