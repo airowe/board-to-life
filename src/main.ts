@@ -6,9 +6,11 @@ import { describedNote, describeReading, MODEL_REQUEST_TIMEOUT_MS, readingNote }
 import { checkWebGrounding } from './ecosystem/questions';
 import { validateWeb, type Web } from './ecosystem/schema';
 import { flipArrow } from './ecosystem/trophic';
+import type { Point } from './geometry/derive';
+import { movePoint } from './geometry/edits';
 import { fittedOrDrawn } from './geometry/fit';
 import { checkFigureGrounding } from './geometry/questions';
-import { validateFigure, type Figure, type Focus } from './geometry/schema';
+import { validateFigure, type Figure } from './geometry/schema';
 import { checkGrounding } from './scene/questions';
 import { validateScene } from './scene/schema';
 import { createSession, type DraftContent } from './session/store';
@@ -259,18 +261,33 @@ function showCheck(): void {
       onPresent: showPresent,
       onRestart: showCapture,
       onFocus: (focus) => changeFigure(current.figure, focus),
+      onMovePoint: (id, to) => void moveFigurePoint(current.figure, id, to),
     });
     return;
   }
   checkScreen = renderCheck(root, session, url, photoNote, { onPresent: showPresent, onRestart: showCapture });
 }
 
-function changeFigure(figure: Figure, focus: Focus): void {
+function changeFigure(figure: Figure, focus: Figure['focus']): void {
   const content: DraftContent = { subject: 'geometry', figure: { ...figure, focus } };
   const draftId = session.startDraft(content);
   activeDraftId = draftId;
   showCheck();
   void draftQuestions(draftId, content);
+}
+
+async function moveFigurePoint(figure: Figure, id: string, to: Point): Promise<void> {
+  const moved = movePoint(figure, id, to);
+  if (photoIsSketch) {
+    const draftId = activeDraftId;
+    const sketch = await sketchImage({ subject: 'geometry', figure: moved }).catch(() => null);
+    if (draftId !== activeDraftId) return;
+    if (sketch) {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      photoUrl = URL.createObjectURL(sketch);
+    }
+  }
+  changeFigure(moved, moved.focus);
 }
 
 async function flipWebArrow(web: Web, eatsId: string): Promise<void> {

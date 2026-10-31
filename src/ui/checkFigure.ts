@@ -11,18 +11,23 @@ import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsSta
 
 export const NOTHING_TO_PREDICT_FIGURE = NO_FIGURE_FOCUS;
 export const GHOST_GUESS_NOTE = 'Students drag a ghost shape to their guess.';
+export const MOVE_POINT_NOTE = 'If a point is in the wrong place, drag it on the photo to where it is on the board.';
 
 type FigureCheckHandlers = {
   onPresent: () => void;
   onRestart: () => void;
   onFocus: (focus: Focus) => void;
+  onMovePoint: (id: string, to: Point) => void;
 };
+
+type ShownBox = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>;
 
 type FigureRow = { id: string; text: string; confidence: number };
 
 export type FigureEdge = { id: string; from: Point; to: Point; confidence: number };
 
 const POINT_RADIUS = 10;
+const POINT_REACH = 40;
 const BADGE_OFFSET = 18;
 
 const pair = ([from, to]: [string, string]): string => `${from}${to}`;
@@ -127,6 +132,11 @@ type DraftFailure = Pick<ApiFailure, 'message' | 'details'>;
 export const figureQuestionsFailureStatus = (failure: DraftFailure, retry: () => void): QuestionsStatus =>
   failure.message === NOTHING_TO_PREDICT_FIGURE ? { kind: 'nothing-to-predict' } : { kind: 'failed', failure, retry };
 
+export const drawingPointAt = (shown: ShownBox, drawing: Figure['drawing'], client: Point): Point => ({
+  x: ((client.x - shown.left) / shown.width) * drawing.width,
+  y: ((client.y - shown.top) / shown.height) * drawing.height,
+});
+
 const lowClass = (confidence: number): string => (confidence < LOW_CONFIDENCE ? ' low' : '');
 
 const overlay = (figure: Figure): SVGElement => {
@@ -142,6 +152,7 @@ const overlay = (figure: Figure): SVGElement => {
     return s(
       'g',
       { class: `overlay-item figure-point${lowClass(point.confidence)}`, 'data-id': point.id },
+      s('circle', { class: 'reach', cx: point.x, cy: point.y, r: POINT_REACH }),
       s('circle', { cx: point.x, cy: point.y, r: POINT_RADIUS }),
       low ? s('text', { x: point.x + BADGE_OFFSET, y: point.y - BADGE_OFFSET, class: 'badge' }, `? ${percent(point.confidence)}`) : null,
     );
@@ -155,6 +166,35 @@ const overlay = (figure: Figure): SVGElement => {
     ),
   );
   return s('svg', { class: 'overlay', viewBox: `0 0 ${figure.drawing.width} ${figure.drawing.height}`, preserveAspectRatio: 'none' }, ...edges, ...points, ...unknown);
+};
+
+const draggablePoints = (svg: SVGElement, figure: Figure, onMove: (id: string, to: Point) => void): SVGElement => {
+  svg.addEventListener('pointerdown', (down: PointerEvent) => {
+    const group = down.target instanceof Element ? down.target.closest('.figure-point') : null;
+    const id = group?.getAttribute('data-id');
+    const start = figure.points.find((entry) => entry.id === id);
+    if (!group || !id || !start) return;
+    down.preventDefault();
+    svg.setPointerCapture(down.pointerId);
+    group.classList.add('dragging');
+    let dropped: Point | null = null;
+    const move = (event: PointerEvent): void => {
+      dropped = drawingPointAt(svg.getBoundingClientRect(), figure.drawing, { x: event.clientX, y: event.clientY });
+      group.setAttribute('transform', `translate(${dropped.x - start.x} ${dropped.y - start.y})`);
+    };
+    const finish = (event: PointerEvent): void => {
+      svg.removeEventListener('pointermove', move);
+      svg.removeEventListener('pointerup', finish);
+      svg.removeEventListener('pointercancel', finish);
+      group.classList.remove('dragging');
+      group.removeAttribute('transform');
+      if (event.type === 'pointerup' && dropped) onMove(id, dropped);
+    };
+    svg.addEventListener('pointermove', move);
+    svg.addEventListener('pointerup', finish);
+    svg.addEventListener('pointercancel', finish);
+  });
+  return svg;
 };
 
 const row = ({ id, text, confidence }: FigureRow): HTMLElement => {
@@ -247,7 +287,7 @@ export const renderFigureCheck = (root: HTMLElement, session: Session, photoUrl:
     h(
       'section',
       { class: 'check' },
-      h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), overlay(figure)),
+      h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), draggablePoints(overlay(figure), figure, handlers.onMovePoint)),
       h(
         'aside',
         { class: 'panel' },
@@ -255,6 +295,7 @@ export const renderFigureCheck = (root: HTMLElement, session: Session, photoUrl:
         h('p', { class: 'note' }, note),
         warnings.length > 0 ? h('ul', { class: 'warnings' }, ...warnings) : null,
         h('h2', {}, 'Figure'),
+        h('p', { class: 'note' }, MOVE_POINT_NOTE),
         h('ul', { class: 'items' }, ...rowsOf(figure).map(row)),
         figure.unknownMarks.length > 0
           ? h('ul', { class: 'items' }, ...figure.unknownMarks.map((mark) => row({ id: mark.id, text: mark.note, confidence: mark.confidence })))

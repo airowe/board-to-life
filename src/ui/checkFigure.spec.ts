@@ -6,6 +6,7 @@ import { GEOMETRY_SAMPLES } from '../geometry/samples';
 import type { Figure, Focus, Mark, Transformation } from '../geometry/schema';
 import {
   currentFocusValue,
+  drawingPointAt,
   figureFocusChoices,
   figureAnswerLine,
   figureEdges,
@@ -212,5 +213,23 @@ describe('figureFocusChoices', () => {
   it('is not predictable when there is no focus at all', () => {
     const figure: Figure = { ...sampleFigure('triangle'), segments: [], polygons: [], marks: [] };
     expect(figureFocusChoices(figure)).toEqual({ options: [], predictable: false, value: '' });
+  });
+});
+
+describe('drawingPointAt', () => {
+  const DRAWING = { width: 1200, height: 800 };
+  const SHOWN = { left: 40, top: 100, width: 600, height: 400 };
+
+  it.each([
+    ['top-left corner', { x: 40, y: 100 }, { x: 0, y: 0 }],
+    ['centre', { x: 340, y: 300 }, { x: 600, y: 400 }],
+    ['bottom-right corner', { x: 640, y: 500 }, { x: 1200, y: 800 }],
+  ])('maps the %s of the shown photo into drawing units', (_, client, expected) => {
+    expect(drawingPointAt(SHOWN, DRAWING, client)).toEqual(expected);
+  });
+
+  it('stretches each axis on its own, as the overlay does', () => {
+    const squashed = { ...SHOWN, height: 200 };
+    expect(drawingPointAt(squashed, DRAWING, { x: 340, y: 200 })).toEqual({ x: 600, y: 400 });
   });
 });

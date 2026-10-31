@@ -289,6 +289,20 @@ button:disabled {
   opacity: 0.6;
 }
 
+.figure-point {
+  cursor: grab;
+  touch-action: none;
+}
+
+.figure-point.dragging {
+  cursor: grabbing;
+}
+
+.overlay-item.figure-point .reach {
+  fill: transparent;
+  stroke: none;
+}
+
 .overlay-item.low * {
   fill: rgba(185, 119, 14, 0.15);
   stroke: var(--amber);
