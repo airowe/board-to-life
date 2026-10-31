@@ -28,6 +28,7 @@ import { figureQuestionsFailureStatus, renderFigureCheck } from './ui/checkFigur
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 import { renderFigurePresent } from './ui/presentFigure';
+import type { ScenePictures } from './ui/placeScene';
 import { renderWebPresent } from './ui/presentWeb';
 
 const PROGRESS_TICK_MS = 1000;
@@ -84,6 +85,13 @@ const livePicturesReady = libraryReady.then((loaded) =>
     ? createLivePictures({ library: loaded.library, draw: drawPicture(requestHeaders), cache: browserCache(), decode: decodeCutOut })
     : null,
 );
+
+// Ready long before a lesson is shown; until then (or if the library failed) food webs open on Chart, as before.
+let presentPictures: ScenePictures | null = null;
+void livePicturesReady.then(async (live) => {
+  const loaded = await libraryReady;
+  if (loaded && live) presentPictures = { ...loaded, live };
+});
 
 const requestLivePictures = (content: DraftContent): void => {
   if (content.subject !== 'ecosystem') return;
@@ -366,7 +374,7 @@ function showPresent(): void {
   const lesson = session.presentable();
   if (!lesson) return showCheck();
   leaveScreen();
-  if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck);
+  if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck, presentPictures);
   else if (lesson.subject === 'geometry') cleanup = renderFigurePresent(root, lesson, photoUrl, showCheck);
   else cleanup = renderPresent(root, lesson, photoUrl, showCheck);
 }

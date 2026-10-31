@@ -611,7 +611,7 @@ button:disabled {
   --species-5: #7b3fa0;
   --species-6: #0f7c8a;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 12px;
   padding: 64px 16px 16px;
 }
@@ -654,6 +654,39 @@ button:disabled {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Place, Chart and Time: one segmented control above the stage. */
+.view-switch {
+  display: inline-flex;
+  justify-self: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--board);
+}
+
+.view-tab {
+  min-width: 7.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.view-tab[aria-selected='true'],
+.view-tab[aria-selected='true']:hover:not(:disabled) {
+  background: var(--marker);
+  color: #fff;
+}
+
+/* Place and Time take the whole stage; Chart keeps the rings with the strip chart beside or below them. */
+.web-body[data-view='place'],
+.web-body[data-view='time'] {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* The living place: an illustrated habitat drawn to the edges of its rounded frame. */
@@ -966,6 +999,23 @@ body.board-mode .big {
   font-size: 1.4rem;
   min-height: max(80px, 3.4rem);
   padding: 0.6rem 2.4rem;
+}
+
+body.board-mode .view-switch {
+  padding: 6px;
+  border-width: 3px;
+  gap: 6px;
+}
+
+body.board-mode .view-tab {
+  min-width: 9rem;
+  font-size: 1.2rem;
+  border-width: 0;
+}
+
+body.board-mode .view-tab[aria-selected='true'],
+body.board-mode .view-tab[aria-selected='true']:hover:not(:disabled) {
+  background: var(--marker);
 }
 
 body.board-mode .exit,
