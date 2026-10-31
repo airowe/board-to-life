@@ -1,5 +1,5 @@
 import { EVENT_STEP, type Series } from '../ecosystem/model';
-import { CHANGE_THRESHOLD, EXTINCT_FRACTION } from '../ecosystem/outcomes';
+import { CHANGE_THRESHOLD, isGone, referenceLevel } from '../ecosystem/outcomes';
 import type { Species, Web, WebEvent } from '../ecosystem/schema';
 
 export const MAX_LABELS = 3;
@@ -10,11 +10,19 @@ export type PinnedLabel = { speciesId: string | null; text: string; since: numbe
 // Names that read the same for one or many, so "Kelp thin out." rather than "Kelps thin out.".
 const SAME_PLURAL = new Set([
   'kelp', 'grass', 'algae', 'plankton', 'phytoplankton', 'zooplankton', 'krill', 'seaweed', 'fungi', 'fish', 'deer',
-  'sheep', 'moose', 'bison', 'salmon', 'trout', 'moss', 'clover', 'wheat', 'corn',
+  'sheep', 'moose', 'bison', 'salmon', 'trout', 'moss', 'clover', 'wheat', 'corn', 'larvae', 'mice', 'geese', 'lice',
+  'oxen', 'children', 'people', 'cacti',
 ]);
+const IRREGULAR_PLURAL: Record<string, string> = {
+  mouse: 'mice', louse: 'lice', goose: 'geese', ox: 'oxen', larva: 'larvae', fungus: 'fungi', cactus: 'cacti',
+  child: 'children', person: 'people', wolf: 'wolves', calf: 'calves', leaf: 'leaves', loaf: 'loaves', half: 'halves',
+  elf: 'elves', shelf: 'shelves', thief: 'thieves', wife: 'wives', knife: 'knives', life: 'lives',
+};
 
 const pluralWord = (word: string): string => {
   if (SAME_PLURAL.has(word)) return word;
+  const irregular = IRREGULAR_PLURAL[word];
+  if (irregular !== undefined) return irregular;
   if (word.endsWith('s') && !/(ss|us|is)$/.test(word)) return word;
   if (/[^aeiou]y$/.test(word)) return `${word.slice(0, -1)}ies`;
   if (/(s|x|z|ch|sh)$/.test(word)) return `${word}es`;
@@ -35,20 +43,22 @@ const eventLabel = (web: Web, event: WebEvent): PinnedLabel => {
   return { speciesId: event.species, text: `The ${pluralName(name)} are removed.`, since: EVENT_STEP };
 };
 
+// The first clear change since the event, unless the species is gone right now: then "die out", dated from when it went.
 const changeLabel = (species: Species, values: number[], step: number): PinnedLabel | null => {
-  const reference = values[EVENT_STEP] ?? 0;
+  const reference = referenceLevel(values, EVENT_STEP);
   if (reference <= 0) return null;
   const name = capitalised(pluralName(species.name));
   const fallText = species.role === 'producer' ? `${name} thin out.` : `${name} decline.`;
-  let label: PinnedLabel | null = null;
+  let change: PinnedLabel | null = null;
+  let goneSince: number | null = null;
   for (let at = EVENT_STEP + 1; at <= Math.min(step, values.length - 1); at += 1) {
     const value = values[at] ?? 0;
-    if (value <= reference * EXTINCT_FRACTION) return { speciesId: species.id, text: `${name} die out.`, since: at };
-    if (label !== null) continue;
-    if (value > reference * (1 + CHANGE_THRESHOLD)) label = { speciesId: species.id, text: `${name} multiply.`, since: at };
-    else if (value < reference * (1 - CHANGE_THRESHOLD)) label = { speciesId: species.id, text: fallText, since: at };
+    goneSince = isGone(value, reference) ? (goneSince ?? at) : null;
+    if (change !== null) continue;
+    if (value > reference * (1 + CHANGE_THRESHOLD)) change = { speciesId: species.id, text: `${name} multiply.`, since: at };
+    else if (value < reference * (1 - CHANGE_THRESHOLD)) change = { speciesId: species.id, text: fallText, since: at };
   }
-  return label;
+  return goneSince === null ? change : { speciesId: species.id, text: `${name} die out.`, since: goneSince };
 };
 
 export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {

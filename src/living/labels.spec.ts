@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { emptyEdits } from '../ecosystem/edits';
 import { speciesAt, webOf } from '../ecosystem/fixtures';
 import { EVENT_STEP, MODEL_STEPS, simulate, type Series } from '../ecosystem/model';
 import { WEB_SAMPLES } from '../ecosystem/samples';
 import type { Web, WebEvent } from '../ecosystem/schema';
+import { isGone, referenceLevel } from '../ecosystem/outcomes';
+import { crowdTargets } from './crowd';
 import { MAX_LABELS, labelsAt, type PinnedLabel } from './labels';
 
 const sampleWeb = (id: string): Web => {
@@ -78,7 +82,7 @@ describe('labelsAt', () => {
 
   it('a died-out label replaces that species\' decline label', () => {
     const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
-    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), 80, 50, 5, 1, 0.5];
+    const fox = [...Array<number>(EVENT_STEP + 1).fill(100), 80, 50, 5, 0.9, 0.5];
     const grass = Array<number>(fox.length).fill(1000);
     const series: Series = { ids: ['grass', 'fox'], values: { grass, fox } };
     const declineStep = EVENT_STEP + 1;
@@ -92,16 +96,114 @@ describe('labelsAt', () => {
     expect(labelsAt(KELP, DROUGHT, run(KELP, DROUGHT), EVENT_STEP)).toEqual([{ speciesId: null, text: 'A drought hits.', since: EVENT_STEP }]);
   });
 
-  it.each<[string, string]>([
-    ['sea otter', 'Sea otters multiply.'],
-    ['rabbits', 'Rabbits multiply.'],
-    ['butterfly', 'Butterflies multiply.'],
-    ['fox', 'Foxes multiply.'],
-    ['grass', 'Grass multiply.'],
-    ['deer', 'Deer multiply.'],
-  ])('names a rising "%s" as "%s"', (name, text) => {
+  const PLURALS: [string, string][] = [
+    ['kelp', 'Kelp'],
+    ['sea urchin', 'Sea urchins'],
+    ['sea otter', 'Sea otters'],
+    ['phytoplankton', 'Phytoplankton'],
+    ['krill', 'Krill'],
+    ['small fish', 'Small fish'],
+    ['seal', 'Seals'],
+    ['shark', 'Sharks'],
+    ['crab', 'Crabs'],
+    ['sea star', 'Sea stars'],
+    ['grass', 'Grass'],
+    ['wildflower', 'Wildflowers'],
+    ['rabbit', 'Rabbits'],
+    ['fox', 'Foxes'],
+    ['hawk', 'Hawks'],
+    ['mouse', 'Mice'],
+    ['snake', 'Snakes'],
+    ['grasshopper', 'Grasshoppers'],
+    ['oak tree', 'Oak trees'],
+    ['acorn', 'Acorns'],
+    ['caterpillar', 'Caterpillars'],
+    ['songbird', 'Songbirds'],
+    ['deer', 'Deer'],
+    ['wolf', 'Wolves'],
+    ['owl', 'Owls'],
+    ['squirrel', 'Squirrels'],
+    ['bear', 'Bears'],
+    ['fungi', 'Fungi'],
+    ['algae', 'Algae'],
+    ['water flea', 'Water fleas'],
+    ['tadpole', 'Tadpoles'],
+    ['frog', 'Frogs'],
+    ['dragonfly larva', 'Dragonfly larvae'],
+    ['dragonfly', 'Dragonflies'],
+    ['duck', 'Ducks'],
+    ['heron', 'Herons'],
+    ['cattails', 'Cattails'],
+    ['snail', 'Snails'],
+  ];
+  const OTHER_PLURALS: [string, string][] = [
+    ['rabbits', 'Rabbits'],
+    ['butterfly', 'Butterflies'],
+    ['goose', 'Geese'],
+    ['leaf', 'Leaves'],
+    ['louse', 'Lice'],
+    ['ox', 'Oxen'],
+    ['calf', 'Calves'],
+    ['fungus', 'Fungi'],
+    ['moose', 'Moose'],
+    ['sheep', 'Sheep'],
+    ['mice', 'Mice'],
+    ['wolves', 'Wolves'],
+    ['geese', 'Geese'],
+    ['larvae', 'Larvae'],
+    ['field mouse', 'Field mice'],
+    ['Red Fox', 'Red foxes'],
+  ];
+  const NOT_A_SPECIES = new Set(['sun']);
+
+  it('the plural table covers every organism in the library', () => {
+    const library = JSON.parse(readFileSync('public/library/manifest.json', 'utf8')) as { entries: { subject: string; group: string }[] };
+    const organisms = new Set(library.entries.filter((entry) => entry.group === 'organism').map((entry) => entry.subject.replace(/-/g, ' ')));
+    const covered = new Set(PLURALS.map(([name]) => name));
+    expect([...organisms].filter((name) => !covered.has(name) && !NOT_A_SPECIES.has(name))).toEqual([]);
+  });
+
+  it.each([...PLURALS, ...OTHER_PLURALS])('names a rising "%s" as "%s multiply."', (name, plural) => {
     const web = webOf([{ ...speciesAt('grass', 'producer', 100, 800), name }], []);
     const series: Series = { ids: ['grass'], values: { grass: [...Array<number>(EVENT_STEP + 1).fill(100), 200] } };
-    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 1), 'grass')?.text).toBe(text);
+    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 1), 'grass')?.text).toBe(`${plural} multiply.`);
+  });
+
+  it('the removal label uses the irregular plural', () => {
+    const web = webOf([speciesAt('grass', 'producer', 100, 800), { ...speciesAt('wolf', 'consumer', 400, 400), name: 'grey wolf' }], []);
+    const series: Series = { ids: ['grass', 'wolf'], values: { grass: [1000], wolf: [10] } };
+    expect(labelsAt(web, { kind: 'remove', species: 'wolf' }, series, EVENT_STEP)[0]?.text).toBe('The grey wolves are removed.');
+  });
+});
+
+describe('labels and crowds agree on who is gone', () => {
+  // Edited up to 4x its settled value, the fox is at 400 when the event comes, then crashes and recovers.
+  const SETTLED_FOX = 100;
+  const AT_EVENT = 400;
+  const fox = [...Array<number>(EVENT_STEP).fill(AT_EVENT - 10), AT_EVENT, 300, 100, 20, 3, 2, 3, 10, 40];
+  const series: Series = { ids: ['grass', 'fox'], values: { grass: Array<number>(fox.length).fill(1000), fox } };
+  const web = webOf([speciesAt('grass', 'producer', 100, 800), speciesAt('fox', 'consumer', 400, 400)], []);
+  const roles = { grass: 'producer', fox: 'consumer' } as const;
+  const steps = Array.from({ length: fox.length - EVENT_STEP }, (_, index) => EVENT_STEP + index);
+  const diesOut = (step: number) => labelFor(labelsAt(web, DROUGHT, series, step), 'fox')?.text === 'Foxes die out.';
+  const crowdAt = (step: number) => crowdTargets(series, step, { grass: 1000, fox: SETTLED_FOX }, roles, emptyEdits()).fox;
+
+  it('says "die out" exactly while the outcome rule calls the fox gone', () => {
+    const reference = referenceLevel(fox, EVENT_STEP);
+    expect(steps.map(diesOut)).toEqual(steps.map((step) => step > EVENT_STEP && isGone(fox[step] as number, reference)));
+    expect(steps.filter(diesOut)).toEqual([EVENT_STEP + 4, EVENT_STEP + 5, EVENT_STEP + 6]);
+  });
+
+  it('never says "die out" while the crowd still shows a fox', () => {
+    for (const step of steps.filter(diesOut)) expect(crowdAt(step)).toBe(0);
+  });
+
+  it('dates the die-out label from when the fox went', () => {
+    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 6), 'fox')?.since).toBe(EVENT_STEP + 4);
+  });
+
+  it('goes back to the decline label once the fox recovers', () => {
+    expect(labelFor(labelsAt(web, DROUGHT, series, EVENT_STEP + 8), 'fox')).toEqual({ speciesId: 'fox', text: 'Foxes decline.', since: EVENT_STEP + 1 });
+    expect(crowdAt(EVENT_STEP + 8)).toBeGreaterThan(0);
   });
 });

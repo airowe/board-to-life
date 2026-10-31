@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHANGE_THRESHOLD, EXTINCT_FRACTION, directionsAfter } from './outcomes';
+import { CHANGE_THRESHOLD, EXTINCT_FRACTION, directionsAfter, isGone, referenceLevel } from './outcomes';
 import type { Series } from './model';
 
 const STEPS = 400;
@@ -48,5 +48,28 @@ describe('directionsAfter', () => {
   it('returns one direction per species', () => {
     const series: Series = { ids: ['a', 'b'], values: { a: flatThenFinal(BASE), b: flatThenFinal(0) } };
     expect(directionsAfter(series, EVENT_STEP)).toEqual({ a: 'steady', b: 'died out' });
+  });
+});
+
+describe('referenceLevel', () => {
+  it.each<[string, number[], number]>([
+    ['the value at the event', [5, 7, 9], 9],
+    ['the step before when the event value is 0', [5, 7, 0], 7],
+    ['0 when there is nothing', [], 0],
+  ])('is %s', (_, values, reference) => {
+    expect(referenceLevel(values, 2)).toBe(reference);
+  });
+});
+
+describe('isGone', () => {
+  it.each<[number, number, boolean]>([
+    [0.99, 100, true],
+    [1, 100, false],
+    [50, 100, false],
+    [0, 100, true],
+    [0, 0, true],
+    [0.5, 0, false],
+  ])('value %f against reference %f is gone: %s', (value, reference, gone) => {
+    expect(isGone(value, reference)).toBe(gone);
   });
 });

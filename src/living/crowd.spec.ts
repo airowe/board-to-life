@@ -34,7 +34,8 @@ describe('crowdTargets', () => {
     ['settled value gives the base count', 100, 1000, BASE_ANIMALS, BASE_PRODUCERS],
     ['double gives double, capped at 12', 200, 2000, 2 * BASE_ANIMALS, MAX_PER_GROUP],
     ['triple an animal is capped at 12', 300, 1000, MAX_PER_GROUP, BASE_PRODUCERS],
-    ['a value at 1% of settled gives 0', 1, 10, 0, 0],
+    ['a value below 1% of settled gives 0', 0.99, 9.9, 0, 0],
+    ['a value at exactly 1% of settled still shows one, as outcomes.ts counts it', 1, 10, 1, 1],
     ['a small positive value gives at least 1', 5, 20, 1, 1],
     ['a value of 0 gives 0', 0, 0, 0, 0],
   ])('%s', (_, fox, grass, foxCount, grassCount) => {

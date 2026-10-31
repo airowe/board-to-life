@@ -1,6 +1,6 @@
 import type { WebEdits } from '../ecosystem/edits';
-import type { Series } from '../ecosystem/model';
-import { EXTINCT_FRACTION } from '../ecosystem/outcomes';
+import { EVENT_STEP, type Series } from '../ecosystem/model';
+import { isGone, referenceLevel } from '../ecosystem/outcomes';
 import type { Role } from '../ecosystem/schema';
 import { STAGE, type Group } from './layout';
 
@@ -49,7 +49,8 @@ export const crowdTargets = (
       const value = values[Math.min(step, values.length - 1)] ?? 0;
       const steady = settled[id] ?? 0;
       const base = roles[id] === 'producer' ? BASE_PRODUCERS : BASE_ANIMALS;
-      if (edits.removed.has(id) || value <= 0 || value <= steady * EXTINCT_FRACTION) return [id, 0];
+      const goneSinceEvent = step > EVENT_STEP && isGone(value, referenceLevel(values, EVENT_STEP));
+      if (edits.removed.has(id) || isGone(value, steady) || goneSinceEvent) return [id, 0];
       const count = steady > 0 ? Math.round((base * value) / steady) : base;
       return [id, Math.min(Math.max(count, 1), MAX_PER_GROUP)];
     }),
