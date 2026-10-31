@@ -78,7 +78,6 @@ const MID_LEAVE = LEAVE_SECONDS * (STAGGER_FRACTION + 0.5);
 const SETTLED_IN = ENTERED_BY + 0.5;
 const IDLE_TIMES = [SETTLED_IN, SETTLED_IN + 0.7, SETTLED_IN + 2.3, SETTLED_IN + 5.1];
 const FRAME = 1 / 60;
-const HALF = 0.5;
 
 const trackerWith = (targets: Record<string, number>, settle = false): CrowdTracker => {
   const tracker = createCrowdTracker();
