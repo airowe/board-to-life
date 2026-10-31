@@ -1,0 +1,630 @@
+{
+  "version": 1,
+  "source": "Microsoft Fluent Emoji (3D), MIT license, see LICENSE",
+  "entries": [
+    {
+      "name": "monkey face",
+      "file": "monkey-face.webp"
+    },
+    {
+      "name": "monkey",
+      "file": "monkey.webp"
+    },
+    {
+      "name": "gorilla",
+      "file": "gorilla.webp"
+    },
+    {
+      "name": "orangutan",
+      "file": "orangutan.webp"
+    },
+    {
+      "name": "dog face",
+      "file": "dog-face.webp"
+    },
+    {
+      "name": "dog",
+      "file": "dog.webp"
+    },
+    {
+      "name": "guide dog",
+      "file": "guide-dog.webp"
+    },
+    {
+      "name": "service dog",
+      "file": "service-dog.webp"
+    },
+    {
+      "name": "poodle",
+      "file": "poodle.webp"
+    },
+    {
+      "name": "wolf",
+      "file": "wolf.webp"
+    },
+    {
+      "name": "fox",
+      "file": "fox.webp"
+    },
+    {
+      "name": "raccoon",
+      "file": "raccoon.webp"
+    },
+    {
+      "name": "cat face",
+      "file": "cat-face.webp"
+    },
+    {
+      "name": "cat",
+      "file": "cat.webp"
+    },
+    {
+      "name": "black cat",
+      "file": "black-cat.webp"
+    },
+    {
+      "name": "lion",
+      "file": "lion.webp"
+    },
+    {
+      "name": "tiger face",
+      "file": "tiger-face.webp"
+    },
+    {
+      "name": "tiger",
+      "file": "tiger.webp"
+    },
+    {
+      "name": "leopard",
+      "file": "leopard.webp"
+    },
+    {
+      "name": "horse face",
+      "file": "horse-face.webp"
+    },
+    {
+      "name": "moose",
+      "file": "moose.webp"
+    },
+    {
+      "name": "donkey",
+      "file": "donkey.webp"
+    },
+    {
+      "name": "horse",
+      "file": "horse.webp"
+    },
+    {
+      "name": "unicorn",
+      "file": "unicorn.webp"
+    },
+    {
+      "name": "zebra",
+      "file": "zebra.webp"
+    },
+    {
+      "name": "deer",
+      "file": "deer.webp"
+    },
+    {
+      "name": "bison",
+      "file": "bison.webp"
+    },
+    {
+      "name": "cow face",
+      "file": "cow-face.webp"
+    },
+    {
+      "name": "ox",
+      "file": "ox.webp"
+    },
+    {
+      "name": "water buffalo",
+      "file": "water-buffalo.webp"
+    },
+    {
+      "name": "cow",
+      "file": "cow.webp"
+    },
+    {
+      "name": "pig face",
+      "file": "pig-face.webp"
+    },
+    {
+      "name": "pig",
+      "file": "pig.webp"
+    },
+    {
+      "name": "boar",
+      "file": "boar.webp"
+    },
+    {
+      "name": "pig nose",
+      "file": "pig-nose.webp"
+    },
+    {
+      "name": "ram",
+      "file": "ram.webp"
+    },
+    {
+      "name": "ewe",
+      "file": "ewe.webp"
+    },
+    {
+      "name": "goat",
+      "file": "goat.webp"
+    },
+    {
+      "name": "camel",
+      "file": "camel.webp"
+    },
+    {
+      "name": "two-hump camel",
+      "file": "two-hump-camel.webp"
+    },
+    {
+      "name": "llama",
+      "file": "llama.webp"
+    },
+    {
+      "name": "giraffe",
+      "file": "giraffe.webp"
+    },
+    {
+      "name": "elephant",
+      "file": "elephant.webp"
+    },
+    {
+      "name": "mammoth",
+      "file": "mammoth.webp"
+    },
+    {
+      "name": "rhinoceros",
+      "file": "rhinoceros.webp"
+    },
+    {
+      "name": "hippopotamus",
+      "file": "hippopotamus.webp"
+    },
+    {
+      "name": "mouse face",
+      "file": "mouse-face.webp"
+    },
+    {
+      "name": "mouse",
+      "file": "mouse.webp"
+    },
+    {
+      "name": "rat",
+      "file": "rat.webp"
+    },
+    {
+      "name": "hamster",
+      "file": "hamster.webp"
+    },
+    {
+      "name": "rabbit face",
+      "file": "rabbit-face.webp"
+    },
+    {
+      "name": "rabbit",
+      "file": "rabbit.webp"
+    },
+    {
+      "name": "chipmunk",
+      "file": "chipmunk.webp"
+    },
+    {
+      "name": "beaver",
+      "file": "beaver.webp"
+    },
+    {
+      "name": "hedgehog",
+      "file": "hedgehog.webp"
+    },
+    {
+      "name": "bat",
+      "file": "bat.webp"
+    },
+    {
+      "name": "bear",
+      "file": "bear.webp"
+    },
+    {
+      "name": "polar bear",
+      "file": "polar-bear.webp"
+    },
+    {
+      "name": "koala",
+      "file": "koala.webp"
+    },
+    {
+      "name": "panda",
+      "file": "panda.webp"
+    },
+    {
+      "name": "sloth",
+      "file": "sloth.webp"
+    },
+    {
+      "name": "otter",
+      "file": "otter.webp"
+    },
+    {
+      "name": "skunk",
+      "file": "skunk.webp"
+    },
+    {
+      "name": "kangaroo",
+      "file": "kangaroo.webp"
+    },
+    {
+      "name": "badger",
+      "file": "badger.webp"
+    },
+    {
+      "name": "paw prints",
+      "file": "paw-prints.webp"
+    },
+    {
+      "name": "turkey",
+      "file": "turkey.webp"
+    },
+    {
+      "name": "chicken",
+      "file": "chicken.webp"
+    },
+    {
+      "name": "rooster",
+      "file": "rooster.webp"
+    },
+    {
+      "name": "hatching chick",
+      "file": "hatching-chick.webp"
+    },
+    {
+      "name": "baby chick",
+      "file": "baby-chick.webp"
+    },
+    {
+      "name": "front-facing baby chick",
+      "file": "front-facing-baby-chick.webp"
+    },
+    {
+      "name": "bird",
+      "file": "bird.webp"
+    },
+    {
+      "name": "penguin",
+      "file": "penguin.webp"
+    },
+    {
+      "name": "dove",
+      "file": "dove.webp"
+    },
+    {
+      "name": "eagle",
+      "file": "eagle.webp"
+    },
+    {
+      "name": "duck",
+      "file": "duck.webp"
+    },
+    {
+      "name": "swan",
+      "file": "swan.webp"
+    },
+    {
+      "name": "owl",
+      "file": "owl.webp"
+    },
+    {
+      "name": "dodo",
+      "file": "dodo.webp"
+    },
+    {
+      "name": "feather",
+      "file": "feather.webp"
+    },
+    {
+      "name": "flamingo",
+      "file": "flamingo.webp"
+    },
+    {
+      "name": "peacock",
+      "file": "peacock.webp"
+    },
+    {
+      "name": "parrot",
+      "file": "parrot.webp"
+    },
+    {
+      "name": "wing",
+      "file": "wing.webp"
+    },
+    {
+      "name": "goose",
+      "file": "goose.webp"
+    },
+    {
+      "name": "frog",
+      "file": "frog.webp"
+    },
+    {
+      "name": "crocodile",
+      "file": "crocodile.webp"
+    },
+    {
+      "name": "turtle",
+      "file": "turtle.webp"
+    },
+    {
+      "name": "lizard",
+      "file": "lizard.webp"
+    },
+    {
+      "name": "snake",
+      "file": "snake.webp"
+    },
+    {
+      "name": "dragon face",
+      "file": "dragon-face.webp"
+    },
+    {
+      "name": "dragon",
+      "file": "dragon.webp"
+    },
+    {
+      "name": "sauropod",
+      "file": "sauropod.webp"
+    },
+    {
+      "name": "T-Rex",
+      "file": "t-rex.webp"
+    },
+    {
+      "name": "spouting whale",
+      "file": "spouting-whale.webp"
+    },
+    {
+      "name": "whale",
+      "file": "whale.webp"
+    },
+    {
+      "name": "dolphin",
+      "file": "dolphin.webp"
+    },
+    {
+      "name": "seal",
+      "file": "seal.webp"
+    },
+    {
+      "name": "fish",
+      "file": "fish.webp"
+    },
+    {
+      "name": "tropical fish",
+      "file": "tropical-fish.webp"
+    },
+    {
+      "name": "blowfish",
+      "file": "blowfish.webp"
+    },
+    {
+      "name": "shark",
+      "file": "shark.webp"
+    },
+    {
+      "name": "octopus",
+      "file": "octopus.webp"
+    },
+    {
+      "name": "spiral shell",
+      "file": "spiral-shell.webp"
+    },
+    {
+      "name": "coral",
+      "file": "coral.webp"
+    },
+    {
+      "name": "jellyfish",
+      "file": "jellyfish.webp"
+    },
+    {
+      "name": "crab",
+      "file": "crab.webp"
+    },
+    {
+      "name": "lobster",
+      "file": "lobster.webp"
+    },
+    {
+      "name": "shrimp",
+      "file": "shrimp.webp"
+    },
+    {
+      "name": "squid",
+      "file": "squid.webp"
+    },
+    {
+      "name": "oyster",
+      "file": "oyster.webp"
+    },
+    {
+      "name": "snail",
+      "file": "snail.webp"
+    },
+    {
+      "name": "butterfly",
+      "file": "butterfly.webp"
+    },
+    {
+      "name": "bug",
+      "file": "bug.webp"
+    },
+    {
+      "name": "ant",
+      "file": "ant.webp"
+    },
+    {
+      "name": "honeybee",
+      "file": "honeybee.webp"
+    },
+    {
+      "name": "beetle",
+      "file": "beetle.webp"
+    },
+    {
+      "name": "lady beetle",
+      "file": "lady-beetle.webp"
+    },
+    {
+      "name": "cricket",
+      "file": "cricket.webp"
+    },
+    {
+      "name": "cockroach",
+      "file": "cockroach.webp"
+    },
+    {
+      "name": "spider",
+      "file": "spider.webp"
+    },
+    {
+      "name": "spider web",
+      "file": "spider-web.webp"
+    },
+    {
+      "name": "scorpion",
+      "file": "scorpion.webp"
+    },
+    {
+      "name": "mosquito",
+      "file": "mosquito.webp"
+    },
+    {
+      "name": "fly",
+      "file": "fly.webp"
+    },
+    {
+      "name": "worm",
+      "file": "worm.webp"
+    },
+    {
+      "name": "microbe",
+      "file": "microbe.webp"
+    },
+    {
+      "name": "bouquet",
+      "file": "bouquet.webp"
+    },
+    {
+      "name": "cherry blossom",
+      "file": "cherry-blossom.webp"
+    },
+    {
+      "name": "white flower",
+      "file": "white-flower.webp"
+    },
+    {
+      "name": "lotus",
+      "file": "lotus.webp"
+    },
+    {
+      "name": "rosette",
+      "file": "rosette.webp"
+    },
+    {
+      "name": "rose",
+      "file": "rose.webp"
+    },
+    {
+      "name": "wilted flower",
+      "file": "wilted-flower.webp"
+    },
+    {
+      "name": "hibiscus",
+      "file": "hibiscus.webp"
+    },
+    {
+      "name": "sunflower",
+      "file": "sunflower.webp"
+    },
+    {
+      "name": "blossom",
+      "file": "blossom.webp"
+    },
+    {
+      "name": "tulip",
+      "file": "tulip.webp"
+    },
+    {
+      "name": "hyacinth",
+      "file": "hyacinth.webp"
+    },
+    {
+      "name": "seedling",
+      "file": "seedling.webp"
+    },
+    {
+      "name": "potted plant",
+      "file": "potted-plant.webp"
+    },
+    {
+      "name": "evergreen tree",
+      "file": "evergreen-tree.webp"
+    },
+    {
+      "name": "deciduous tree",
+      "file": "deciduous-tree.webp"
+    },
+    {
+      "name": "palm tree",
+      "file": "palm-tree.webp"
+    },
+    {
+      "name": "cactus",
+      "file": "cactus.webp"
+    },
+    {
+      "name": "sheaf of rice",
+      "file": "sheaf-of-rice.webp"
+    },
+    {
+      "name": "herb",
+      "file": "herb.webp"
+    },
+    {
+      "name": "shamrock",
+      "file": "shamrock.webp"
+    },
+    {
+      "name": "four leaf clover",
+      "file": "four-leaf-clover.webp"
+    },
+    {
+      "name": "maple leaf",
+      "file": "maple-leaf.webp"
+    },
+    {
+      "name": "fallen leaf",
+      "file": "fallen-leaf.webp"
+    },
+    {
+      "name": "leaf fluttering in wind",
+      "file": "leaf-fluttering-in-wind.webp"
+    },
+    {
+      "name": "empty nest",
+      "file": "empty-nest.webp"
+    },
+    {
+      "name": "nest with eggs",
+      "file": "nest-with-eggs.webp"
+    },
+    {
+      "name": "mushroom",
+      "file": "mushroom.webp"
+    }
+  ]
+}
