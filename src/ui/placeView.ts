@@ -4,9 +4,9 @@ import type { LivePictures } from '../library/live';
 import type { Habitat, Library, Zone } from '../library/manifest';
 import { libraryFile } from '../library/match';
 import type { PictureSource } from '../library/source';
-import { isRooted, type IndividualPose } from '../living/crowd';
+import type { IndividualPose } from '../living/crowd';
 import { LABEL_FADE_STEPS, type PinnedLabel } from '../living/labels';
-import { FLOOR_Y, MAX_WIDTH_PER_HEIGHT, STAGE, SURFACE_Y_BY_HABITAT, poseFileFor, type Group, type PlaceLayout } from '../living/layout';
+import { FLOOR_Y, MAX_WIDTH_PER_HEIGHT, STAGE, SURFACE_Y_BY_HABITAT, isRooted, poseFileFor, type Group, type PlaceLayout } from '../living/layout';
 import { viewOf, type View } from '../present/view';
 import { sizeCanvas } from './canvasSize';
 
@@ -260,7 +260,7 @@ const trackSource = (memory: Memory, id: string, source: PictureSource, seconds:
 
 // Back to front by zone; within a zone, rooted plants stand behind the animals among them.
 const drawOrder = (groups: Group[]): Group[] =>
-  ZONE_ORDER.flatMap((zone) => [true, false].flatMap((rooted) => groups.filter((group) => group.zone === zone && isRooted(group.role) === rooted)));
+  ZONE_ORDER.flatMap((zone) => [true, false].flatMap((rooted) => groups.filter((group) => group.zone === zone && isRooted(group.role, group.zone) === rooted)));
 
 const drawIndividuals = (ctx: CanvasRenderingContext2D, frame: PlaceFrame, memory: Memory): void => {
   const { layout, poses, seconds } = frame;

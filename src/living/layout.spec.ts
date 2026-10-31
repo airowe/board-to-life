@@ -19,6 +19,7 @@ import {
   SURFACE_Y_BY_HABITAT,
   WATER_Y_BY_HABITAT,
   habitatFor,
+  isRooted,
   layoutPlace,
   poseFileFor,
   rowOf,
@@ -103,8 +104,8 @@ describe('layoutPlace', () => {
     expect(hawk.spread).toBe(MAX_SPREAD_SPACINGS.sky * hawk.spacing);
   });
 
-  it.each(WEB_SAMPLES.map((sample) => [sample.id]))('keeps every rooted crowd within its share of the stage in the %s sample', (id) => {
-    const rooted = layoutPlace(sampleWeb(id), library).groups.filter((group) => group.role !== 'consumer');
+  it('keeps every rooted crowd in the samples within its share of the stage', () => {
+    const rooted = WEB_SAMPLES.flatMap((sample) => layoutPlace(sample.web, library).groups.filter((group) => isRooted(group.role, group.zone)));
     expect(rooted.length).toBeGreaterThan(0);
     for (const group of rooted) expect(2 * group.spread).toBeLessThanOrEqual(ROOTED_MAX_SPREAD_SHARE * STAGE.width);
   });
@@ -127,6 +128,19 @@ describe('layoutPlace', () => {
     const [grass, oak] = layoutPlace(web, library).groups;
     if (!grass || !oak) throw new Error('missing groups');
     expect(oak.centreX - oak.spread).toBeGreaterThanOrEqual(grass.centreX + grass.spread);
+  });
+
+  it('lets a producer that lives in the water drift in the swimmers\' row instead of clustering like a rooted plant', () => {
+    const web = webOf(
+      [speciesAt('phytoplankton', 'producer', 900, 800), speciesAt('jellyfish', 'consumer', 300, 500), speciesAt('kelp', 'producer', 600, 900)],
+      [],
+    );
+    const { groups } = layoutPlace(web, library);
+    const plankton = groupOf(groups, 'phytoplankton');
+    expect(plankton).toMatchObject({ zone: 'water', size: SMALL_HEIGHT });
+    expect(rowOf(plankton)).toBe(rowOf(groupOf(groups, 'jellyfish')));
+    expect(rowOf(plankton)).not.toBe(rowOf(groupOf(groups, 'kelp')));
+    expect(plankton.spread).toBe(MAX_SPREAD_SPACINGS.water * plankton.spacing);
   });
 
   it.each<[string, string]>([

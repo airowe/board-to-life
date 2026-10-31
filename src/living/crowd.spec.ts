@@ -16,14 +16,16 @@ import {
   VIGOUR_MIN,
   createCrowdTracker,
   crowdTargets,
-  isRooted,
   type CrowdTracker,
   type IndividualPose,
 } from './crowd';
 import { parseLibrary } from '../library/manifest';
-import { STAGE, SURFACE_Y_BY_HABITAT, layoutPlace, type Group } from './layout';
+import type { Zone } from '../library/manifest';
+import { STAGE, SURFACE_Y_BY_HABITAT, isRooted, layoutPlace, type Group } from './layout';
 
 const SETTLED = { fox: 100, grass: 1000 };
+// Long enough into an idle drift cycle (5-8 s) for a drifter to have moved well away from where it started.
+const DRIFT_SAMPLE_SECONDS = 1.5;
 const ROLES: Record<string, Role> = { fox: 'consumer', grass: 'producer' };
 
 const seriesOf = (fox: number, grass: number): Series => ({ ids: ['fox', 'grass'], values: { fox: [fox], grass: [grass] } });
@@ -101,12 +103,38 @@ const frames = (from: number, to: number): number[] => Array.from({ length: Math
 const isOffStage = (pose: IndividualPose, group: Group): boolean => pose.x + group.size / 2 <= 0 || pose.x - group.size / 2 >= STAGE.width || pose.y + group.size / 2 <= 0;
 
 describe('isRooted', () => {
-  it.each<[Role, boolean]>([
-    ['producer', true],
-    ['decomposer', true],
-    ['consumer', false],
-  ])('%s rooted: %s', (role, rooted) => {
-    expect(isRooted(role)).toBe(rooted);
+  it.each<[Role, Zone, boolean]>([
+    ['producer', 'floor', true],
+    ['decomposer', 'floor', true],
+    ['consumer', 'floor', false],
+    ['producer', 'water', false],
+    ['producer', 'surface', false],
+    ['consumer', 'water', false],
+  ])('a %s in the %s zone is rooted: %s', (role, zone, rooted) => {
+    expect(isRooted(role, zone)).toBe(rooted);
+  });
+});
+
+describe('createCrowdTracker: drifting plants', () => {
+  // Plankton: a producer that lives in open water.
+  const DRIFTING: Group = { ...WATER, speciesId: 'plankton', role: 'producer', spread: 400, spacing: 84 };
+  const posesOf = (seconds: number, reducedMotion: boolean): IndividualPose[] => {
+    const tracker = createCrowdTracker();
+    tracker.update({ plankton: BASE_PRODUCERS }, 0, { settle: true });
+    return tracker.poses([DRIFTING], seconds, reducedMotion).get('plankton') ?? [];
+  };
+
+  it('spread like a row of swimmers, a spacing apart, rather than clumped', () => {
+    const xs = posesOf(0, true).map((pose) => pose.x).sort((a, b) => a - b);
+    expect(xs).toHaveLength(BASE_PRODUCERS);
+    xs.slice(1).forEach((x, index) => expect(x - (xs[index] as number)).toBeGreaterThanOrEqual(DRIFTING.spacing * (1 - 2 * HOME_JITTER)));
+  });
+
+  it('drift through the water instead of swaying on a stem', () => {
+    const [before] = posesOf(0, false);
+    const [after] = posesOf(DRIFT_SAMPLE_SECONDS, false);
+    expect(after?.x).not.toBeCloseTo(before?.x ?? 0, 0);
+    expect(after?.rotation).toBe(0);
   });
 });
 

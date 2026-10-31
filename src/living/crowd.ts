@@ -2,7 +2,7 @@ import type { WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, type Series } from '../ecosystem/model';
 import { isGoneAt } from '../ecosystem/outcomes';
 import type { Role } from '../ecosystem/schema';
-import { STAGE, type Group } from './layout';
+import { STAGE, isRooted, type Group } from './layout';
 
 export const BASE_ANIMALS = 4;
 export const BASE_PRODUCERS = 6;
@@ -98,7 +98,6 @@ const lerp = (from: number, to: number, amount: number): number => from + (to - 
 const signOf = (value: number): 1 | -1 => (value < 0 ? -1 : 1);
 const between = (seed: number, channel: number): number => 2 * seeded(seed, channel) - 1;
 
-export const isRooted = (role: Role): boolean => role !== 'consumer';
 
 const durationOf = (showing: boolean): number => (showing ? ENTER_SECONDS : LEAVE_SECONDS);
 
@@ -122,7 +121,7 @@ const wave = (who: Individual, period: readonly [number, number], seconds: numbe
   return { value: Math.sin(angle), velocity: Math.cos(angle) };
 };
 
-const isWalker = (group: Group): boolean => !isRooted(group.role) && group.zone !== 'surface';
+const isWalker = (group: Group): boolean => !isRooted(group.role, group.zone) && group.zone !== 'surface';
 
 const walkPeriod = (group: Group): readonly [number, number] => (group.zone === 'floor' ? WANDER_PERIOD : DRIFT_PERIOD);
 
@@ -132,7 +131,7 @@ type Idle = { dx: number; dy: number; rotation: number; facing: 1 | -1 };
 
 const idleOf = (group: Group, who: Individual, seconds: number, turned: boolean): Idle => {
   const still: Idle = { dx: 0, dy: 0, rotation: 0, facing: restingFacing(who) };
-  if (isRooted(group.role)) return { ...still, rotation: SWAY_RADIANS * wave(who, SWAY_PERIOD, seconds, turned).value };
+  if (isRooted(group.role, group.zone)) return { ...still, rotation: SWAY_RADIANS * wave(who, SWAY_PERIOD, seconds, turned).value };
   if (group.zone === 'surface') return { ...still, dy: BOB_PX * wave(who, BOB_PERIOD, seconds, turned).value };
   const { value, velocity } = wave(who, walkPeriod(group), seconds, turned);
   if (group.zone === 'floor') return { ...still, dx: WANDER_PX * value, facing: signOf(velocity) };
@@ -208,7 +207,8 @@ const poseOf = (group: Group, who: Individual, slot: Slot, seconds: number, redu
   const spot = { x: home.x + idle.dx, y: home.y + idle.dy };
   const settled = { ...spot, scale: home.scale * look.scale, alpha: look.alpha, facing: idle.facing, moving: false, rotation: idle.rotation };
   if (eased >= 1) return settled;
-  if (isRooted(group.role)) return { ...settled, scale: settled.scale * lerp(LEAVE_SCALE, 1, eased), alpha: look.alpha * eased };
+  // Plants grow in and shrink away where they are, wherever they live; only animals travel.
+  if (group.role !== 'consumer') return { ...settled, scale: settled.scale * lerp(LEAVE_SCALE, 1, eased), alpha: look.alpha * eased };
   const away = 1 - eased;
   if (group.zone === 'surface') {
     const dropX = between(who.seed, CHANNEL.edge) * SURFACE_SCATTER_PX;

@@ -91,7 +91,7 @@ export const habitatFor = (web: Web, library: Library): Habitat => {
 export const poseFileFor = (zone: Zone, moving: boolean): 'rest' | 'move' => (zone === 'sky' || moving ? 'move' : 'rest');
 
 // Groups in one row share its width; rows (sky, water, surface, floor animals and rooted producers) overlap freely.
-export const rowOf = (group: Pick<Group, 'zone' | 'role'>): string => `${group.zone}:${group.role === 'consumer' ? 'free' : 'rooted'}`;
+export const rowOf = (group: Pick<Group, 'zone' | 'role'>): string => `${group.zone}:${isRooted(group.role, group.zone) ? 'rooted' : 'free'}`;
 
 const aspectOf = (library: Library, name: string, zone: Zone): number => {
   const subject = findLibrarySubject(library, name);
@@ -102,7 +102,10 @@ const aspectOf = (library: Library, name: string, zone: Zone): number => {
 
 const zoneOf = (library: Library, species: Species): Zone => libraryEntryFor(library, species.name)?.zone ?? guessZone(species.name);
 
-const sizeOf = (role: Role, zone: Zone): number => (role === 'producer' ? PRODUCER_HEIGHT : ANIMAL_HEIGHT[zone]);
+// Plants and decomposers on the floor take root; a producer in open water (plankton) drifts like the swimmers.
+export const isRooted = (role: Role, zone: Zone): boolean => role !== 'consumer' && zone === 'floor';
+
+const sizeOf = (role: Role, zone: Zone): number => (role === 'producer' && zone !== 'water' ? PRODUCER_HEIGHT : ANIMAL_HEIGHT[zone]);
 
 const lineOf = (habitat: Habitat, zone: Zone): number => {
   if (zone === 'surface') return SURFACE_Y_BY_HABITAT[habitat] * STAGE.height;
@@ -139,7 +142,7 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     leftByRow.set(row, left + slot);
     const baseY = lineOf(habitat, zone);
     const spacing = width * SPACING_PER_WIDTH;
-    const rooted = species.role !== 'consumer';
+    const rooted = isRooted(species.role, zone);
     const widest = Math.min((slot / 2) * SPREAD_FILL, MAX_SPREAD_SPACINGS[zone] * spacing);
     const spread = rooted ? Math.min(widest, (ROOTED_MAX_SPREAD_SHARE * STAGE.width) / 2) : widest;
     // A plant stands as near its board position as its own slot allows; animals keep to the middle of theirs.
