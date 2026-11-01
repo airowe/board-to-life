@@ -19,6 +19,8 @@ import { loadSubject, saveSubject } from './subjectChoice';
 import type { Subject } from './subjects';
 import { setUpBoardMode } from './ui/boardToggle';
 import { renderCapture } from './ui/capture';
+import { browserCache, createLivePictures, decodeCutOut, drawPicture } from './library/live';
+import { loadLibrary, type Library } from './library/manifest';
 import { renderCheck, type CheckScreen, type QuestionsStatus } from './ui/check';
 import { questionsFailureStatus } from './ui/questionCards';
 import { renderWebCheck } from './ui/checkWeb';
@@ -26,6 +28,7 @@ import { figureQuestionsFailureStatus, renderFigureCheck } from './ui/checkFigur
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 import { renderFigurePresent } from './ui/presentFigure';
+import type { ScenePictures } from './ui/placeScene';
 import { renderWebPresent } from './ui/presentWeb';
 
 const PROGRESS_TICK_MS = 1000;
@@ -75,6 +78,32 @@ const leaveScreen = (): void => {
 
 const accessCode = rememberAccessCode(location.search, storage);
 const requestHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value, ...accessHeaders(accessCode) });
+
+const libraryReady = loadLibrary().catch(() => null);
+const livePicturesReady = libraryReady.then((loaded) =>
+  loaded
+    ? createLivePictures({ library: loaded.library, draw: drawPicture(requestHeaders), cache: browserCache(), decode: decodeCutOut })
+    : null,
+);
+
+// Physics boards open on library pictures once this has loaded; until then (or if it failed) they open as before.
+let presentLibrary: Library | null = null;
+void libraryReady.then((loaded) => {
+  presentLibrary = loaded?.library ?? null;
+});
+
+// Ready long before a lesson is shown; until then (or if the library failed) food webs open on Chart, as before.
+let presentPictures: ScenePictures | null = null;
+void livePicturesReady.then(async (live) => {
+  const loaded = await libraryReady;
+  if (loaded && live) presentPictures = { ...loaded, live };
+}).catch(() => undefined);
+
+const requestLivePictures = (content: DraftContent): void => {
+  if (content.subject !== 'ecosystem') return;
+  const names = content.web.species.map((species) => species.name);
+  void livePicturesReady.then((pictures) => pictures?.request(names));
+};
 
 const showLoading = (message: string): void => {
   leaveScreen();
@@ -206,6 +235,7 @@ const readDrawing = async (photo: Blob, readSubject: Subject, preparedNote: stri
   if (!validated.ok) return showError({ message: VALIDATION_FAILED[readSubject], details: validated.errors }, retry);
 
   const draftId = session.startDraft(validated.content);
+  requestLivePictures(validated.content);
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(photo);
@@ -241,6 +271,7 @@ const describeSetup = async (text: string, describeSubject: Subject): Promise<vo
   activeRead = null;
 
   const draftId = session.startDraft(validated.content);
+  requestLivePictures(validated.content);
   activeDraftId = draftId;
   if (photoUrl) URL.revokeObjectURL(photoUrl);
   photoUrl = URL.createObjectURL(sketch);
@@ -349,9 +380,9 @@ function showPresent(): void {
   const lesson = session.presentable();
   if (!lesson) return showCheck();
   leaveScreen();
-  if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck);
+  if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck, presentPictures);
   else if (lesson.subject === 'geometry') cleanup = renderFigurePresent(root, lesson, photoUrl, showCheck);
-  else cleanup = renderPresent(root, lesson, photoUrl, showCheck);
+  else cleanup = renderPresent(root, lesson, photoUrl, showCheck, presentLibrary);
 }
 
 function showCapture(): void {

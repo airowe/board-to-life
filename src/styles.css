@@ -610,8 +610,16 @@ button:disabled {
   --species-4: var(--red);
   --species-5: #7b3fa0;
   --species-6: #0f7c8a;
+  /* The caption and controls rows have fixed heights, sized for the longest caption and for the most buttons the width
+     wraps to (four predictions and Reveal), so the stage keeps its size from phase to phase in every view. A caption
+     longer than its row scrolls inside it. */
+  --web-heading: clamp(1.3rem, 3.4vw, 2.8rem);
+  --web-detail: clamp(1.1rem, 2.2vw, 1.7rem);
+  --web-caption-height: calc(2 * 1.2 * var(--web-heading) + 3 * 1.35 * var(--web-detail) + 8px);
+  --web-button-height: 60px;
+  --web-controls-height: var(--web-button-height);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: var(--web-caption-height) auto minmax(0, 1fr) auto;
   gap: 12px;
   padding: 64px 16px 16px;
 }
@@ -619,19 +627,73 @@ button:disabled {
 .web-present .caption {
   position: static;
   transform: none;
-  width: auto;
-  max-width: 1100px;
+  width: 100%;
+  max-width: max(1100px, 60rem);
+  min-width: 0;
   margin: 0 auto;
+  overflow-y: auto;
+  pointer-events: auto;
 }
 
 .web-present .question-text {
-  font-size: clamp(1.3rem, 3.4vw, 2.8rem);
+  font-size: var(--web-heading);
+  line-height: 1.2;
+}
+
+.web-present .explanation-text,
+.web-present .choices-text {
+  font-size: var(--web-detail);
+  line-height: 1.35;
 }
 
 .web-present .controls {
   position: static;
+  min-height: var(--web-controls-height);
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-content: flex-start;
+}
+
+body.board-mode .web-present {
+  --web-button-height: max(80px, 3.4rem);
+}
+
+/* Below these widths the four predictions and Reveal wrap onto a second row. */
+@media (max-width: 1100px) {
+  .web-present {
+    --web-controls-height: calc(2 * var(--web-button-height) + 16px);
+  }
+}
+
+@media (max-width: 1500px) {
+  body.board-mode .web-present {
+    --web-controls-height: calc(2 * var(--web-button-height) + 1.5rem);
+  }
+}
+
+@media (max-width: 900px) {
+  body:not(.board-mode) .web-present {
+    --web-button-height: 48px;
+    --web-controls-height: calc(2 * var(--web-button-height) + 8px);
+  }
+
+  body:not(.board-mode) .web-present .controls {
+    gap: 8px;
+  }
+
+  body:not(.board-mode) .web-present .big {
+    flex: 1 1 auto;
+    min-height: 48px;
+    padding: 8px 14px;
+    font-size: 1.05rem;
+  }
+}
+
+/* On a narrow phone they take three rows. */
+@media (max-width: 420px) {
+  body:not(.board-mode) .web-present {
+    --web-controls-height: calc(3 * var(--web-button-height) + 16px);
+  }
 }
 
 .web-body {
@@ -654,6 +716,45 @@ button:disabled {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Place, Chart and Time: one segmented control beside or above the stage. */
+.view-switch {
+  display: inline-flex;
+  justify-self: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--board);
+}
+
+.view-tab {
+  min-width: 7.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.view-tab[aria-selected='true'],
+.view-tab[aria-selected='true']:hover:not(:disabled) {
+  background: var(--marker);
+  color: #fff;
+}
+
+/* Place and Time take the whole stage; Chart keeps the rings with the strip chart beside or below them. */
+.web-body[data-view='place'],
+.web-body[data-view='time'] {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The living place: an illustrated habitat drawn to the edges of its rounded frame. */
+.place-frame {
+  border-radius: var(--radius);
+  background: #cfe3ea;
 }
 
 .web-chart {
@@ -702,6 +803,81 @@ button:disabled {
   .web-body {
     grid-template-rows: minmax(0, 1fr);
     grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  }
+}
+
+/* On a landscape screen the stage takes the full height on the left, and the words and buttons stack in a panel on the
+   right: the caption takes whatever the panel has left and scrolls if it must, so no phase can shrink the stage. */
+@media (min-width: 800px) and (min-aspect-ratio: 5/4) {
+  .web-present {
+    --web-panel-width: clamp(260px, 25vw, 440px);
+    --web-heading: clamp(1.2rem, 1.9vw, 2.2rem);
+    --web-detail: clamp(1rem, 1.3vw, 1.5rem);
+    grid-template-columns: minmax(0, 1fr) var(--web-panel-width);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'stage exit'
+      'stage tabs'
+      'stage caption'
+      'stage controls';
+    padding: 16px;
+  }
+
+  body.board-mode .web-present {
+    --web-panel-width: clamp(300px, 28vw, 520px);
+  }
+
+  .web-present .web-body {
+    grid-area: stage;
+  }
+
+  /* The panel already takes the side, so Chart stacks its rings above the strip chart. */
+  .web-present .web-body[data-view='chart'] {
+    grid-template-rows: minmax(0, 1fr) minmax(140px, 32%);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .web-present .exit {
+    grid-area: exit;
+    position: static;
+    justify-self: end;
+  }
+
+  .web-present .view-switch {
+    grid-area: tabs;
+    justify-self: stretch;
+  }
+
+  .web-present .view-tab,
+  body.board-mode .web-present .view-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .web-present .caption {
+    grid-area: caption;
+    max-width: none;
+    text-align: left;
+  }
+
+  /* Two buttons a row; an odd last button (Play, Reveal, Replay) takes the whole row. */
+  .web-present .controls {
+    grid-area: controls;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+  }
+
+  .web-present .controls > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .web-present .big,
+  body.board-mode .web-present .big {
+    min-width: 0;
+    padding: 0.4rem 0.8rem;
+    font-size: 1.15rem;
   }
 }
 
@@ -960,6 +1136,23 @@ body.board-mode .big {
   font-size: 1.4rem;
   min-height: max(80px, 3.4rem);
   padding: 0.6rem 2.4rem;
+}
+
+body.board-mode .view-switch {
+  padding: 6px;
+  border-width: 3px;
+  gap: 6px;
+}
+
+body.board-mode .view-tab {
+  min-width: 9rem;
+  font-size: 1.2rem;
+  border-width: 0;
+}
+
+body.board-mode .view-tab[aria-selected='true'],
+body.board-mode .view-tab[aria-selected='true']:hover:not(:disabled) {
+  background: var(--marker);
 }
 
 body.board-mode .exit,

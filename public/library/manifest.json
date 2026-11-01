@@ -1,0 +1,1256 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "kelp",
+      "subject": "kelp",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "giant kelp",
+        "seaweed"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
+      "file": "kelp.webp",
+      "width": 236,
+      "height": 512
+    },
+    {
+      "id": "sea-urchin",
+      "subject": "sea-urchin",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "urchin",
+        "urchins",
+        "purple urchin"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
+      "file": "sea-urchin.webp",
+      "width": 512,
+      "height": 502
+    },
+    {
+      "id": "sea-otter-rest",
+      "subject": "sea-otter",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "otter",
+        "otters",
+        "sea otters"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
+      "file": "sea-otter-rest.webp",
+      "width": 512,
+      "height": 354
+    },
+    {
+      "id": "sea-otter-move",
+      "subject": "sea-otter",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "otter",
+        "otters",
+        "sea otters"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
+      "file": "sea-otter-move.webp",
+      "width": 512,
+      "height": 239
+    },
+    {
+      "id": "phytoplankton",
+      "subject": "phytoplankton",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "plankton",
+        "algae cells",
+        "diatoms"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "phytoplankton.webp",
+      "width": 512,
+      "height": 489
+    },
+    {
+      "id": "krill",
+      "subject": "krill",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "zooplankton",
+        "shrimp"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "krill.webp",
+      "width": 512,
+      "height": 162
+    },
+    {
+      "id": "small-fish-rest",
+      "subject": "small-fish",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "fish",
+        "sardine",
+        "minnow",
+        "minnows",
+        "small fish"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "small-fish-rest.webp",
+      "width": 512,
+      "height": 131
+    },
+    {
+      "id": "small-fish-move",
+      "subject": "small-fish",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "fish",
+        "sardine",
+        "minnow",
+        "minnows",
+        "small fish"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "small-fish-move.webp",
+      "width": 512,
+      "height": 139
+    },
+    {
+      "id": "seal-rest",
+      "subject": "seal",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "seals",
+        "harbor seal"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
+      "file": "seal-rest.webp",
+      "width": 512,
+      "height": 191
+    },
+    {
+      "id": "seal-move",
+      "subject": "seal",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "seals",
+        "harbor seal"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "surface",
+      "file": "seal-move.webp",
+      "width": 512,
+      "height": 164
+    },
+    {
+      "id": "shark-rest",
+      "subject": "shark",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "sharks"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "shark-rest.webp",
+      "width": 512,
+      "height": 198
+    },
+    {
+      "id": "shark-move",
+      "subject": "shark",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "sharks"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "water",
+      "file": "shark-move.webp",
+      "width": 512,
+      "height": 249
+    },
+    {
+      "id": "crab-rest",
+      "subject": "crab",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "crabs"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
+      "file": "crab-rest.webp",
+      "width": 512,
+      "height": 354
+    },
+    {
+      "id": "crab-move",
+      "subject": "crab",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "crabs"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
+      "file": "crab-move.webp",
+      "width": 512,
+      "height": 340
+    },
+    {
+      "id": "sea-star",
+      "subject": "sea-star",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "starfish",
+        "sea stars"
+      ],
+      "habitat": "kelp-forest",
+      "zone": "floor",
+      "file": "sea-star.webp",
+      "width": 512,
+      "height": 480
+    },
+    {
+      "id": "grass",
+      "subject": "grass",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "grasses",
+        "grass tuft"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "grass.webp",
+      "width": 512,
+      "height": 488
+    },
+    {
+      "id": "wildflower",
+      "subject": "wildflower",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "flower",
+        "flowers",
+        "clover"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "wildflower.webp",
+      "width": 456,
+      "height": 512
+    },
+    {
+      "id": "rabbit-rest",
+      "subject": "rabbit",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "rabbits",
+        "bunny",
+        "hare",
+        "rabit"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "rabbit-rest.webp",
+      "width": 428,
+      "height": 512
+    },
+    {
+      "id": "rabbit-move",
+      "subject": "rabbit",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "rabbits",
+        "bunny",
+        "hare",
+        "rabit"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "rabbit-move.webp",
+      "width": 512,
+      "height": 420
+    },
+    {
+      "id": "fox-rest",
+      "subject": "fox",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "foxes",
+        "red fox",
+        "foxs"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "fox-rest.webp",
+      "width": 477,
+      "height": 512
+    },
+    {
+      "id": "fox-move",
+      "subject": "fox",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "foxes",
+        "red fox",
+        "foxs"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "fox-move.webp",
+      "width": 512,
+      "height": 234
+    },
+    {
+      "id": "hawk-rest",
+      "subject": "hawk",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "hawks",
+        "eagle",
+        "falcon"
+      ],
+      "habitat": "grassland",
+      "zone": "sky",
+      "file": "hawk-rest.webp",
+      "width": 347,
+      "height": 512
+    },
+    {
+      "id": "hawk-move",
+      "subject": "hawk",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "hawks",
+        "eagle",
+        "falcon"
+      ],
+      "habitat": "grassland",
+      "zone": "sky",
+      "file": "hawk-move.webp",
+      "width": 512,
+      "height": 297
+    },
+    {
+      "id": "mouse-rest",
+      "subject": "mouse",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "mice",
+        "field mouse"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "mouse-rest.webp",
+      "width": 512,
+      "height": 415
+    },
+    {
+      "id": "mouse-move",
+      "subject": "mouse",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "mice",
+        "field mouse"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "mouse-move.webp",
+      "width": 512,
+      "height": 242
+    },
+    {
+      "id": "snake-rest",
+      "subject": "snake",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "snakes"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "snake-rest.webp",
+      "width": 512,
+      "height": 324
+    },
+    {
+      "id": "snake-move",
+      "subject": "snake",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "snakes"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "snake-move.webp",
+      "width": 512,
+      "height": 449
+    },
+    {
+      "id": "grasshopper-rest",
+      "subject": "grasshopper",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "grasshoppers",
+        "cricket",
+        "insect",
+        "insects"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "grasshopper-rest.webp",
+      "width": 512,
+      "height": 269
+    },
+    {
+      "id": "grasshopper-move",
+      "subject": "grasshopper",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "grasshoppers",
+        "cricket",
+        "insect",
+        "insects"
+      ],
+      "habitat": "grassland",
+      "zone": "floor",
+      "file": "grasshopper-move.webp",
+      "width": 512,
+      "height": 317
+    },
+    {
+      "id": "oak-tree",
+      "subject": "oak-tree",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "oak",
+        "tree",
+        "trees",
+        "oak tree"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "oak-tree.webp",
+      "width": 436,
+      "height": 512
+    },
+    {
+      "id": "acorn",
+      "subject": "acorn",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "acorns",
+        "nuts",
+        "seeds"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "acorn.webp",
+      "width": 512,
+      "height": 238
+    },
+    {
+      "id": "caterpillar-rest",
+      "subject": "caterpillar",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "caterpillars",
+        "larva"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "caterpillar-rest.webp",
+      "width": 512,
+      "height": 180
+    },
+    {
+      "id": "caterpillar-move",
+      "subject": "caterpillar",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "caterpillars",
+        "larva"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "caterpillar-move.webp",
+      "width": 512,
+      "height": 354
+    },
+    {
+      "id": "songbird-rest",
+      "subject": "songbird",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "bird",
+        "birds",
+        "songbirds",
+        "robin",
+        "sparrow"
+      ],
+      "habitat": "woodland",
+      "zone": "sky",
+      "file": "songbird-rest.webp",
+      "width": 512,
+      "height": 485
+    },
+    {
+      "id": "songbird-move",
+      "subject": "songbird",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "bird",
+        "birds",
+        "songbirds",
+        "robin",
+        "sparrow"
+      ],
+      "habitat": "woodland",
+      "zone": "sky",
+      "file": "songbird-move.webp",
+      "width": 512,
+      "height": 398
+    },
+    {
+      "id": "deer-rest",
+      "subject": "deer",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "deers",
+        "white-tailed deer"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "deer-rest.webp",
+      "width": 469,
+      "height": 512
+    },
+    {
+      "id": "deer-move",
+      "subject": "deer",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "deers",
+        "white-tailed deer"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "deer-move.webp",
+      "width": 512,
+      "height": 326
+    },
+    {
+      "id": "wolf-rest",
+      "subject": "wolf",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "wolves",
+        "grey wolf"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "wolf-rest.webp",
+      "width": 512,
+      "height": 505
+    },
+    {
+      "id": "wolf-move",
+      "subject": "wolf",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "wolves",
+        "grey wolf"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "wolf-move.webp",
+      "width": 512,
+      "height": 294
+    },
+    {
+      "id": "owl-rest",
+      "subject": "owl",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "owls"
+      ],
+      "habitat": "woodland",
+      "zone": "sky",
+      "file": "owl-rest.webp",
+      "width": 312,
+      "height": 512
+    },
+    {
+      "id": "owl-move",
+      "subject": "owl",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "owls"
+      ],
+      "habitat": "woodland",
+      "zone": "sky",
+      "file": "owl-move.webp",
+      "width": 512,
+      "height": 247
+    },
+    {
+      "id": "squirrel-rest",
+      "subject": "squirrel",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "squirrels"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "squirrel-rest.webp",
+      "width": 485,
+      "height": 512
+    },
+    {
+      "id": "squirrel-move",
+      "subject": "squirrel",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "squirrels"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "squirrel-move.webp",
+      "width": 512,
+      "height": 337
+    },
+    {
+      "id": "bear-rest",
+      "subject": "bear",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "bears",
+        "black bear"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "bear-rest.webp",
+      "width": 512,
+      "height": 439
+    },
+    {
+      "id": "bear-move",
+      "subject": "bear",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "bears",
+        "black bear"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "bear-move.webp",
+      "width": 512,
+      "height": 343
+    },
+    {
+      "id": "fungi",
+      "subject": "fungi",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "mushroom",
+        "mushrooms",
+        "fungus",
+        "decomposers",
+        "decomposer"
+      ],
+      "habitat": "woodland",
+      "zone": "floor",
+      "file": "fungi.webp",
+      "width": 512,
+      "height": 504
+    },
+    {
+      "id": "algae",
+      "subject": "algae",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "pond algae",
+        "green algae",
+        "pond scum"
+      ],
+      "habitat": "pond",
+      "zone": "surface",
+      "file": "algae.webp",
+      "width": 512,
+      "height": 312
+    },
+    {
+      "id": "water-flea",
+      "subject": "water-flea",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "flea",
+        "daphnia",
+        "water fleas"
+      ],
+      "habitat": "pond",
+      "zone": "water",
+      "file": "water-flea.webp",
+      "width": 512,
+      "height": 280
+    },
+    {
+      "id": "tadpole-rest",
+      "subject": "tadpole",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "tadpoles"
+      ],
+      "habitat": "pond",
+      "zone": "water",
+      "file": "tadpole-rest.webp",
+      "width": 512,
+      "height": 151
+    },
+    {
+      "id": "tadpole-move",
+      "subject": "tadpole",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "tadpoles"
+      ],
+      "habitat": "pond",
+      "zone": "water",
+      "file": "tadpole-move.webp",
+      "width": 512,
+      "height": 139
+    },
+    {
+      "id": "frog-rest",
+      "subject": "frog",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "frogs"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "frog-rest.webp",
+      "width": 512,
+      "height": 361
+    },
+    {
+      "id": "frog-move",
+      "subject": "frog",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "frogs"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "frog-move.webp",
+      "width": 512,
+      "height": 360
+    },
+    {
+      "id": "dragonfly-larva",
+      "subject": "dragonfly-larva",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "dragonfly larvae",
+        "nymph",
+        "larvae"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "dragonfly-larva.webp",
+      "width": 512,
+      "height": 323
+    },
+    {
+      "id": "dragonfly-rest",
+      "subject": "dragonfly",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "dragonflies"
+      ],
+      "habitat": "pond",
+      "zone": "sky",
+      "file": "dragonfly-rest.webp",
+      "width": 512,
+      "height": 124
+    },
+    {
+      "id": "dragonfly-move",
+      "subject": "dragonfly",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "dragonflies"
+      ],
+      "habitat": "pond",
+      "zone": "sky",
+      "file": "dragonfly-move.webp",
+      "width": 464,
+      "height": 512
+    },
+    {
+      "id": "duck-rest",
+      "subject": "duck",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "ducks",
+        "mallard"
+      ],
+      "habitat": "pond",
+      "zone": "surface",
+      "file": "duck-rest.webp",
+      "width": 512,
+      "height": 376
+    },
+    {
+      "id": "duck-move",
+      "subject": "duck",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "ducks",
+        "mallard"
+      ],
+      "habitat": "pond",
+      "zone": "surface",
+      "file": "duck-move.webp",
+      "width": 512,
+      "height": 338
+    },
+    {
+      "id": "heron-rest",
+      "subject": "heron",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "herons",
+        "great blue heron"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "heron-rest.webp",
+      "width": 343,
+      "height": 512
+    },
+    {
+      "id": "heron-move",
+      "subject": "heron",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "herons",
+        "great blue heron"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "heron-move.webp",
+      "width": 512,
+      "height": 306
+    },
+    {
+      "id": "cattails",
+      "subject": "cattails",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "reeds",
+        "cattail",
+        "pond plants"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "cattails.webp",
+      "width": 359,
+      "height": 512
+    },
+    {
+      "id": "snail-rest",
+      "subject": "snail",
+      "pose": "rest",
+      "group": "organism",
+      "aliases": [
+        "snails"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "snail-rest.webp",
+      "width": 512,
+      "height": 288
+    },
+    {
+      "id": "snail-move",
+      "subject": "snail",
+      "pose": "move",
+      "group": "organism",
+      "aliases": [
+        "snails"
+      ],
+      "habitat": "pond",
+      "zone": "floor",
+      "file": "snail-move.webp",
+      "width": 512,
+      "height": 310
+    },
+    {
+      "id": "sun",
+      "subject": "sun",
+      "pose": "still",
+      "group": "organism",
+      "aliases": [
+        "sunlight",
+        "the sun",
+        "energy"
+      ],
+      "habitat": null,
+      "zone": "sky",
+      "file": "sun.webp",
+      "width": 512,
+      "height": 511
+    },
+    {
+      "id": "steel-ball",
+      "subject": "steel-ball",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "ball",
+        "marble",
+        "metal ball"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "steel-ball.webp",
+      "width": 504,
+      "height": 512
+    },
+    {
+      "id": "rubber-ball",
+      "subject": "rubber-ball",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "bouncy ball"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "rubber-ball.webp",
+      "width": 506,
+      "height": 512
+    },
+    {
+      "id": "wooden-block",
+      "subject": "wooden-block",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "block",
+        "box",
+        "crate",
+        "brick"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "wooden-block.webp",
+      "width": 504,
+      "height": 512
+    },
+    {
+      "id": "domino",
+      "subject": "domino",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "dominoes",
+        "dominos"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "domino.webp",
+      "width": 217,
+      "height": 512
+    },
+    {
+      "id": "plank",
+      "subject": "plank",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "ramp",
+        "board",
+        "lever",
+        "seesaw"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "plank.webp",
+      "width": 512,
+      "height": 119
+    },
+    {
+      "id": "brick-wall",
+      "subject": "brick-wall",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "wall"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "brick-wall.webp",
+      "width": 512,
+      "height": 477
+    },
+    {
+      "id": "cart",
+      "subject": "cart",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "carts",
+        "trolley",
+        "car"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "cart.webp",
+      "width": 512,
+      "height": 141
+    },
+    {
+      "id": "pulley",
+      "subject": "pulley",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "pulley wheel"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "pulley.webp",
+      "width": 394,
+      "height": 512
+    },
+    {
+      "id": "weight",
+      "subject": "weight",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "mass",
+        "masses",
+        "kilogram",
+        "weight"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "weight.webp",
+      "width": 324,
+      "height": 512
+    },
+    {
+      "id": "fulcrum",
+      "subject": "fulcrum",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "pivot",
+        "wedge"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "fulcrum.webp",
+      "width": 512,
+      "height": 479
+    },
+    {
+      "id": "pendulum-bob",
+      "subject": "pendulum-bob",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "bob",
+        "pendulum"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "pendulum-bob.webp",
+      "width": 398,
+      "height": 512
+    },
+    {
+      "id": "bg-kelp-forest",
+      "subject": "bg-kelp-forest",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "ocean",
+        "sea",
+        "kelp forest",
+        "marine"
+      ],
+      "habitat": "kelp-forest",
+      "zone": null,
+      "file": "bg-kelp-forest.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-grassland",
+      "subject": "bg-grassland",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "grassland",
+        "meadow",
+        "prairie",
+        "field"
+      ],
+      "habitat": "grassland",
+      "zone": null,
+      "file": "bg-grassland.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-woodland",
+      "subject": "bg-woodland",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "forest",
+        "woodland",
+        "woods"
+      ],
+      "habitat": "woodland",
+      "zone": null,
+      "file": "bg-woodland.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-pond",
+      "subject": "bg-pond",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "pond",
+        "lake",
+        "wetland",
+        "freshwater"
+      ],
+      "habitat": "pond",
+      "zone": null,
+      "file": "bg-pond.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-desert",
+      "subject": "bg-desert",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "desert"
+      ],
+      "habitat": "desert",
+      "zone": null,
+      "file": "bg-desert.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-tabletop",
+      "subject": "bg-tabletop",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "table",
+        "tabletop",
+        "room",
+        "physics"
+      ],
+      "habitat": "tabletop",
+      "zone": null,
+      "file": "bg-tabletop.webp",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "id": "bg-lab",
+      "subject": "bg-lab",
+      "pose": "still",
+      "group": "background",
+      "aliases": [
+        "lab",
+        "laboratory",
+        "classroom"
+      ],
+      "habitat": "lab",
+      "zone": null,
+      "file": "bg-lab.webp",
+      "width": 1536,
+      "height": 1024
+    }
+  ]
+}

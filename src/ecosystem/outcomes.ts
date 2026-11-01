@@ -8,16 +8,23 @@ const FINAL_WINDOW_STEPS = 100;
 
 const mean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
 
-const referenceLevel = (values: number[], eventStep: number): number => {
+export const referenceLevel = (values: number[], eventStep: number): number => {
   const atEvent = values[eventStep] ?? 0;
   return atEvent > 0 ? atEvent : (values[eventStep - 1] ?? 0);
 };
+
+// Gone means below EXTINCT_FRACTION of the reference, or nothing left when there is no reference.
+export const isGone = (value: number, reference: number): boolean => (reference > 0 ? value < reference * EXTINCT_FRACTION : value <= 0);
+
+// Gone at `step` against the settled level, or, once past the event, against the level the event left it at.
+export const isGoneAt = (value: number, values: number[], step: number, settled: number, eventStep: number): boolean =>
+  isGone(value, settled) || (step > eventStep && isGone(value, referenceLevel(values, eventStep)));
 
 const directionOf = (values: number[], eventStep: number): Direction => {
   const reference = referenceLevel(values, eventStep);
   const final = mean(values.slice(-FINAL_WINDOW_STEPS));
   if (reference <= 0) return final > 0 ? 'rose' : 'steady';
-  if (final < reference * EXTINCT_FRACTION) return 'died out';
+  if (isGone(final, reference)) return 'died out';
   if (Math.abs(final - reference) <= reference * CHANGE_THRESHOLD) return 'steady';
   return final > reference ? 'rose' : 'fell';
 };

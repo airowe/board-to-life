@@ -1,16 +1,19 @@
 import { chartPaths, feedingDots, ringRadius } from '../ecosystem/chart';
 import { editOnRelease, emptyEdits, pickSpecies, setStart, startMax, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, MODEL_STEPS, STEPS_PER_SECOND_SHOWN, startingPopulations, type Series } from '../ecosystem/model';
-import { EXTINCT_FRACTION } from '../ecosystem/outcomes';
+import { isGoneAt } from '../ecosystem/outcomes';
 import { createWebPlayback, type WebPhase } from '../ecosystem/playback';
 import { CHOICE_FOR, WEB_CHOICES, describeEvent, eventOf } from '../ecosystem/questions';
 import type { Species, Web } from '../ecosystem/schema';
 import { sketchWeb } from '../ecosystem/sketch';
 import type { Box } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
-import { TOUCH_REACH_PX, backingSize, viewOf } from '../present/view';
+import { TOUCH_REACH_PX, viewOf } from '../present/view';
 import type { EcosystemLesson } from '../session/store';
+import { sizeCanvas } from './canvasSize';
 import { h } from './dom';
+import { createPlaceScene, type PlaceScene, type ScenePictures } from './placeScene';
+import { WEB_VIEW_LABELS, availableViews, editHintFor, initialView, type WebView } from './webViews';
 
 const STEP_MS = 1000 / STEPS_PER_SECOND_SHOWN;
 const MAX_FRAME_MS = 100;
@@ -48,21 +51,6 @@ const paletteOf = (element: HTMLElement): string[] => {
   return FALLBACK_PALETTE.map((fallback, index) => style.getPropertyValue(`--species-${index + 1}`).trim() || fallback);
 };
 
-const sizeCanvas = (canvas: HTMLCanvasElement): { ctx: CanvasRenderingContext2D; width: number; height: number } | null => {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  const ratio = window.devicePixelRatio || 1;
-  const { width, height } = canvas.getBoundingClientRect();
-  const backing = backingSize({ width, height }, ratio);
-  if (canvas.width !== backing.width || canvas.height !== backing.height) {
-    canvas.width = backing.width;
-    canvas.height = backing.height;
-  }
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-  return { ctx, width, height };
-};
-
 const formatCount = (value: number): string => (value < PRECISE_BELOW ? value.toFixed(1) : Math.round(value).toString());
 
 type Drag = { pointerId: number; id: string; startY: number; from: number; value: number; moved: boolean };
@@ -82,7 +70,7 @@ const valueAt = (state: StageState, id: string): number =>
   state.drag?.moved && state.drag.id === id && !state.edits.removed.has(id) ? state.drag.value : (state.series.values[id]?.[state.step] ?? 0);
 
 const isGone = (state: StageState, id: string): boolean =>
-  state.edits.removed.has(id) || valueAt(state, id) <= (state.steady[id] ?? 0) * EXTINCT_FRACTION;
+  state.edits.removed.has(id) || isGoneAt(valueAt(state, id), state.series.values[id] ?? [], state.step, state.steady[id] ?? 0, EVENT_STEP);
 
 const drawDots = (ctx: CanvasRenderingContext2D, state: StageState): void => {
   const dots = feedingDots(state.web, state.dotStep).filter((dot) => !isGone(state, dot.fromId) && !isGone(state, dot.toId));
@@ -220,7 +208,13 @@ const drawChart = (canvas: HTMLCanvasElement, series: Series, ghost: Series | nu
 
 const sketchUrl = (web: Web): string => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sketchWeb(web, SKETCH_SEED))}`;
 
-export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, photoUrl: string | null, onExit: () => void): (() => void) => {
+export const renderWebPresent = (
+  root: HTMLElement,
+  lesson: EcosystemLesson,
+  photoUrl: string | null,
+  onExit: () => void,
+  pictures: ScenePictures | null,
+): (() => void) => {
   const { web } = lesson;
   const playback = createWebPlayback(lesson);
   const eventText = describeEvent(web, eventOf(web));
@@ -237,13 +231,23 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
     h('div', { class: 'canvas-frame' }, chartCanvas),
     legend,
   );
+  const placeCanvas = h('canvas', { class: 'stage', 'aria-label': 'The food web as a living place, each population shown as a crowd' });
+  const placeFrame = h('div', { class: 'canvas-frame place-frame' }, placeCanvas);
+  const ringFrame = h('div', { class: 'canvas-frame' }, canvas);
+  const body = h('div', { class: 'web-body' }, ...(pictures ? [placeFrame] : []), ringFrame, chart);
+  const views = availableViews(pictures !== null);
+  const tabs = new Map(
+    views.map((name) => [name, h('button', { role: 'tab', class: 'view-tab', onclick: () => showView(name) }, WEB_VIEW_LABELS[name])]),
+  );
+  const viewSwitch = h('div', { class: 'view-switch', role: 'tablist', 'aria-label': 'Show the food web as' }, ...tabs.values());
   const caption = h('div', { class: 'caption', role: 'status', 'aria-live': 'polite' });
   const controls = h('div', { class: 'controls' });
   const section = h(
     'section',
     { class: 'present web-present' },
     caption,
-    h('div', { class: 'web-body' }, h('div', { class: 'canvas-frame' }, canvas), chart),
+    viewSwitch,
+    body,
     controls,
     h('button', { class: 'exit quiet', onclick: () => exit() }, 'Exit'),
   );
@@ -260,6 +264,8 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
   let frame = 0;
   let last = performance.now();
   let carry = 0;
+  let view: WebView = initialView(pictures !== null);
+  let scene: PlaceScene | null = null;
 
   const photo = new Image();
   photo.addEventListener('load', () => {
@@ -302,7 +308,21 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
   const button = (label: string, action: () => void, primary = false): HTMLButtonElement =>
     h('button', { class: primary ? 'primary big' : 'big', onclick: action }, label);
   const line = (className: string, text: string): HTMLParagraphElement => h('p', { class: className }, text);
-  const editHint = 'Tap a species to remove it or bring it back. Drag one up or down to change how many there are at the start.';
+  const editHint = (): string =>
+    editHintFor(view, 'Tap a species to remove it or bring it back. Drag one up or down to change how many there are at the start.');
+
+  const showView = (next: WebView): void => {
+    view = next;
+    body.dataset.view = next;
+    placeFrame.hidden = next !== 'place';
+    ringFrame.hidden = next !== 'chart';
+    chart.hidden = next === 'place';
+    for (const [name, tab] of tabs) tab.setAttribute('aria-selected', String(name === next));
+    if (next !== 'chart') drag = null;
+    if (next === 'place') scene?.wake();
+    shownPhase = null;
+    redraw.invalidate();
+  };
 
   const showPhase = (phase: WebPhase): void => {
     if (phase === shownPhase) return;
@@ -310,7 +330,7 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
     switch (phase.kind) {
       case 'ready':
         if (ghost) {
-          caption.replaceChildren(line('question-text', eventText), line('explanation-text', `${editHint} The faint lines show the last run.`));
+          caption.replaceChildren(line('question-text', eventText), line('explanation-text', `${editHint()} The faint lines show the last run.`));
           controls.replaceChildren(button('Play', playback.play, true), ...(edited() ? [button('Put everything back', resetEdits)] : []));
         } else {
           caption.replaceChildren(line('question-text', eventText), line('explanation-text', 'Press Play. The populations settle first, then we stop to predict.'));
@@ -338,7 +358,7 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
       case 'done':
         caption.replaceChildren(
           line('question-text', phase.result ? `${CHOICE_FOR[phase.result.direction]}: ${phase.result.question.explanation}` : 'Nothing changes after these edits.'),
-          line('explanation-text', editHint),
+          line('explanation-text', editHint()),
         );
         controls.replaceChildren(button('Replay', replay, true));
         break;
@@ -357,7 +377,10 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
     } else {
       carry = 0;
     }
-    if (redraw.shouldDraw(moving())) {
+    const seconds = now / 1000;
+    scene?.follow(playback.series(), playback.step(), edits, seconds);
+    const placeMoving = view === 'place' && scene !== null && (!reducedMotion() || scene.busy(seconds));
+    if (redraw.shouldDraw(moving() || placeMoving)) {
       const step = playback.step();
       const state: StageState = {
         web,
@@ -370,8 +393,9 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
         drag,
         colours,
       };
-      drawStage(canvas, state, playback.phase().kind === 'ready');
-      drawChart(chartCanvas, playback.series(), ghost, step, colours);
+      if (view === 'place') scene?.draw(placeCanvas, seconds, reducedMotion());
+      if (view === 'chart') drawStage(canvas, state, playback.phase().kind === 'ready');
+      if (view !== 'place') drawChart(chartCanvas, playback.series(), ghost, step, colours);
     }
     showPhase(playback.phase());
     canvas.classList.toggle('editable', editable());
@@ -443,15 +467,19 @@ export const renderWebPresent = (root: HTMLElement, lesson: EcosystemLesson, pho
   const palette = paletteOf(section);
   colours = new Map(web.species.map((entry, index) => [entry.id, palette[index % PALETTE_SIZE] ?? INK.black]));
   renderLegend();
+  if (pictures) scene = createPlaceScene(web, steady, () => colours, pictures, () => redraw.invalidate());
+  showView(view);
   section.requestFullscreen?.().catch(() => undefined);
   window.addEventListener('keydown', onKey);
   resizeObserver.observe(canvas);
   resizeObserver.observe(chartCanvas);
+  resizeObserver.observe(placeCanvas);
   frame = requestAnimationFrame(loop);
 
   return () => {
     cancelAnimationFrame(frame);
     resizeObserver.disconnect();
     window.removeEventListener('keydown', onKey);
+    scene?.dispose();
   };
 };
