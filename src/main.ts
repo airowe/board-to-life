@@ -1,3 +1,6 @@
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource/atkinson-hyperlegible/400.css';
+import '@fontsource/atkinson-hyperlegible/700.css';
 import { accessHeaders, rememberAccessCode } from './access';
 import { requestJson, type ApiFailure } from './api';
 import { preparePhoto } from './capture/downscale';
@@ -30,6 +33,7 @@ import { renderPresent } from './ui/present';
 import { renderFigurePresent } from './ui/presentFigure';
 import type { ScenePictures } from './ui/placeScene';
 import { renderWebPresent } from './ui/presentWeb';
+import { stepState, type Step } from './ui/steps';
 import { stubModeFor } from './ui/stubMode';
 
 const PROGRESS_TICK_MS = 1000;
@@ -44,6 +48,14 @@ const root = requireElement<HTMLElement>('#app');
 const stubSelect = requireElement<HTMLSelectElement>('#stub-mode');
 if (import.meta.env.DEV) requireElement<HTMLLabelElement>('label.stub').hidden = false;
 const noop = (): void => undefined;
+const markStep = (current: Step): void => {
+  for (const item of document.querySelectorAll<HTMLElement>('.steps [data-step]')) {
+    const state = stepState(current, item.dataset.step as Step);
+    item.className = state;
+    if (state === 'current') item.setAttribute('aria-current', 'step');
+    else item.removeAttribute('aria-current');
+  }
+};
 const storage = {
   getItem: (key: string): string | null => localStorage.getItem(key),
   setItem: (key: string, value: string): void => localStorage.setItem(key, value),
@@ -117,6 +129,7 @@ const showLoading = (message: string): void => {
 
 const showReading = (read: AbortController, headlineOverride?: string): void => {
   leaveScreen();
+  markStep('check');
   activeRead = read;
   const startedAt = performance.now();
   const headline = h('p', { class: 'reading-headline' });
@@ -308,6 +321,7 @@ function showCheck(): void {
   if (!url) return showCapture();
   const current = session.draft();
   tearDownScreen();
+  markStep('check');
   if (current?.subject === 'ecosystem') {
     checkScreen = renderWebCheck(root, session, url, photoNote, {
       onPresent: showPresent,
@@ -385,6 +399,7 @@ function showPresent(): void {
   const lesson = session.presentable();
   if (!lesson) return showCheck();
   leaveScreen();
+  markStep('present');
   if (lesson.subject === 'ecosystem') cleanup = renderWebPresent(root, lesson, photoUrl, showCheck, presentPictures);
   else if (lesson.subject === 'geometry') cleanup = renderFigurePresent(root, lesson, photoUrl, showCheck);
   else cleanup = renderPresent(root, lesson, photoUrl, showCheck, presentLibrary);
@@ -393,6 +408,7 @@ function showPresent(): void {
 function showCapture(): void {
   photoSequence += 1;
   leaveScreen();
+  markStep('capture');
   cleanup = renderCapture(root, {
     subject,
     onSubject: (picked) => {

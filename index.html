@@ -8,7 +8,19 @@
   </head>
   <body>
     <header class="bar">
-      <span class="brand">Board to Life</span>
+      <span class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="2.5" y="5.5" width="27" height="19" rx="3" />
+          <path d="M8 19c3-5 6-7 9-6s4 3 7-2" />
+          <path d="M13 28.5h6" />
+        </svg>
+        Board to Life
+      </span>
+      <ol class="steps" aria-label="Steps">
+        <li data-step="capture">Bring in the board</li>
+        <li data-step="check">Check the reading</li>
+        <li data-step="present">Present</li>
+      </ol>
       <span class="display-actions">
         <button id="fullscreen" type="button" class="quiet" hidden>Full screen</button>
         <button id="board-mode" type="button" aria-pressed="false">Board mode</button>

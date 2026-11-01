@@ -5,11 +5,12 @@ import { WEB_SAMPLES, webSampleUrl } from '../ecosystem/samples';
 import { figureSampleUrl, GEOMETRY_SAMPLES } from '../geometry/samples';
 import { SAMPLES, sampleUrl } from '../samples/scenes';
 import { SUBJECT_LABELS, SUBJECTS, type Subject } from '../subjects';
-import { h } from './dom';
+import { h, s } from './dom';
+import { HEROES } from './hero';
 
 type SamplePick = { url: string; title: string };
 
-const SAMPLE_PICKS: Record<Subject, readonly SamplePick[]> = {
+export const SAMPLE_PICKS: Record<Subject, readonly SamplePick[]> = {
   physics: [
     { url: '/samples/ramp-ball-dominoes.png', title: 'Ball down a ramp into dominoes' },
     ...SAMPLES.map((sample) => ({ url: sampleUrl(sample.id), title: sample.title })),
@@ -188,8 +189,16 @@ export const renderCapture = (
   };
   const examplesBox = h('div', { class: 'description-examples' });
   const sampleGrid = h('div', { class: 'sample-grid' });
+  const heroBoard = h('img', { class: 'hero-board', alt: '' });
+  const heroScene = h('img', { class: 'hero-scene', alt: '' });
+  const heroTry = h('button', { class: 'hero-try', onclick: () => void useSample(HEROES[subject].board) }, 'Try this board');
 
   const showSubjectContent = (): void => {
+    const hero = HEROES[subject];
+    heroBoard.src = hero.board;
+    heroBoard.alt = `Whiteboard drawing: ${hero.title}`;
+    heroScene.src = hero.scene;
+    heroScene.alt = `The same drawing as a living scene, ready for the class to predict`;
     const examples = DESCRIPTION_EXAMPLES[subject];
     descriptionBox.placeholder = examples[0] ?? '';
     examplesBox.replaceChildren(
@@ -242,7 +251,7 @@ export const renderCapture = (
 
   const describeSection = h(
     'section',
-    { class: 'describe', 'aria-labelledby': 'describe-heading' },
+    { class: 'describe card', 'aria-labelledby': 'describe-heading' },
     h('h2', { id: 'describe-heading' }, 'Or describe it'),
     h('label', { class: 'note', for: 'description-input' }, 'Type the setup in a sentence or two. You check the layout before anything is shown to the class.'),
     descriptionBox,
@@ -250,34 +259,68 @@ export const renderCapture = (
     examplesBox,
   );
 
+  const arrow = s(
+    'svg',
+    { class: 'hero-arrow', viewBox: '0 0 120 60', 'aria-hidden': 'true' },
+    s('path', { d: 'M8 6 C 10 34, 44 52, 102 46' }),
+    s('path', { d: 'M88 34 L 103 46 L 89 57' }),
+  );
+
   root.replaceChildren(
     h(
       'section',
       { class: 'capture' },
-      h('h1', {}, 'Photograph the board'),
-      h('p', { class: 'lede' }, 'Take a photo of your drawing. You check what was read before anything is shown to the class.'),
+      h(
+        'div',
+        { class: 'hero' },
+        h(
+          'div',
+          { class: 'hero-copy' },
+          h('h1', {}, 'Draw it on the board. ', h('span', { class: 'hero-accent' }, 'Watch it come to life.')),
+          h(
+            'p',
+            { class: 'lede' },
+            'Photograph a chain reaction, a food web or a geometry figure. You check what was read, the class predicts what will happen, then you press Play.',
+          ),
+        ),
+        h('figure', { class: 'hero-pair' }, h('div', { class: 'hero-frame' }, heroBoard), arrow, heroScene, h('figcaption', {}, heroTry)),
+      ),
       subjectPicker,
       h(
         'div',
-        { class: 'capture-actions' },
-        h('label', { class: 'primary file', for: 'photo-input' }, 'Upload a photo', fileInput),
-        h('button', { onclick: () => void startWebcam() }, 'Use the webcam'),
+        { class: 'capture-cards' },
+        h(
+          'section',
+          { class: 'card bring', 'aria-labelledby': 'bring-heading' },
+          h('h2', { id: 'bring-heading' }, 'Bring in your board'),
+          h(
+            'div',
+            { class: 'capture-actions' },
+            h('label', { class: 'primary file', for: 'photo-input' }, 'Upload a photo', fileInput),
+            h('button', { onclick: () => void startWebcam() }, 'Use the webcam'),
+          ),
+          h(
+            'div',
+            { class: 'board-import' },
+            h('label', { class: 'file', for: 'board-input' }, 'Bring in a board image', boardInput),
+            h('p', { class: 'note' }, 'From a digital whiteboard: export the page as PNG or JPG, then pick it, drop it here, or paste a screenshot.'),
+          ),
+          video,
+          snap,
+        ),
+        describeSection,
       ),
-      h(
-        'div',
-        { class: 'board-import' },
-        h('label', { class: 'file', for: 'board-input' }, 'Bring in a board image', boardInput),
-        h('p', { class: 'note' }, 'From a digital whiteboard: export the page as PNG or JPG, then pick it, drop it here, or paste a screenshot.'),
-      ),
-      video,
-      snap,
       status,
-      describeSection,
       h(
         'section',
         { class: 'samples', 'aria-labelledby': 'samples-heading' },
         h('h2', { id: 'samples-heading' }, 'No board to hand? Try a sample drawing'),
         sampleGrid,
+      ),
+      h(
+        'p',
+        { class: 'capture-foot' },
+        'Muse Spark reads each board and drafts the questions. Muse Image draws any species the picture library is missing. Nothing reaches the class until you approve it.',
       ),
     ),
   );
