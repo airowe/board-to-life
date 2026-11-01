@@ -31,7 +31,7 @@ import { figureQuestionsFailureStatus, renderFigureCheck } from './ui/checkFigur
 import { h } from './ui/dom';
 import { renderPresent } from './ui/present';
 import { renderFigurePresent } from './ui/presentFigure';
-import type { ScenePictures } from './ui/placeScene';
+import { pictureUrlFor, type ScenePictures } from './ui/placeScene';
 import { renderWebPresent } from './ui/presentWeb';
 import { stepState, type Step } from './ui/steps';
 import { stubModeFor } from './ui/stubMode';
@@ -328,7 +328,7 @@ function showCheck(): void {
       onRestart: showCapture,
       onEvent: (event) => changeWeb({ ...current.web, event }),
       onFlip: (eatsId) => flipWebArrow(eatsId),
-    });
+    }, (name) => (presentPictures ? pictureUrlFor(name, presentPictures) : null));
     return;
   }
   if (current?.subject === 'geometry') {

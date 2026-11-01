@@ -1,10 +1,10 @@
-import { edgePoint } from '../ecosystem/edge';
 import type { Direction } from '../ecosystem/outcomes';
 import { CHOICE_FOR, directionsForEvent, eventOf, unfedSpecies, type WebQuestion } from '../ecosystem/questions';
 import { backwardArrows, suggestedEvent } from '../ecosystem/trophic';
 import type { Eats, Species, Web, WebEvent } from '../ecosystem/schema';
 import type { ApprovedEcosystemLesson, ApprovedLesson, Draft, EcosystemDraft, Session } from '../session/store';
 import { linkHighlights, LOW_CONFIDENCE, percent } from './check';
+import { shortenedArrow } from '../ecosystem/chart';
 import { h, s } from './dom';
 import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsStatus } from './questionCards';
 
@@ -67,28 +67,38 @@ const arrowheads = (): SVGElement =>
     ),
   );
 
-const overlay = (web: Web, backward: Set<string>): SVGElement => {
+const READING_DISC = 72;
+const READING_ARROW_GAP = 16;
+const READING_MARGIN = 130;
+const READING_NAME_BELOW = 42;
+
+// What was read, drawn cleanly on its own: read positions are only approximate, so over the photo they looked doubled.
+const reading = (web: Web, backward: Set<string>, pictureUrl: (name: string) => string | null): SVGElement => {
   const bySpecies = new Map(web.species.map((entry) => [entry.id, entry]));
-  const boxes = web.species.map((entry) => {
+  const discs = web.species.map((entry) => {
     const low = entry.confidence < LOW_CONFIDENCE;
+    const url = pictureUrl(entry.name);
+    const fit = READING_DISC * 1.5;
     return s(
       'g',
       { class: `overlay-item${low ? ' low' : ''}`, 'data-id': entry.id },
-      s('rect', { x: entry.x - entry.width / 2, y: entry.y - entry.height / 2, width: entry.width, height: entry.height }),
-      low ? s('text', { x: entry.x - entry.width / 2, y: entry.y - entry.height / 2 - 10, class: 'badge' }, `? ${percent(entry.confidence)}`) : null,
+      s('circle', { cx: entry.x, cy: entry.y, r: READING_DISC }),
+      url ? s('image', { href: url, x: entry.x - fit / 2, y: entry.y - fit / 2, width: fit, height: fit }) : null,
+      s('text', { x: entry.x, y: entry.y + READING_DISC + READING_NAME_BELOW, class: 'reading-name' }, entry.name),
+      low ? s('text', { x: entry.x - READING_DISC, y: entry.y - READING_DISC - 10, class: 'badge' }, `? ${percent(entry.confidence)}`) : null,
     );
   });
   const lines = web.eats.flatMap((arrow) => {
     const [from, to] = [bySpecies.get(arrow.from), bySpecies.get(arrow.to)];
-    if (!from || !to) return [];
-    const [start, tip] = [edgePoint(from, to), edgePoint(to, from)];
+    const line = from && to ? shortenedArrow(from, to, READING_DISC, READING_DISC + READING_ARROW_GAP) : null;
+    if (!line) return [];
     const low = arrow.confidence < LOW_CONFIDENCE;
     const reversed = backward.has(arrow.id);
     return [
       s(
         'g',
         { class: `overlay-item web-arrow${low ? ' low' : ''}${reversed ? ' backward' : ''}`, 'data-id': arrow.id },
-        s('line', { x1: start.x, y1: start.y, x2: tip.x, y2: tip.y, 'marker-end': `url(#${reversed ? BACKWARD_ARROW_ID : ARROW_ID})` }),
+        s('line', { x1: line.from.x, y1: line.from.y, x2: line.to.x, y2: line.to.y, 'marker-end': `url(#${reversed ? BACKWARD_ARROW_ID : ARROW_ID})` }),
       ),
     ];
   });
@@ -100,7 +110,8 @@ const overlay = (web: Web, backward: Set<string>): SVGElement => {
       s('text', { x: mark.x - mark.width / 2, y: mark.y + mark.height / 2 + 30, class: 'badge' }, 'Not understood'),
     ),
   );
-  return s('svg', { class: 'overlay', viewBox: `0 0 ${web.drawing.width} ${web.drawing.height}`, preserveAspectRatio: 'none' }, arrowheads(), ...boxes, ...lines, ...unknown);
+  const box = `${-READING_MARGIN} ${-READING_MARGIN} ${web.drawing.width + 2 * READING_MARGIN} ${web.drawing.height + 2 * READING_MARGIN}`;
+  return s('svg', { class: 'overlay', viewBox: box, role: 'img', 'aria-label': 'The food web as it was read' }, arrowheads(), ...lines, ...discs, ...unknown);
 };
 
 const row = (id: string, text: string, confidence: number, extraClass = ''): HTMLElement => {
@@ -159,7 +170,7 @@ const eventSelect = (web: Web, onEvent: (event: WebEvent) => void): HTMLElement 
   return h('label', { class: 'event-picker' }, h('span', {}, 'What happens'), select);
 };
 
-export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: string, note: string, handlers: WebCheckHandlers): CheckScreen => {
+export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: string, note: string, handlers: WebCheckHandlers, pictureUrl: (name: string) => string | null = () => null): CheckScreen => {
   const draft = ecosystemOnly(session.draft());
   if (!draft) throw new Error('nothing to check');
   const { web } = draft;
@@ -191,7 +202,12 @@ export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: st
     h(
       'section',
       { class: 'check' },
-      h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), overlay(web, backward)),
+      h(
+        'div',
+        { class: 'reading-pair' },
+        h('figure', {}, h('figcaption', {}, 'Your board'), h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }))),
+        h('figure', { class: 'reading' }, h('figcaption', {}, 'What was read'), h('div', { class: 'photo-frame' }, reading(web, backward, pictureUrl))),
+      ),
       h(
         'aside',
         { class: 'panel' },

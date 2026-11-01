@@ -4,11 +4,13 @@ import { eventOf } from '../ecosystem/questions';
 import type { Role, Web } from '../ecosystem/schema';
 import type { LivePictures } from '../library/live';
 import type { FallbackEntry, Library } from '../library/manifest';
+import { libraryFile } from '../library/match';
 import { pictureSource, type PictureSource } from '../library/source';
 import { ENTER_SECONDS, LEAVE_SECONDS, STAGGER_FRACTION, createCrowdTracker, crowdTargets, type CrowdTracker } from '../living/crowd';
 import { labelsAt, type PinnedLabel } from '../living/labels';
 import { layoutPlace } from '../living/layout';
-import { createPlaceImages, drawPlace, type PlaceFrame } from './placeView';
+import { toDrawing } from '../present/view';
+import { createPlaceImages, drawPlace, FALLBACK_FOLDER, LIBRARY_ROOT, pickPlaceSpecies, stageView, type PlaceFrame } from './placeView';
 
 // Every update restarts the tracker's vigour easing, so a producer's height is re-aimed at most this often while it changes,
 // and only once it has moved by more than VIGOUR_EPSILON. Re-aiming every frame would hold it still.
@@ -21,12 +23,23 @@ export const SETTLE_SECONDS = Math.max(ENTER_SECONDS, LEAVE_SECONDS) * (1 + STAG
 
 export type ScenePictures = { library: Library; fallback: FallbackEntry[]; live: LivePictures };
 
+// A picture of the species for an ordinary image element, where the library or the emoji set has one.
+export const pictureUrlFor = (name: string, { library, fallback, live }: ScenePictures): string | null => {
+  const source = pictureSource(name, library, fallback, live.state);
+  if (source.kind === 'emoji') return `${LIBRARY_ROOT}${FALLBACK_FOLDER}${source.file}`;
+  if (source.kind !== 'library') return null;
+  const file = libraryFile(library, source.subject, 'rest');
+  return file ? `${LIBRARY_ROOT}${file}` : null;
+};
+
 export type PlaceScene = {
   // Call every frame; it only tells the crowd something when the playback has moved on.
   follow: (series: Series, step: number, edits: WebEdits, seconds: number) => void;
   draw: (canvas: HTMLCanvasElement, seconds: number, reducedMotion: boolean) => void;
   // True while something in the scene is still easing, apart from the idle motion.
   busy: (seconds: number) => boolean;
+  // The species shown under a point on the canvas, in canvas px.
+  pick: (size: { width: number; height: number }, point: { x: number; y: number }, reachPx: number) => string | null;
   // Marks the scene as just changed, for example when it comes into view.
   wake: () => void;
   dispose: () => void;
@@ -136,6 +149,10 @@ export const createPlaceScene = (
     follow,
     draw,
     busy: (seconds) => seconds - changedAt < SETTLE_SECONDS,
+    pick: (size, point, reachPx) => {
+      const view = stageView(size.width, size.height);
+      return pickPlaceSpecies(layout.groups, frame.poses, layout.habitat, toDrawing(view, point), reachPx / view.scale);
+    },
     wake: () => {
       changedAt = now();
     },

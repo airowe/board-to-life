@@ -11,7 +11,7 @@ import { viewOf, type View } from '../present/view';
 import { sizeCanvas } from './canvasSize';
 
 // Tunable by eye. Stage px are the 1536 × 1024 background's pixels; screen px are CSS pixels on the canvas.
-const LIBRARY_ROOT = '/library/';
+export const LIBRARY_ROOT = '/library/';
 export const FALLBACK_FOLDER = 'fallback/';
 const BACKGROUND_FILL = '#cfe3ea';
 // Share of a floater's height that sits below the waterline.
@@ -105,6 +105,26 @@ const ABOVE_SHARE: Record<Anchor, number> = { foot: 1, float: 1 - SURFACE_SUBMER
 const anchorOf = (group: Group, habitat: Habitat): Anchor => {
   if (group.zone === 'surface') return SURFACE_Y_BY_HABITAT[habitat] === FLOOR_Y ? 'foot' : 'float';
   return group.zone === 'floor' ? 'foot' : 'middle';
+};
+
+// Pictures are wider than tall by varying amounts, so a tap counts within this much of the height either side.
+const TAP_HALF_WIDTH_PER_HEIGHT = 0.75;
+
+// The species under a point on the stage: the nearest visible individual, reaching past its picture by `reach`.
+export const pickPlaceSpecies = (groups: Group[], poses: Map<string, IndividualPose[]>, habitat: Habitat, point: { x: number; y: number }, reach: number): string | null => {
+  let best: { id: string; distance: number } | null = null;
+  for (const group of groups) {
+    const above = ABOVE_SHARE[anchorOf(group, habitat)];
+    for (const pose of poses.get(group.speciesId) ?? []) {
+      if (pose.alpha <= 0) continue;
+      const tall = group.size * pose.scale;
+      const [dx, dy] = [Math.abs(point.x - pose.x), Math.abs(point.y - (pose.y + tall * (0.5 - above)))];
+      if (dx > tall * TAP_HALF_WIDTH_PER_HEIGHT + reach || dy > tall / 2 + reach) continue;
+      const distance = Math.hypot(dx, dy);
+      if (!best || distance < best.distance) best = { id: group.speciesId, distance };
+    }
+  }
+  return best?.id ?? null;
 };
 
 type Picture = { kind: 'image'; image: CanvasImageSource; width: number; height: number; facing: number } | { kind: 'ring' };

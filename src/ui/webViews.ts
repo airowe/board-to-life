@@ -8,5 +8,5 @@ export const availableViews = (libraryLoaded: boolean): WebView[] => WEB_VIEWS.f
 
 export const initialView = (libraryLoaded: boolean): WebView => (libraryLoaded ? 'place' : 'chart');
 
-// Edits are made on the Chart's rings, so the other views point there.
-export const editHintFor = (view: WebView, hint: string): string => (view === 'chart' ? hint : `${hint} ${SWITCH_TO_CHART}`);
+// Species are tapped on the Chart's rings or among the animals in Place; a graph has nothing to tap, so it points there.
+export const editHintFor = (view: WebView, hint: string): string => (view === 'time' ? `${hint} ${SWITCH_TO_CHART}` : hint);

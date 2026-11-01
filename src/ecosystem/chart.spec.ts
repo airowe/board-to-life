@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RING_MAX, RING_MIN, chartPaths, feedingDots, fitWebToScreen, ringRadius, shortenedArrow } from './chart';
+import { RING_MAX, RING_MIN, chartPaths, feedingDots, eventLabel, fitWebToScreen, percentOfStart, percentScale, ringRadius, shortenedArrow, spreadLabels } from './chart';
 import { viewOf } from '../present/view';
 import { eatsArrow, grasslandWeb, speciesAt, webOf } from './fixtures';
 import { MODEL_STEPS, type Series } from './model';
@@ -176,5 +176,72 @@ describe('shortenedArrow', () => {
 
   it('is nothing when the discs touch', () => {
     expect(shortenedArrow(from, to, 60, 60)).toBeNull();
+  });
+});
+
+describe('percentOfStart', () => {
+  it('starts every species at 100 however different their numbers are', () => {
+    const shown = percentOfStart({ ids: ['kelp', 'otter'], values: { kelp: [800, 400], otter: [4, 6] } });
+    expect(shown.values).toEqual({ kelp: [100, 50], otter: [100, 150] });
+  });
+
+  it('shows a species taken away at the event falling to nothing', () => {
+    expect(percentOfStart({ ids: ['otter'], values: { otter: [4, 4, 0, 0] } }).values.otter).toEqual([100, 100, 0, 0]);
+  });
+
+  it('keeps a species with nothing at the start at 0 rather than dividing by it', () => {
+    expect(percentOfStart({ ids: ['gone'], values: { gone: [0, 0] } }).values.gone).toEqual([0, 0]);
+  });
+});
+
+describe('percentScale', () => {
+  it.each([
+    [100, 150, [0, 50, 100, 150]],
+    [130, 150, [0, 50, 100, 150]],
+    [151, 200, [0, 50, 100, 150, 200]],
+    [290, 300, [0, 100, 200, 300]],
+    [1320, 1500, [0, 500, 1000, 1500]],
+  ])('for a highest value of %s tops out at %s', (highest, max, ticks) => {
+    expect(percentScale(highest)).toEqual({ max, ticks });
+  });
+});
+
+describe('spreadLabels', () => {
+  const GAP = 20;
+
+  it('leaves labels alone when they already clear each other', () => {
+    expect(spreadLabels([10, 50, 90], GAP, 0, 100)).toEqual([10, 50, 90]);
+  });
+
+  it('spreads labels that would sit on top of each other, keeping them in order', () => {
+    const [a, b, c] = spreadLabels([50, 50, 50], GAP, 0, 200) as [number, number, number];
+    expect(b - a).toBeGreaterThanOrEqual(GAP);
+    expect(c - b).toBeGreaterThanOrEqual(GAP);
+  });
+
+  it('answers in the order it was given', () => {
+    const [low, high] = spreadLabels([90, 10], GAP, 0, 100) as [number, number];
+    expect(low).toBeGreaterThan(high);
+  });
+
+  it('keeps labels inside the chart', () => {
+    const placed = spreadLabels([99, 100, 100], GAP, 0, 100);
+    expect(Math.max(...placed)).toBeLessThanOrEqual(100);
+    expect(Math.min(...placed)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('eventLabel', () => {
+  const species = [{ id: 'otter', name: 'sea otter' }];
+
+  it.each([
+    [{ kind: 'remove', species: 'otter' } as const, 'sea otter removed'],
+    [{ kind: 'drought' } as const, 'Drought'],
+  ])('names %j', (event, label) => {
+    expect(eventLabel({ species, event } as unknown as Parameters<typeof eventLabel>[0])).toBe(label);
+  });
+
+  it('is empty with no event', () => {
+    expect(eventLabel({ species, event: null } as unknown as Parameters<typeof eventLabel>[0])).toBe('');
   });
 });

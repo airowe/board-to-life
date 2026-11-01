@@ -26,10 +26,61 @@ const pathOf = (values: number[], box: Box, max: number, lastIndex: number, upTo
     .join(' ');
 };
 
-export const chartPaths = (series: Series, box: Box, upTo: number): Record<string, string> => {
-  const max = seriesMax(series);
+export const chartPaths = (series: Series, box: Box, upTo: number, max: number = seriesMax(series)): Record<string, string> => {
   const lastIndex = Math.max(0, ...series.ids.map((id) => (series.values[id]?.length ?? 1) - 1));
   return Object.fromEntries(series.ids.map((id) => [id, pathOf(series.values[id] ?? [], box, max, lastIndex, upTo)]));
+};
+
+// Each species against its own starting number, so every line begins together at 100 and a small population's change
+// shows as plainly as a large one's. That is the question the class is asked: did it rise, fall or die out?
+export const percentOfStart = (series: Series): Series => ({
+  ids: series.ids,
+  values: Object.fromEntries(
+    series.ids.map((id) => {
+      const values = series.values[id] ?? [];
+      const start = values[0] ?? 0;
+      return [id, values.map((value) => (start > 0 ? (value / start) * 100 : 0))];
+    }),
+  ),
+});
+
+const PERCENT_MIN_TOP = 150;
+const PERCENT_STEPS: readonly (readonly [number, number])[] = [
+  [200, 50],
+  [500, 100],
+  [1000, 200],
+];
+const PERCENT_LARGEST_STEP = 500;
+
+export const percentScale = (highest: number): { max: number; ticks: number[] } => {
+  const step = PERCENT_STEPS.find(([upTo]) => highest <= upTo)?.[1] ?? PERCENT_LARGEST_STEP;
+  const max = Math.max(PERCENT_MIN_TOP, Math.ceil(highest / step) * step);
+  return { max, ticks: Array.from({ length: max / step + 1 }, (_, index) => index * step) };
+};
+
+// Moves labels the least needed so none overlap, inside [low, high]. Answers in the order given.
+export const spreadLabels = (ys: readonly number[], gap: number, low: number, high: number): number[] => {
+  const order = ys.map((y, index) => ({ y, index })).sort((a, b) => a.y - b.y);
+  const placed = order.map((entry) => entry.y);
+  placed.forEach((y, index) => {
+    placed[index] = Math.max(y, low, index > 0 ? (placed[index - 1] as number) + gap : low);
+  });
+  for (let index = placed.length - 1; index >= 0; index -= 1) {
+    const ceiling = index === placed.length - 1 ? high : (placed[index + 1] as number) - gap;
+    placed[index] = Math.min(placed[index] as number, ceiling);
+  }
+  const answer = [...ys];
+  order.forEach((entry, index) => {
+    answer[entry.index] = placed[index] as number;
+  });
+  return answer;
+};
+
+export const eventLabel = (web: Pick<Web, 'species' | 'event'>): string => {
+  if (!web.event) return '';
+  if (web.event.kind === 'drought') return 'Drought';
+  const { species } = web.event;
+  return `${web.species.find((entry) => entry.id === species)?.name ?? species} removed`;
 };
 
 export const ringRadius = (value: number, start: number): number => {

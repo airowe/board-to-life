@@ -23,12 +23,12 @@ describe('availableViews', () => {
 });
 
 describe('editHintFor', () => {
-  it.each(['place', 'time'] as const)('on %s appends the switch note', (view) => {
-    expect(editHintFor(view, HINT)).toBe(`${HINT} ${SWITCH_TO_CHART}`);
+  it('on time appends the switch note, since a graph has nothing to tap', () => {
+    expect(editHintFor('time', HINT)).toBe(`${HINT} ${SWITCH_TO_CHART}`);
   });
 
-  it('on chart returns the hint unchanged', () => {
-    expect(editHintFor('chart', HINT)).toBe(HINT);
+  it.each(['place', 'chart'] as const)('on %s returns the hint unchanged, since species can be tapped there', (view) => {
+    expect(editHintFor(view, HINT)).toBe(HINT);
   });
 
   it('says where to go to change the web', () => {

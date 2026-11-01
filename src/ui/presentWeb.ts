@@ -1,4 +1,5 @@
-import { chartPaths, feedingDots, fitWebToScreen, ringRadius, shortenedArrow } from '../ecosystem/chart';
+import { chartPaths, eventLabel, feedingDots, fitWebToScreen, percentOfStart, percentScale, ringRadius, shortenedArrow, spreadLabels } from '../ecosystem/chart';
+import { speciesColours } from '../ecosystem/colours';
 import { editOnRelease, emptyEdits, pickSpecies, setStart, startMax, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, MODEL_STEPS, STEPS_PER_SECOND_SHOWN, startingPopulations, type Series } from '../ecosystem/model';
 import { isGoneAt } from '../ecosystem/outcomes';
@@ -23,8 +24,6 @@ const MAX_FRAME_MS = 100;
 const SKETCH_SEED = 7;
 
 const INK = { board: '#f7f7f3', black: '#1d2433', label: '#ffffff' };
-const FALLBACK_PALETTE = ['#1e7f4f', '#1f4fbf', '#b9770e', '#c0392b', '#7b3fa0', '#0f7c8a'];
-const PALETTE_SIZE = FALLBACK_PALETTE.length;
 const GHOST_ALPHA = 0.3;
 const RING_WIDTH = 7;
 const RING_FILL_ALPHA = 0.12;
@@ -44,7 +43,14 @@ const FOOD_ARROW_GAP = 22;
 const FOOD_ARROW_HEAD = 20;
 const FOOD_ARROW_SPREAD = (Math.PI * 5) / 6;
 
-const CHART_PAD = { left: 8, right: 8, top: 8, bottom: 8 };
+const CHART_PAD = { left: 46, right: 132, top: 26, bottom: 26 };
+const CHART_GRID = '#e3e7ec';
+const CHART_MUTED = '#566173';
+const CHART_LABEL_GAP = 24;
+const CHART_PICTURE = 22;
+const CHART_START_LEVEL = 100;
+const CHART_TEXT_PX = 13;
+const ROOT_FONT_PX = 16;
 const CHART_LINE_WIDTH = 3;
 const CHART_AXIS_WIDTH = 1;
 const EVENT_DASH = [4, 6];
@@ -55,11 +61,6 @@ const TAP_SLOP_PX = 8;
 const DRAG_PX_FOR_FULL_RANGE = 320;
 
 const reducedMotion = (): boolean => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-
-const paletteOf = (element: HTMLElement): string[] => {
-  const style = getComputedStyle(element);
-  return FALLBACK_PALETTE.map((fallback, index) => style.getPropertyValue(`--species-${index + 1}`).trim() || fallback);
-};
 
 const formatCount = (value: number): string => (value < PRECISE_BELOW ? value.toFixed(1) : Math.round(value).toString());
 
@@ -230,38 +231,58 @@ const drawStage = (canvas: HTMLCanvasElement, state: StageState, showStarts: boo
 };
 
 // The current run and the faint previous one are drawn against one shared scale, so their heights compare.
-const sharedPaths = (series: Series, ghost: Series | null, box: Box, upTo: number): { now: Record<string, string>; before: Record<string, string> } => {
-  if (!ghost) return { now: chartPaths(series, box, upTo), before: {} };
-  const ghostId = (id: string): string => `before:${id}`;
-  const both: Series = {
-    ids: [...series.ids, ...ghost.ids.map(ghostId)],
-    values: { ...series.values, ...Object.fromEntries(ghost.ids.map((id) => [ghostId(id), ghost.values[id] ?? []])) },
-  };
-  const now = chartPaths(both, box, upTo);
-  const full = chartPaths(both, box, MODEL_STEPS);
-  return {
-    now: Object.fromEntries(series.ids.map((id) => [id, now[id] ?? ''])),
-    before: Object.fromEntries(ghost.ids.map((id) => [id, full[ghostId(id)] ?? ''])),
-  };
-};
+const sharedPaths = (series: Series, ghost: Series | null, box: Box, upTo: number, max: number): { now: Record<string, string>; before: Record<string, string> } => ({
+  now: chartPaths(series, box, upTo, max),
+  before: ghost ? chartPaths(ghost, box, MODEL_STEPS, max) : {},
+});
 
-const drawChart = (canvas: HTMLCanvasElement, series: Series, ghost: Series | null, step: number, colours: Map<string, string>): void => {
+type ChartLook = { web: Web; colours: Map<string, string>; portrait: ((name: string) => CanvasImageSource | null) | null };
+
+const highestOf = (series: Series): number => Math.max(CHART_START_LEVEL, ...series.ids.flatMap((id) => series.values[id] ?? []));
+
+const drawChart = (canvas: HTMLCanvasElement, raw: Series, rawGhost: Series | null, step: number, { web, colours, portrait }: ChartLook): void => {
   const sized = sizeCanvas(canvas);
   if (!sized) return;
   const { ctx, width, height } = sized;
+  // Board mode scales the page's type, and the chart's labels have to be read from as far away.
+  const unit = parseFloat(getComputedStyle(document.documentElement).fontSize) / ROOT_FONT_PX || 1;
+  const font = (weight: number): string => `${weight} ${CHART_TEXT_PX * unit}px system-ui, sans-serif`;
   const box: Box = {
-    x: CHART_PAD.left,
-    y: CHART_PAD.top,
-    width: Math.max(0, width - CHART_PAD.left - CHART_PAD.right),
-    height: Math.max(0, height - CHART_PAD.top - CHART_PAD.bottom),
+    x: CHART_PAD.left * unit,
+    y: CHART_PAD.top * unit,
+    width: Math.max(0, width - (CHART_PAD.left + CHART_PAD.right) * unit),
+    height: Math.max(0, height - (CHART_PAD.top + CHART_PAD.bottom) * unit),
   };
+  const series = percentOfStart(raw);
+  const ghost = rawGhost && percentOfStart(rawGhost);
+  const { max, ticks } = percentScale(Math.max(highestOf(series), ghost ? highestOf(ghost) : 0));
+  const yOf = (percent: number): number => box.y + box.height - (Math.min(percent, max) / max) * box.height;
+  const right = box.x + box.width;
+
+  ctx.font = font(400);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'right';
+  for (const tick of ticks) {
+    const start = tick === CHART_START_LEVEL;
+    ctx.strokeStyle = start ? CHART_MUTED : CHART_GRID;
+    ctx.lineWidth = CHART_AXIS_WIDTH;
+    ctx.beginPath();
+    ctx.moveTo(box.x, yOf(tick));
+    ctx.lineTo(right, yOf(tick));
+    ctx.stroke();
+    ctx.fillStyle = CHART_MUTED;
+    ctx.fillText(`${tick}%`, box.x - 6 * unit, yOf(tick));
+  }
   ctx.strokeStyle = INK.black;
-  ctx.lineWidth = CHART_AXIS_WIDTH;
   ctx.beginPath();
   ctx.moveTo(box.x, box.y);
   ctx.lineTo(box.x, box.y + box.height);
-  ctx.lineTo(box.x + box.width, box.y + box.height);
+  ctx.lineTo(right, box.y + box.height);
   ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = CHART_MUTED;
+  ctx.fillText('Time', box.x + box.width / 2, box.y + box.height + (CHART_PAD.bottom * unit) / 2);
+
   const eventX = box.x + (EVENT_STEP / MODEL_STEPS) * box.width;
   ctx.setLineDash(EVENT_DASH);
   ctx.beginPath();
@@ -269,8 +290,12 @@ const drawChart = (canvas: HTMLCanvasElement, series: Series, ghost: Series | nu
   ctx.lineTo(eventX, box.y + box.height);
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.fillStyle = INK.black;
+  ctx.font = font(700);
+  ctx.textAlign = 'left';
+  ctx.fillText(eventLabel({ species: web.species, event: eventOf(web) }), eventX + 4 * unit, box.y - (CHART_PAD.top * unit) / 2);
 
-  const { now, before } = sharedPaths(series, ghost, box, step);
+  const { now, before } = sharedPaths(series, ghost, box, step, max);
   ctx.lineWidth = CHART_LINE_WIDTH;
   ctx.lineJoin = 'round';
   ctx.globalAlpha = GHOST_ALPHA;
@@ -283,6 +308,24 @@ const drawChart = (canvas: HTMLCanvasElement, series: Series, ghost: Series | nu
     ctx.strokeStyle = colours.get(id) ?? INK.black;
     ctx.stroke(new Path2D(path));
   }
+
+  // Each line says what it is at its current height, in the margin beside the plot.
+  const heights = web.species.map((entry) => yOf(series.values[entry.id]?.[step] ?? 0));
+  const placed = spreadLabels(heights, CHART_LABEL_GAP * unit, box.y, box.y + box.height);
+  const size = CHART_PICTURE * unit;
+  ctx.font = font(700);
+  web.species.forEach((entry, index) => {
+    const y = placed[index] ?? box.y;
+    const picture = portrait?.(entry.name);
+    const measured = picture ? pictureSize(picture) : null;
+    if (picture && measured) {
+      const scale = size / Math.max(measured.width, measured.height);
+      const [drawnWidth, drawnHeight] = [measured.width * scale, measured.height * scale];
+      ctx.drawImage(picture, right + 6 * unit + (size - drawnWidth) / 2, y - drawnHeight / 2, drawnWidth, drawnHeight);
+    }
+    ctx.fillStyle = colours.get(entry.id) ?? INK.black;
+    ctx.fillText(entry.name, right + 10 * unit + size, y);
+  });
 };
 
 const sketchUrl = (web: Web): string => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sketchWeb(web, SKETCH_SEED))}`;
@@ -302,13 +345,11 @@ export const renderWebPresent = (
 
   const canvas = h('canvas', { class: 'stage', 'aria-label': 'Food web drawing with each population shown as a ring' });
   const chartCanvas = h('canvas', { class: 'web-chart-lines', 'aria-hidden': 'true' });
-  const legend = h('ul', { class: 'web-legend' });
   const chart = h(
     'figure',
     { class: 'web-chart' },
-    h('figcaption', {}, 'Populations (a model)'),
+    h('figcaption', {}, 'How each population changed, compared with its starting number (a model)'),
     h('div', { class: 'canvas-frame' }, chartCanvas),
-    legend,
   );
   const placeCanvas = h('canvas', { class: 'stage', 'aria-label': 'The food web as a living place, each population shown as a crowd' });
   const placeFrame = h('div', { class: 'canvas-frame place-frame' }, placeCanvas);
@@ -355,24 +396,15 @@ export const renderWebPresent = (
 
   const editable = (): boolean => {
     const kind = playback.phase().kind;
-    return kind === 'done' || (kind === 'ready' && ghost !== null);
+    return kind === 'done' || kind === 'ready';
   };
   const edited = (): boolean => edits.removed.size > 0 || Object.keys(edits.start).length > 0;
-
-  const renderLegend = (): void => {
-    legend.replaceChildren(
-      ...web.species.map((entry) =>
-        h('li', { style: `--swatch: ${colours.get(entry.id) ?? INK.black}`, class: edits.removed.has(entry.id) ? 'removed' : '' }, entry.name),
-      ),
-    );
-  };
 
   const rerun = (next: WebEdits): void => {
     if (playback.step() > 0) ghost = playback.series();
     edits = next;
     chosen = null;
     playback.replay(edits);
-    renderLegend();
     carry = 0;
     shownPhase = null;
     redraw.invalidate();
@@ -388,7 +420,12 @@ export const renderWebPresent = (
     h('button', { class: primary ? 'primary big' : 'big', onclick: action }, label);
   const line = (className: string, text: string): HTMLParagraphElement => h('p', { class: className }, text);
   const editHint = (): string =>
-    editHintFor(view, 'Tap a species to remove it or bring it back. Drag one up or down to change how many there are at the start.');
+    editHintFor(
+      view,
+      view === 'place'
+        ? 'Tap an animal to remove its species. Drag one up or down to change how many there are at the start.'
+        : 'Tap a species to remove it or bring it back. Drag one up or down to change how many there are at the start.',
+    );
 
   const showView = (next: WebView): void => {
     view = next;
@@ -397,7 +434,7 @@ export const renderWebPresent = (
     ringFrame.hidden = next !== 'chart';
     chart.hidden = next === 'place';
     for (const [name, tab] of tabs) tab.setAttribute('aria-selected', String(name === next));
-    if (next !== 'chart') drag = null;
+    drag = null;
     if (next === 'place') scene?.wake();
     shownPhase = null;
     redraw.invalidate();
@@ -408,11 +445,11 @@ export const renderWebPresent = (
     shownPhase = phase;
     switch (phase.kind) {
       case 'ready':
-        if (ghost) {
-          caption.replaceChildren(line('question-text', eventText), line('explanation-text', `${editHint()} The faint lines show the last run.`));
+        if (ghost || edited()) {
+          caption.replaceChildren(line('question-text', eventText), line('explanation-text', ghost ? `${editHint()} The faint lines show the last run.` : editHint()));
           controls.replaceChildren(button('Play', playback.play, true), ...(edited() ? [button('Put everything back', resetEdits)] : []));
         } else {
-          caption.replaceChildren(line('question-text', eventText), line('explanation-text', 'Press Play. The populations settle first, then we stop to predict.'));
+          caption.replaceChildren(line('question-text', eventText), line('explanation-text', `Press Play. The populations settle first, then we stop to predict. ${editHint()}`));
           controls.replaceChildren(button('Play', playback.play, true));
         }
         break;
@@ -475,11 +512,13 @@ export const renderWebPresent = (
       };
       if (view === 'place') scene?.draw(placeCanvas, seconds, reducedMotion());
       if (view === 'chart') drawStage(canvas, state, playback.phase().kind === 'ready');
-      if (view !== 'place') drawChart(chartCanvas, playback.series(), ghost, step, colours);
+      if (view !== 'place') drawChart(chartCanvas, playback.series(), ghost, step, { web, colours, portrait });
     }
     showPhase(playback.phase());
-    canvas.classList.toggle('editable', editable());
-    canvas.classList.toggle('holding', drag !== null && drag.moved && !edits.removed.has(drag.id));
+    for (const each of [canvas, placeCanvas]) {
+      each.classList.toggle('editable', editable());
+      each.classList.toggle('holding', drag !== null && drag.moved && !edits.removed.has(drag.id));
+    }
     frame = requestAnimationFrame(loop);
   };
 
@@ -497,14 +536,20 @@ export const renderWebPresent = (
 
   const startOf = (id: string): number => edits.start[id] ?? steady[id] ?? 0;
 
+  const pickAt = (target: HTMLCanvasElement, event: PointerEvent): string | null => {
+    const rect = target.getBoundingClientRect();
+    const size = { width: rect.width, height: rect.height };
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    if (target === placeCanvas) return scene?.pick(size, point, TOUCH_REACH_PX) ?? null;
+    return pickSpecies(web, fitWebToScreen(size, web), point, TOUCH_REACH_PX);
+  };
   const onPointerDown = (event: PointerEvent): void => {
     if (drag || !editable()) return;
-    const rect = canvas.getBoundingClientRect();
-    const view = fitWebToScreen({ width: rect.width, height: rect.height }, web);
-    const id = pickSpecies(web, view, { x: event.clientX - rect.left, y: event.clientY - rect.top }, TOUCH_REACH_PX);
+    const target = event.currentTarget as HTMLCanvasElement;
+    const id = pickAt(target, event);
     if (id === null) return;
     event.preventDefault();
-    canvas.setPointerCapture(event.pointerId);
+    target.setPointerCapture(event.pointerId);
     drag = { pointerId: event.pointerId, id, startY: event.clientY, from: startOf(id), value: startOf(id), moved: false };
   };
   const onPointerMove = (event: PointerEvent): void => {
@@ -534,10 +579,12 @@ export const renderWebPresent = (
     drag = null;
     redraw.invalidate();
   };
-  canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', onPointerCancel);
+  for (const each of [canvas, placeCanvas]) {
+    each.addEventListener('pointerdown', onPointerDown);
+    each.addEventListener('pointermove', onPointerMove);
+    each.addEventListener('pointerup', onPointerUp);
+    each.addEventListener('pointercancel', onPointerCancel);
+  }
 
   const onKey = (event: KeyboardEvent): void => {
     const kind = playback.phase().kind;
@@ -556,9 +603,7 @@ export const renderWebPresent = (
   };
 
   root.replaceChildren(section);
-  const palette = paletteOf(section);
-  colours = new Map(web.species.map((entry, index) => [entry.id, palette[index % PALETTE_SIZE] ?? INK.black]));
-  renderLegend();
+  colours = speciesColours(web);
   if (pictures) scene = createPlaceScene(web, steady, () => colours, pictures, () => redraw.invalidate());
   showView(view);
   section.requestFullscreen?.().catch(() => undefined);
