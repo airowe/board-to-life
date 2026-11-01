@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { apiMiddleware, modelFrom } from './plugin';
+import { apiMiddleware, isPublicDemo, modelFrom } from './plugin';
 
 type Handler = (request: IncomingMessage, response: ServerResponse) => Promise<void>;
 
@@ -16,7 +16,8 @@ const notFound = (response: ServerResponse) => () => {
   response.end();
 };
 
-// A deployed demo with a paid reader must sit behind an access code, so a missing code or key refuses every request.
+// A deployed demo with a paid reader must either sit behind an access code or be declared public, where it is rate
+// limited. So a missing setting or key refuses every request rather than opening paid calls by accident.
 export const vercelHandler = (env: Record<string, string | undefined>): Handler => {
   let model;
   try {
@@ -25,8 +26,8 @@ export const vercelHandler = (env: Record<string, string | undefined>): Handler 
     console.error(error);
     return notSetUp;
   }
-  if (model && !env.ACCESS_CODE) {
-    console.error('A paid reader is set without ACCESS_CODE; refusing every request.');
+  if (model && !env.ACCESS_CODE && !isPublicDemo(env)) {
+    console.error('A paid reader is set with neither ACCESS_CODE nor PUBLIC_DEMO; refusing every request.');
     return notSetUp;
   }
   const handle = apiMiddleware({ env }, model);

@@ -164,11 +164,15 @@ The app is deployed on Vercel at https://board-to-life.vercel.app. `npm run buil
 Output format (`scripts/build-vercel.mjs`): the app as static files, and `/api/understand`, `/api/draft-questions`
 and `/api/describe` as Node functions bundled from `server/vercel.ts`, which runs the same middleware as the dev server.
 
-Because each photo is a paid model call, the API answers only requests that carry the access code when `ACCESS_CODE`
-is set in the project's environment. The live link has the code in its address (`?code=…`); the app keeps it and sends
-it as the `x-access-code` header. Without it the API answers 401 and the app says to open the link from the submission
-page; with a code that does not match, the 401 says so and asks for the full link. The model keys and `SCENE_READER` are set in the Vercel project's environment, never in the repository. The
-deployed functions refuse every request with a 503 when a paid `SCENE_READER` is set without `ACCESS_CODE`, or when its
+The live site is open: anyone can use it with no code. That is `PUBLIC_DEMO=1` in the project's environment. Each photo
+is a paid model call, so a public demo is rate limited to 60 calls per visitor and 400 overall per hour (`PUBLIC_DEMO_LIMITS`
+in `server/plugin.ts`), then answers 429 with a message to try again. A board is about 6 calls. The counts live in each
+running copy of the server, so this slows heavy use rather than setting a hard ceiling on spending.
+
+Without `PUBLIC_DEMO`, setting `ACCESS_CODE` keeps the API behind a code: the link carries it (`?code=…`), the app sends
+it as the `x-access-code` header, and anything else gets a 401. The model keys and `SCENE_READER` are set in the Vercel
+project's environment, never in the repository. The deployed functions refuse every request with a 503 when a paid
+`SCENE_READER` is set with neither `ACCESS_CODE` nor `PUBLIC_DEMO`, or when its
 key is missing or the reader name is unknown, so a missing setting can never open paid calls to anyone. Uploads are
 capped at 4 MB, under Vercel's own request limit.
 

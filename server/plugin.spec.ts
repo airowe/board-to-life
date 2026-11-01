@@ -12,7 +12,7 @@ import { GEOMETRY_SAMPLES } from '../src/geometry/samples';
 import { validateFigure, type Figure, type Focus } from '../src/geometry/schema';
 import { rampBallDominoes } from '../src/scene/fixtures';
 import { obeyWrittenValues } from './figureReader';
-import { apiMiddleware, MAX_UPLOAD_BYTES, type ApiModel } from './plugin';
+import { apiMiddleware, MAX_UPLOAD_BYTES, PUBLIC_DEMO_LIMITS, type ApiModel } from './plugin';
 import { STUB_PICTURE } from './stub';
 import { vercelHandler } from './vercel';
 
@@ -29,6 +29,15 @@ const serve = async (env: Record<string, string | undefined>, model?: ApiModel |
       response.end();
     }),
   );
+  await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve));
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+};
+
+const PAID = { SCENE_READER: 'meta', MODEL_API_KEY: 'test-key' };
+
+const serveVercel = async (env: Record<string, string | undefined>): Promise<string> => {
+  const handle = vercelHandler(env);
+  server = createServer((request, response) => void handle(request, response));
   await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 };
@@ -134,14 +143,6 @@ describe('apiMiddleware robustness', () => {
 });
 
 describe('vercelHandler', () => {
-  const PAID = { SCENE_READER: 'meta', MODEL_API_KEY: 'test-key' };
-
-  const serveVercel = async (env: Record<string, string | undefined>): Promise<string> => {
-    const handle = vercelHandler(env);
-    server = createServer((request, response) => void handle(request, response));
-    await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve));
-    return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  };
 
   it('refuses every request when a paid reader is set but no access code is', async () => {
     const response = await postPhoto(await serveVercel(PAID));
@@ -359,5 +360,55 @@ describe('apiMiddleware picture', () => {
     const response = await post(await serve({}, failing), { subject: 'jellyfish' });
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: 'Something went wrong on the server. Try again.', details: [] });
+  });
+});
+
+describe('a public demo', () => {
+  const OPEN = { PUBLIC_DEMO: '1', ACCESS_CODE: CODE };
+  const postFrom = (base: string, visitor: string): Promise<Response> =>
+    fetch(`${base}/api/picture`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': `${visitor}, 10.0.0.1` }, body: JSON.stringify({ subject: 'jellyfish' }) });
+
+  it('answers without an access code', async () => {
+    expect((await postFrom(await serve(OPEN), 'a')).status).toBe(200);
+  });
+
+  it('still asks for the code when it is not a public demo', async () => {
+    expect((await postFrom(await serve({ ACCESS_CODE: CODE }), 'a')).status).toBe(401);
+  });
+
+  it('asks a visitor over the limit to wait, with a message the app can show', async () => {
+    const base = await serve(OPEN);
+    for (let call = 0; call < PUBLIC_DEMO_LIMITS.perVisitor; call += 1) expect((await postFrom(base, 'a')).status).toBe(200);
+    const refused = await postFrom(base, 'a');
+    expect(refused.status).toBe(429);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/try again/i);
+  });
+
+  it('keeps serving other visitors when one is over the limit', async () => {
+    const base = await serve(OPEN);
+    for (let call = 0; call <= PUBLIC_DEMO_LIMITS.perVisitor; call += 1) await postFrom(base, 'a');
+    expect((await postFrom(base, 'b')).status).toBe(200);
+  });
+
+  it('does not limit a demo behind its access code', async () => {
+    const base = await serve({ ACCESS_CODE: CODE });
+    const post = (): Promise<Response> =>
+      fetch(`${base}/api/picture`, { method: 'POST', headers: { 'content-type': 'application/json', [ACCESS_HEADER]: CODE }, body: JSON.stringify({ subject: 'jellyfish' }) });
+    for (let call = 0; call <= PUBLIC_DEMO_LIMITS.perVisitor; call += 1) expect((await post()).status).toBe(200);
+  });
+
+  it('lets a deployed paid reader run when it is a public demo', async () => {
+    const response = await fetch(`${await serveVercel({ ...PAID, PUBLIC_DEMO: '1' })}/index.html`);
+    expect(response.status).toBe(404);
+  });
+
+  it('still refuses a deployed paid reader with neither a code nor the public setting', async () => {
+    const response = await fetch(`${await serveVercel({ ...PAID })}/index.html`);
+    expect(response.status).toBe(503);
+  });
+
+  it('counts only the exact setting as public', async () => {
+    const response = await fetch(`${await serveVercel({ ...PAID, PUBLIC_DEMO: 'false' })}/index.html`);
+    expect(response.status).toBe(503);
   });
 });

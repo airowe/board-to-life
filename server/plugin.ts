@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { ACCESS_HEADER } from '../src/access';
 import { hasAccess } from './access';
+import { createRateLimit } from './rateLimit';
 import { MODEL_REQUEST_TIMEOUT_MS } from '../src/reading';
 import { isProviderName, parseEffort, providerFromEnv, readSceneWithModel } from './sceneReader';
 import { describeSceneWithModel } from './sceneWriter';
@@ -213,6 +214,16 @@ const UNDRAWABLE = 'That subject cannot be drawn.';
 const SERVER_FAILURE: StubResponse = { status: 500, body: { error: 'Something went wrong on the server. Try again.', details: [] } };
 const TOO_LARGE: StubResponse = { status: 413, body: { error: `That photo is too large (${MAX_UPLOAD_BYTES / 1024 / 1024} MB maximum).`, details: [] } };
 
+// A board is about 6 calls: its reading, its questions and up to 4 pictures. Each is around a cent.
+export const PUBLIC_DEMO_LIMITS = { perVisitor: 60, overall: 400, windowMs: 60 * 60 * 1000 };
+const TOO_MANY: StubResponse = { status: 429, body: { error: 'This demo has had a lot of use. Try again in a little while.', details: [] } };
+const PUBLIC_DEMO_ON = '1';
+
+export const isPublicDemo = (env: Record<string, string | undefined>): boolean => env.PUBLIC_DEMO === PUBLIC_DEMO_ON;
+
+// The first address is the visitor's; the host adds the rest.
+const visitorOf = (request: IncomingMessage): string => header(request, 'x-forwarded-for')?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown';
+
 const NO_ACCESS = 'This demo needs its access link. Open the link from the submission page, then try again.';
 const WRONG_CODE = 'That access code did not match. Open the full link from the submission page, including everything after ?code=, then try again.';
 
@@ -238,31 +249,42 @@ const answer = async (request: IncomingMessage, route: string, context: RouteCon
 };
 
 // The API routes as plain Node middleware, so the dev server and the deployed functions share them.
-export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Middleware => async (request, response, next) => {
-  const route = request.url?.split('?')[0];
-  if (request.method !== 'POST' || !isApiRoute(route)) {
-    next();
-    return;
-  }
-  const code = header(request, ACCESS_HEADER);
-  if (!hasAccess(env.ACCESS_CODE, code)) {
-    send(response, { status: 401, body: { error: code === undefined ? NO_ACCESS : WRONG_CODE, details: [] } });
-    return;
-  }
-  const body = await readBody(request);
-  if (body.kind === 'aborted') return;
-  if (body.kind === 'too-large') {
-    response.setHeader('connection', 'close');
-    send(response, TOO_LARGE);
-    return;
-  }
-  const mode = parseStubMode(header(request, 'x-stub-mode'));
-  try {
-    send(response, await answer(request, route, { model, mode, delayMs: delayFor(mode) }, body.bytes));
-  } catch (error) {
-    console.error(error);
-    if (!response.headersSent) send(response, SERVER_FAILURE);
-  }
+export const apiMiddleware = ({ env }: ApiOptions, model = modelFrom(env)): Middleware => {
+  const publicDemo = isPublicDemo(env);
+  const allow = createRateLimit(PUBLIC_DEMO_LIMITS);
+    return async (request, response, next) => {
+    const route = request.url?.split('?')[0];
+    if (request.method !== 'POST' || !isApiRoute(route)) {
+      next();
+      return;
+    }
+    if (publicDemo) {
+      if (!allow(visitorOf(request))) {
+        send(response, TOO_MANY);
+        return;
+      }
+    } else {
+      const code = header(request, ACCESS_HEADER);
+      if (!hasAccess(env.ACCESS_CODE, code)) {
+        send(response, { status: 401, body: { error: code === undefined ? NO_ACCESS : WRONG_CODE, details: [] } });
+        return;
+      }
+    }
+    const body = await readBody(request);
+    if (body.kind === 'aborted') return;
+    if (body.kind === 'too-large') {
+      response.setHeader('connection', 'close');
+      send(response, TOO_LARGE);
+      return;
+    }
+    const mode = parseStubMode(header(request, 'x-stub-mode'));
+    try {
+      send(response, await answer(request, route, { model, mode, delayMs: delayFor(mode) }, body.bytes));
+    } catch (error) {
+      console.error(error);
+      if (!response.headersSent) send(response, SERVER_FAILURE);
+    }
+  };
 };
 
 export const stubApi = ({ env }: ApiOptions): Plugin => ({
