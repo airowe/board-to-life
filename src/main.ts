@@ -30,6 +30,7 @@ import { renderPresent } from './ui/present';
 import { renderFigurePresent } from './ui/presentFigure';
 import type { ScenePictures } from './ui/placeScene';
 import { renderWebPresent } from './ui/presentWeb';
+import { stubModeFor } from './ui/stubMode';
 
 const PROGRESS_TICK_MS = 1000;
 
@@ -41,6 +42,7 @@ const requireElement = <T extends Element>(selector: string): T => {
 
 const root = requireElement<HTMLElement>('#app');
 const stubSelect = requireElement<HTMLSelectElement>('#stub-mode');
+if (import.meta.env.DEV) requireElement<HTMLLabelElement>('label.stub').hidden = false;
 const noop = (): void => undefined;
 const storage = {
   getItem: (key: string): string | null => localStorage.getItem(key),
@@ -77,7 +79,10 @@ const leaveScreen = (): void => {
 };
 
 const accessCode = rememberAccessCode(location.search, storage);
-const requestHeaders = (): Record<string, string> => ({ 'x-stub-mode': stubSelect.value, ...accessHeaders(accessCode) });
+const requestHeaders = (): Record<string, string> => ({
+  'x-stub-mode': stubModeFor({ isDev: import.meta.env.DEV, picked: stubSelect.value }),
+  ...accessHeaders(accessCode),
+});
 
 const libraryReady = loadLibrary().catch(() => null);
 const livePicturesReady = libraryReady.then((loaded) =>
