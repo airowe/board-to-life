@@ -21,10 +21,14 @@ import {
   figureBox,
   FIGURE_WIDTH_FACTOR,
   LEG_INSET,
+  MOUNT,
+  mountFrame,
   pictureFit,
   pictureRect,
   rampSupports,
+  shelfSupports,
   spriteBox,
+  springCoil,
   wheelTurn,
   type PhysicsSkin,
   type PictureFit,
@@ -490,5 +494,82 @@ describe('wheelTurn', () => {
   ])('is %s', (_name, x, turn) => {
     if (cart.kind !== 'cart') throw new Error('expected a cart');
     near(wheelTurn(cart, at(x)), turn);
+  });
+});
+
+describe('what holds things up', () => {
+  const FLOOR = FLOOR_TOP;
+  const pivot: SceneItem = { id: 'pivot', kind: 'pivot', x: 600, y: 200, confidence: CONFIDENCE };
+  const hanging = ball('bob', 600, 500);
+  const tie: SceneItem = { id: 'tie', kind: 'rope', from: 'pivot', to: 'bob', length: 300, confidence: CONFIDENCE };
+  const wheel = pulley('wheel', 600, 200);
+
+  it('draws no fulcrum for a pivot something hangs from', () => {
+    expect(subjectIn([pivot, hanging, tie], 'pivot')).toBe(MOUNT);
+  });
+
+  it('keeps the fulcrum under a pivot nothing hangs from', () => {
+    expect(subjectIn([pivot, hanging], 'pivot')).toBe('fulcrum');
+  });
+
+  it('hangs a pendulum from a beam on two posts reaching the table', () => {
+    if (pivot.kind !== 'pivot') throw new Error('expected a pivot');
+    const [beam, left, right] = mountFrame(pivot, sceneOf([pivot, hanging, tie]), FLOOR) as [SpriteBox, SpriteBox, SpriteBox];
+    expect(beam.angle).toBe(0);
+    near(beam.cy + beam.height / 2, 200);
+    for (const post of [left, right]) {
+      expect(post.angle).toBe(Math.PI / 2);
+      near(post.cy + post.width / 2, FLOOR);
+      near(post.cy - post.width / 2, 200);
+    }
+    expect(left.cx).toBeLessThan(600);
+    expect(right.cx).toBeGreaterThan(600);
+  });
+
+  it('hangs a pulley from a beam above its wheel', () => {
+    if (wheel.kind !== 'pulley') throw new Error('expected a pulley');
+    const [beam] = mountFrame(wheel, sceneOf([wheel]), FLOOR) as [SpriteBox];
+    near(beam.cy + beam.height / 2, 200 - 14);
+  });
+
+  it('keeps the frame on the drawing', () => {
+    const edge: SceneItem = { id: 'wheel', kind: 'pulley', x: 40, y: 200, radius: 14, confidence: CONFIDENCE };
+    if (edge.kind !== 'pulley') throw new Error('expected a pulley');
+    const [beam] = mountFrame(edge, sceneOf([edge]), FLOOR) as [SpriteBox];
+    expect(beam.cx - beam.width / 2).toBeGreaterThanOrEqual(0);
+  });
+
+  it('needs no frame for a fulcrum on the table', () => {
+    if (pivot.kind !== 'pivot') throw new Error('expected a pivot');
+    expect(mountFrame(pivot, sceneOf([pivot]), FLOOR)).toEqual([]);
+  });
+
+  it.each([
+    ['a raised shelf', 500, 300, 400, 20, 2],
+    ['a shelf resting on the table', 500, FLOOR - 10, 400, 20, 0],
+    ['a tall wall', 900, 400, 40, 300, 0],
+  ])('gives %s the right legs', (_name, x, y, width, height, legs) => {
+    const wall = { id: 'wall', kind: 'wall', x, y, width, height, confidence: CONFIDENCE } as const;
+    expect(shelfSupports(wall, FLOOR)).toHaveLength(legs);
+  });
+});
+
+describe('springCoil', () => {
+  const [from, to] = [{ x: 100, y: 100 }, { x: 100, y: 400 }];
+
+  it('starts and ends on the two things the spring joins', () => {
+    const coil = springCoil(from, to);
+    expect(coil[0]).toEqual(from);
+    expect(coil.at(-1)).toEqual(to);
+  });
+
+  it('loops either side of the line between them', () => {
+    const across = springCoil(from, to).map((point) => point.x - from.x);
+    expect(Math.min(...across)).toBeLessThan(-5);
+    expect(Math.max(...across)).toBeGreaterThan(5);
+  });
+
+  it('stretches with the spring and keeps its coil count', () => {
+    expect(springCoil(from, { x: 100, y: 700 })).toHaveLength(springCoil(from, to).length);
   });
 });

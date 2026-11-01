@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RING_MAX, RING_MIN, chartPaths, feedingDots, ringRadius } from './chart';
+import { RING_MAX, RING_MIN, chartPaths, feedingDots, fitWebToScreen, ringRadius, shortenedArrow } from './chart';
+import { viewOf } from '../present/view';
 import { eatsArrow, grasslandWeb, speciesAt, webOf } from './fixtures';
 import { MODEL_STEPS, type Series } from './model';
 import { backwardArrows } from './trophic';
@@ -131,5 +132,49 @@ describe('feedingDots', () => {
   it('names the species even when two of them share a centre', () => {
     const stacked = webOf([speciesAt('grass', 'producer', 100, 100), speciesAt('rabbit', 'consumer', 100, 100)], [eatsArrow('a1', 'grass', 'rabbit')]);
     expect(feedingDots(stacked, 0).map((dot) => [dot.fromId, dot.toId])).toEqual([['grass', 'rabbit']]);
+  });
+});
+
+describe('fitWebToScreen', () => {
+  const box = { width: 80, height: 40, confidence: 0.9 };
+  const speciesAt = (id: string, x: number, y: number) => ({ id, name: id, role: 'consumer' as const, x, y, ...box });
+  const webOf = (...species: ReturnType<typeof speciesAt>[]) => ({ drawing: { width: 1200, height: 800 }, species }) as unknown as Parameters<typeof fitWebToScreen>[1];
+  const SCREEN = { width: 1000, height: 600 };
+  const largest = box.width / 2 + RING_MAX;
+
+  it('keeps the largest ring of a species near the top edge on the screen', () => {
+    const view = fitWebToScreen(SCREEN, webOf(speciesAt('hawk', 600, 40)));
+    expect(view.offsetY + (40 - largest) * view.scale).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps the largest ring of a species near the bottom edge on the screen', () => {
+    const view = fitWebToScreen(SCREEN, webOf(speciesAt('grass', 600, 780)));
+    expect(view.offsetY + (780 + largest) * view.scale).toBeLessThanOrEqual(SCREEN.height);
+  });
+
+  it('matches the plain fit when every ring already fits', () => {
+    expect(fitWebToScreen(SCREEN, webOf(speciesAt('rabbit', 600, 400)))).toEqual(viewOf(SCREEN, { width: 1200, height: 800 }));
+  });
+});
+
+describe('shortenedArrow', () => {
+  const [from, to] = [{ x: 0, y: 0 }, { x: 100, y: 0 }];
+  const RADIUS = 20;
+
+  it('runs from the edge of one disc to the edge of the other', () => {
+    expect(shortenedArrow(from, to, RADIUS, RADIUS)).toEqual({ from: { x: 20, y: 0 }, to: { x: 80, y: 0 } });
+  });
+
+  it('honours each disc size along any direction', () => {
+    const arrow = shortenedArrow({ x: 0, y: 0 }, { x: 30, y: 40 }, 5, 10);
+    if (!arrow) throw new Error('expected an arrow');
+    expect(arrow.from.x).toBeCloseTo(3);
+    expect(arrow.from.y).toBeCloseTo(4);
+    expect(arrow.to.x).toBeCloseTo(24);
+    expect(arrow.to.y).toBeCloseTo(32);
+  });
+
+  it('is nothing when the discs touch', () => {
+    expect(shortenedArrow(from, to, 60, 60)).toBeNull();
   });
 });

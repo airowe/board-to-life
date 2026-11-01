@@ -192,6 +192,10 @@ const boardFrom = (image: HTMLImageElement, scene: Scene, movedFixed: readonly s
 
 type Board = ReturnType<typeof boardFrom>;
 
+const LABEL_CHIP = 'rgba(255, 255, 255, 0.9)';
+const LABEL_CHIP_PAD = 12;
+const LABEL_CHIP_HEIGHT = 44;
+
 // Written labels ride along with the item they are attached to, such as "5 kg" on a block.
 const drawLabels = (ctx: CanvasRenderingContext2D, scene: Scene, bodies: Map<string, BodySnapshot>): void => {
   const start = new Map(scene.items.flatMap((item) => (isLink(item) || item.kind === 'ramp' ? [] : [[item.id, item] as const])));
@@ -204,6 +208,12 @@ const drawLabels = (ctx: CanvasRenderingContext2D, scene: Scene, bodies: Map<str
     const from = label.attachesTo ? start.get(label.attachesTo) : undefined;
     const now = label.attachesTo ? bodies.get(label.attachesTo) : undefined;
     const [x, y] = from && now ? [now.x + label.x - from.x, now.y + label.y - from.y] : [label.x, label.y];
+    const width = ctx.measureText(label.text).width + LABEL_CHIP_PAD * 2;
+    ctx.fillStyle = LABEL_CHIP;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - LABEL_CHIP_HEIGHT / 2, width, LABEL_CHIP_HEIGHT, LABEL_CHIP_HEIGHT / 2);
+    ctx.fill();
+    ctx.fillStyle = INK.blue;
     ctx.fillText(label.text, x, y);
   }
   ctx.restore();

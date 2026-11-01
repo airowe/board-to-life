@@ -175,6 +175,10 @@ export const stageView = (width: number, height: number): View => {
 
 // Rows at the top of the background that are stretched upward to fill spare height: always sky (or open water).
 const SKY_STRIP_ROWS = 4;
+// The picture's very top rows are a touch lighter than the sky under them, which would show as a seam.
+const SKY_STRIP_START = 12;
+// Drawn this far over the picture's top edge in stage px, so no hairline shows between them.
+const SKY_STRIP_OVERLAP = 1;
 // Spare height smaller than this (screen px) is rounding, not room to fill.
 const MIN_SKY_FILL_PX = 0.5;
 
@@ -201,7 +205,7 @@ const drawBackground = (ctx: CanvasRenderingContext2D, image: HTMLImageElement, 
     ctx.restore();
   }
   const sky = skyFill(view);
-  if (sky) ctx.drawImage(image, 0, 0, image.naturalWidth, SKY_STRIP_ROWS, sky.x, sky.y, sky.width, sky.height);
+  if (sky) ctx.drawImage(image, 0, SKY_STRIP_START, image.naturalWidth, SKY_STRIP_ROWS, sky.x, sky.y, sky.width, sky.height + SKY_STRIP_OVERLAP);
 };
 
 const drawIndividual = (

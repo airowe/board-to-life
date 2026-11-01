@@ -105,7 +105,8 @@ const zoneOf = (library: Library, species: Species): Zone => libraryEntryFor(lib
 // Plants and decomposers on the floor take root; a producer in open water (plankton) drifts like the swimmers.
 export const isRooted = (role: Role, zone: Zone): boolean => role !== 'consumer' && zone === 'floor';
 
-const sizeOf = (role: Role, zone: Zone): number => (role === 'producer' && zone !== 'water' ? PRODUCER_HEIGHT : ANIMAL_HEIGHT[zone]);
+// Rooted plants stand tall; a mat floating on the water or a bloom in it is the size of what lives around it.
+const sizeOf = (role: Role, zone: Zone): number => (isRooted(role, zone) || (role === 'producer' && zone === 'sky') ? PRODUCER_HEIGHT : ANIMAL_HEIGHT[zone]);
 
 const lineOf = (habitat: Habitat, zone: Zone): number => {
   if (zone === 'surface') return SURFACE_Y_BY_HABITAT[habitat] * STAGE.height;

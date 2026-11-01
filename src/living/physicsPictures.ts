@@ -21,6 +21,19 @@ const SHADOW_MIN_DEPTH = 3;
 const RIDING_TOLERANCE = 0.3;
 // In drawing units, twice the clean drawing's pivot triangle; the fulcrum's tip is the pivot point.
 export const FULCRUM_SIZE = { width: 56, height: 48 };
+// A pivot something hangs from is drawn as the beam of its frame, with no picture of its own.
+export const MOUNT = 'mount';
+const FRAME_THICKNESS = 18;
+const FRAME_MIN_HALF_SPAN = 170;
+const FRAME_SPAN_PER_ROPE = 0.8;
+const FRAME_MARGIN = 12;
+const SHELF_LEG_THICKNESS = 14;
+const SHELF_MIN_ASPECT = 2;
+const COIL_TURNS = 9;
+const COIL_RADIUS = 14;
+const COIL_LEAD = 0.06;
+const COIL_SAMPLES_PER_TURN = 16;
+const COIL_TILT = 0.45;
 export const PHYSICS_BACKGROUND = 'bg-tabletop';
 // Walls are tiled with bricks rather than stretched: one course this tall in drawing units (a domino is about 110).
 export const BRICK_COURSE_HEIGHT = 24;
@@ -73,6 +86,9 @@ const hangs = (item: Extract<SceneItem, { kind: 'ball' | 'block' }>, scene: Scen
   });
 };
 
+const linksOf = (id: string, scene: Scene) =>
+  scene.items.flatMap((link) => (isLink(link) && (link.from === id || link.to === id || (link.kind === 'rope' && link.over === id)) ? [link] : []));
+
 // Measured in the cart's own frame, so a passenger still counts on a cart drawn tilted on its ramp.
 const ridesCart = (rider: Extract<SceneItem, { kind: 'domino' }>, scene: Scene): boolean =>
   scene.items.some((cart) => {
@@ -102,7 +118,7 @@ export const physicsSubject = (item: SceneItem, scene: Scene): string | null => 
     case 'pulley':
       return 'pulley';
     case 'pivot':
-      return 'fulcrum';
+      return linksOf(item.id, scene).length > 0 ? MOUNT : 'fulcrum';
     case 'floor':
     case 'rope':
     case 'spring':
@@ -150,6 +166,48 @@ export const rampSupports = (ramp: Extract<SceneItem, { kind: 'ramp' }>, floorY:
     return [{ cx: x, cy: (y + floorY) / 2, width: length, height: ramp.thickness * PLANK_THICKNESS_FACTOR, angle: Math.PI / 2 }];
   };
   return [...legAt(high, low), ...legAt(low, high)];
+};
+
+// The wooden frame a pulley or a pendulum hangs from: a beam just above it on two posts reaching the table, set wide
+// enough that what hangs from it swings clear. A fulcrum on the table needs none.
+export const mountFrame = (item: Extract<SceneItem, { kind: 'pivot' | 'pulley' }>, scene: Scene, floorY: number): SpriteBox[] => {
+  const links = linksOf(item.id, scene);
+  if (item.kind === 'pivot' && links.length === 0) return [];
+  const beamBottom = item.y - (item.kind === 'pulley' ? item.radius : 0);
+  const reach = Math.max(0, ...links.map((link) => link.length * FRAME_SPAN_PER_ROPE));
+  const half = Math.max(FRAME_MIN_HALF_SPAN, reach);
+  const [left, right] = [Math.max(FRAME_MARGIN, item.x - half), Math.min(scene.drawing.width - FRAME_MARGIN, item.x + half)];
+  const postLength = floorY - beamBottom;
+  const post = (x: number): SpriteBox => ({ cx: x, cy: (beamBottom + floorY) / 2, width: postLength, height: FRAME_THICKNESS, angle: Math.PI / 2 });
+  return [
+    { cx: (left + right) / 2, cy: beamBottom - FRAME_THICKNESS / 2, width: right - left, height: FRAME_THICKNESS, angle: 0 },
+    post(left + FRAME_THICKNESS / 2),
+    post(right - FRAME_THICKNESS / 2),
+  ];
+};
+
+// A brick shelf raised off the table stands on legs at both ends, as a ramp does. A tall wall stands by itself.
+export const shelfSupports = (wall: Extract<SceneItem, { kind: 'wall' }>, floorY: number): SpriteBox[] => {
+  if (wall.width < wall.height * SHELF_MIN_ASPECT) return [];
+  const bottom = wall.y + wall.height / 2;
+  const [x1, x2] = [wall.x - wall.width / 2, wall.x + wall.width / 2];
+  return rampSupports({ id: wall.id, kind: 'ramp', x1, y1: bottom, x2, y2: bottom, thickness: SHELF_LEG_THICKNESS, confidence: wall.confidence }, floorY);
+};
+
+// A coil of wire between two points, seen slightly from the side so each turn reads as a loop rather than a zigzag.
+export const springCoil = (from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number }[] => {
+  const [dx, dy] = [to.x - from.x, to.y - from.y];
+  const length = Math.hypot(dx, dy) || 1;
+  const [ux, uy] = [dx / length, dy / length];
+  const samples = COIL_TURNS * COIL_SAMPLES_PER_TURN;
+  const coil = Array.from({ length: samples + 1 }, (_, index) => {
+    const t = index / samples;
+    const turn = 2 * Math.PI * COIL_TURNS * t;
+    const along = length * (COIL_LEAD + (1 - 2 * COIL_LEAD) * t) + COIL_RADIUS * COIL_TILT * Math.cos(turn);
+    const across = COIL_RADIUS * Math.sin(turn);
+    return { x: from.x + ux * along - uy * across, y: from.y + uy * along + ux * across };
+  });
+  return [from, ...coil, to];
 };
 
 export type ContactShadow = { cx: number; cy: number; rx: number; ry: number; alpha: number };
