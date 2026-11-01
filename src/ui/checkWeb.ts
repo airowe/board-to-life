@@ -5,6 +5,7 @@ import type { Eats, Species, Web, WebEvent } from '../ecosystem/schema';
 import type { ApprovedEcosystemLesson, ApprovedLesson, Draft, EcosystemDraft, Session } from '../session/store';
 import { linkHighlights, LOW_CONFIDENCE, percent } from './check';
 import { shortenedArrow } from '../ecosystem/chart';
+import { checkLayout, fittedFrame } from './checkLayout';
 import { h, s } from './dom';
 import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsStatus } from './questionCards';
 
@@ -71,6 +72,8 @@ const READING_DISC = 72;
 const READING_ARROW_GAP = 16;
 const READING_MARGIN = 130;
 const READING_NAME_BELOW = 42;
+
+const readingSize = ({ drawing }: Web): { width: number; height: number } => ({ width: drawing.width + 2 * READING_MARGIN, height: drawing.height + 2 * READING_MARGIN });
 
 // What was read, drawn cleanly on its own: read positions are only approximate, so over the photo they looked doubled.
 const reading = (web: Web, backward: Set<string>, pictureUrl: (name: string) => string | null): SVGElement => {
@@ -185,7 +188,8 @@ export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: st
   const refreshApproval = (): void => {
     const approved = ecosystemOnly(session.presentable());
     const ready = questionsStatus.kind === 'ready';
-    draftSlot.replaceChildren(...(ready ? lessonQuestions(ecosystemOnly(session.draft())) : [questionsPlaceholder(questionsStatus) ?? '']));
+    // Once approved, its card replaces the draft's rather than repeating it.
+    draftSlot.replaceChildren(...(approved ? [] : ready ? lessonQuestions(ecosystemOnly(session.draft())) : [questionsPlaceholder(questionsStatus) ?? '']));
     approvedSlot.replaceChildren(...lessonQuestions(approved));
     presentButton.disabled = approved === null;
     approveButton.disabled = approved !== null || !ready;
@@ -199,18 +203,14 @@ export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: st
   const warnings = warningsFor(web);
 
   root.replaceChildren(
-    h(
-      'section',
-      { class: 'check' },
-      h(
+    checkLayout({
+      board: h(
         'div',
         { class: 'reading-pair' },
-        h('figure', {}, h('figcaption', {}, 'Your board'), h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }))),
-        h('figure', { class: 'reading' }, h('figcaption', {}, 'What was read'), h('div', { class: 'photo-frame' }, reading(web, backward, pictureUrl))),
+        h('figure', {}, h('figcaption', {}, 'Your board'), fittedFrame(web.drawing, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }))),
+        h('figure', { class: 'reading' }, h('figcaption', {}, 'What was read'), fittedFrame(readingSize(web), reading(web, backward, pictureUrl))),
       ),
-      h(
-        'aside',
-        { class: 'panel' },
+      facts: [
         h('h1', {}, 'Check the reading'),
         h('p', { class: 'note' }, note),
         warnings.length > 0 ? h('ul', { class: 'warnings' }, ...warnings) : null,
@@ -221,13 +221,10 @@ export const renderWebCheck = (root: HTMLElement, session: Session, photoUrl: st
         web.unknownMarks.length > 0 ? h('ul', { class: 'items' }, ...web.unknownMarks.map((mark) => row(mark.id, mark.note, mark.confidence, 'unknown'))) : null,
         eventSelect(web, handlers.onEvent),
         h('p', { class: 'note' }, MODEL_NOTE),
-        h('h2', {}, 'Predict questions'),
-        draftSlot,
-        approvedSlot,
-        h('div', { class: 'panel-actions' }, approveButton, presentButton),
-        h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'),
-      ),
-    ),
+      ],
+      questions: [h('h2', {}, 'Predict questions'), draftSlot, approvedSlot],
+      actions: [h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'), approveButton, presentButton],
+    }),
   );
   linkHighlights(root);
   refreshApproval();

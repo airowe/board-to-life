@@ -2,6 +2,7 @@ import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { linkPoints } from '../scene/linkPoints';
 import type { ApprovedLesson, ApprovedPhysicsLesson, Draft, PhysicsDraft, Session } from '../session/store';
+import { checkLayout, fittedFrame } from './checkLayout';
 import { h, s } from './dom';
 import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsStatus } from './questionCards';
 
@@ -131,7 +132,8 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
   const refreshApproval = (): void => {
     const approved = physicsOnly(session.presentable());
     const ready = questionsStatus.kind === 'ready';
-    draftSlot.replaceChildren(...(ready ? lessonQuestions(physicsOnly(session.draft())) : [questionsPlaceholder(questionsStatus) ?? '']));
+    // Once approved, its card replaces the draft's rather than repeating it.
+    draftSlot.replaceChildren(...(approved ? [] : ready ? lessonQuestions(physicsOnly(session.draft())) : [questionsPlaceholder(questionsStatus) ?? '']));
     approvedSlot.replaceChildren(...lessonQuestions(approved));
     presentButton.disabled = approved === null;
     approveButton.disabled = approved !== null || !ready;
@@ -151,13 +153,9 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
   ].filter((entry): entry is HTMLLIElement => entry instanceof HTMLLIElement);
 
   root.replaceChildren(
-    h(
-      'section',
-      { class: 'check' },
-      h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), overlay(scene)),
-      h(
-        'aside',
-        { class: 'panel' },
+    checkLayout({
+      board: fittedFrame(scene.drawing, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), overlay(scene)),
+      facts: [
         h('h1', {}, 'Check the reading'),
         h('p', { class: 'note' }, note),
         warnings.length > 0 ? h('ul', { class: 'warnings' }, ...warnings) : null,
@@ -167,13 +165,10 @@ export const renderCheck = (root: HTMLElement, session: Session, photoUrl: strin
           ...scene.items.map((item) => itemRow(item.id, item.kind, item.confidence)),
           ...scene.unknownMarks.map((mark) => itemRow(mark.id, 'unknown', mark.confidence, 'unknown')),
         ),
-        h('h2', {}, 'Predict questions'),
-        draftSlot,
-        approvedSlot,
-        h('div', { class: 'panel-actions' }, approveButton, presentButton),
-        h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'),
-      ),
-    ),
+      ],
+      questions: [h('h2', {}, 'Predict questions'), draftSlot, approvedSlot],
+      actions: [h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'), approveButton, presentButton],
+    }),
   );
   linkHighlights(root);
   refreshApproval();
