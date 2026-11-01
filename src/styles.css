@@ -617,12 +617,6 @@ button:disabled {
 
 /* Food webs: the board with its rings, and the strip chart below it (beside it on a wide screen). */
 .web-present {
-  --species-1: var(--green);
-  --species-2: var(--marker);
-  --species-3: var(--amber);
-  --species-4: var(--red);
-  --species-5: #7b3fa0;
-  --species-6: #0f7c8a;
   /* The caption and controls rows have fixed heights, sized for the longest caption and for the most buttons the width
      wraps to (four predictions and Reveal), so the stage keeps its size from phase to phase in every view. A caption
      longer than its row scrolls inside it. */
@@ -786,31 +780,6 @@ body.board-mode .web-present {
   font-weight: 700;
 }
 
-
-.web-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.95rem;
-}
-
-.web-legend li::before {
-  content: '';
-  display: inline-block;
-  width: 14px;
-  height: 4px;
-  margin-right: 6px;
-  vertical-align: middle;
-  background: var(--swatch);
-}
-
-.web-legend .removed {
-  text-decoration: line-through;
-  color: var(--ink-soft);
-}
 
 @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
   .web-body {
@@ -1757,4 +1726,51 @@ body.board-mode .hero-pair:hover .hero-scene {
 
 body.board-mode .present:not(.web-present, .figure-present) .caption {
   top: 1rem;
+}
+
+/* Food web check: the board and what was read, side by side rather than one over the other. */
+
+.reading-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.reading-pair figure {
+  margin: 0;
+}
+
+.reading-pair figcaption {
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.reading .overlay {
+  position: static;
+  display: block;
+  height: auto;
+}
+
+.reading .overlay-item circle {
+  fill: #fff;
+  stroke: var(--marker);
+  stroke-width: 5;
+}
+
+.reading .overlay-item .reading-name {
+  fill: var(--ink);
+  font-size: 40px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 12px;
+}
+
+@media (max-width: 1100px) {
+  .reading-pair {
+    grid-template-columns: 1fr;
+  }
 }

@@ -208,10 +208,10 @@ The "Stub mode" menu in the header makes the stubs misbehave so the error screen
 
 ## Living scenes
 
-Food webs open on a **Place** view: a habitat background (kelp forest, grassland, woodland or pond) with each
+Food webs open on a **Place** view, where tapping an animal removes its species and dragging one changes how many there are at the start: a habitat background (kelp forest, grassland, woodland or pond) with each
 species drawn as illustrated pictures. Crowds are sized by the population model, and animals enter, leave and idle.
 Short labels pin to a species as its change shows ("Rabbits multiplying.", "Grass thinning out."). **Chart** is the
-board's web with each species' picture on a ring sized by its population, and editing happens there. **Time** is the population chart. The same playback drives all
+board's web with each species' picture on a ring sized by its population, and editing happens there. **Time** plots each species as a percentage of its own starting number, so every line begins together at 100% and shows what rose, fell or died out. Colours follow the food chain: plants green, what eats them amber, predators red. The food web check screen shows the board and the reading side by side, since read positions are only approximate. The same playback drives all
 three.
 
 Physics boards open with library pictures on a classroom table by default, including boards made from a photo. The

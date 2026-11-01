@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { STAGE } from '../living/layout';
-import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha, skyFill, stageView } from './placeView';
+import type { IndividualPose } from '../living/crowd';
+import { STAGE, type Group } from '../living/layout';
+import { CROSSFADE_SECONDS, LABEL_FADE_SECONDS, MAX_FADE_STEP_SECONDS, crossfadeBlend, labelAlpha, pickPlaceSpecies, skyFill, stageView } from './placeView';
 
 describe('crossfadeBlend', () => {
   const SINCE = 10;
@@ -92,5 +93,45 @@ describe('skyFill', () => {
     ['16:9', 16 / 9],
   ])('on a %s canvas has nothing to fill', (_, aspect) => {
     expect(skyFill(stageView(HEIGHT * aspect, HEIGHT))).toBeNull();
+  });
+});
+
+describe('pickPlaceSpecies', () => {
+  const SIZE = 100;
+  const group = (speciesId: string, zone: Group['zone'] = 'floor'): Group => ({ speciesId, zone, role: 'consumer', size: SIZE, centreX: 0, baseY: 0, depth: 0 }) as unknown as Group;
+  const pose = (x: number, y: number, alpha = 1): IndividualPose => ({ x, y, scale: 1, alpha, facing: 1, moving: false, rotation: 0 });
+  const groups = [group('fox'), group('hawk', 'sky')];
+  const poses = new Map([
+    ['fox', [pose(200, 500)]],
+    ['hawk', [pose(600, 200)]],
+  ]);
+  const NO_REACH = 0;
+
+  it('finds the animal under the point', () => {
+    expect(pickPlaceSpecies(groups, poses, 'grassland', { x: 200, y: 450 }, NO_REACH)).toBe('fox');
+    expect(pickPlaceSpecies(groups, poses, 'grassland', { x: 600, y: 200 }, NO_REACH)).toBe('hawk');
+  });
+
+  it('finds nothing on empty ground', () => {
+    expect(pickPlaceSpecies(groups, poses, 'grassland', { x: 900, y: 700 }, NO_REACH)).toBeNull();
+  });
+
+  it('reaches a little past the picture for a fingertip', () => {
+    const justOutside = { x: 200 + SIZE, y: 450 };
+    expect(pickPlaceSpecies(groups, poses, 'grassland', justOutside, NO_REACH)).toBeNull();
+    expect(pickPlaceSpecies(groups, poses, 'grassland', justOutside, SIZE)).toBe('fox');
+  });
+
+  it('ignores an animal that has faded out', () => {
+    const faded = new Map([['fox', [pose(200, 500, 0)]]]);
+    expect(pickPlaceSpecies(groups, faded, 'grassland', { x: 200, y: 450 }, NO_REACH)).toBeNull();
+  });
+
+  it('picks the nearest of two overlapping animals', () => {
+    const close = new Map([
+      ['fox', [pose(200, 500)]],
+      ['hawk', [pose(240, 500)]],
+    ]);
+    expect(pickPlaceSpecies(groups.map((each) => ({ ...each, zone: 'floor' as const })), close, 'grassland', { x: 235, y: 450 }, NO_REACH)).toBe('hawk');
   });
 });
