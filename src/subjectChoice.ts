@@ -1,14 +1,16 @@
 import { parseSubject, type Subject } from './subjects';
 
 export const SUBJECT_STORAGE_KEY = 'board-to-life.subject';
+const FIRST_VISIT_SUBJECT: Subject = 'ecosystem';
 
 type SubjectStorage = { getItem: (key: string) => string | null; setItem: (key: string, value: string) => void };
 
 export const loadSubject = (storage: SubjectStorage): Subject => {
   try {
-    return parseSubject(storage.getItem(SUBJECT_STORAGE_KEY) ?? undefined) ?? 'physics';
+    const stored = storage.getItem(SUBJECT_STORAGE_KEY);
+    return (stored === null ? null : parseSubject(stored)) ?? FIRST_VISIT_SUBJECT;
   } catch {
-    return 'physics';
+    return FIRST_VISIT_SUBJECT;
   }
 };
 

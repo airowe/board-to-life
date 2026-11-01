@@ -5,6 +5,20 @@ import { FLOOR_Y } from './layout';
 
 // Tunable by eye. A plank picture drawn exactly as thick as a thin ramp reads as a line.
 export const PLANK_THICKNESS_FACTOR = 1.5;
+// Tunable by eye. A domino's body is thinner than a person, so the figure riding a cart is drawn wider than its body.
+export const FIGURE_WIDTH_FACTOR = 2.4;
+// A ramp's leg stands this fraction of the way in from its end.
+export const LEG_INSET = 0.06;
+// In drawing units: an end this close to the table rests on it and needs no leg.
+const LEG_MIN_LENGTH = 24;
+// In drawing units: how far above the table a thing still casts a shadow on it.
+export const CONTACT_SHADOW_REACH = 260;
+const SHADOW_DARKEST = 0.34;
+const SHADOW_SPREAD = 0.6;
+const SHADOW_FLATNESS = 0.14;
+const SHADOW_MIN_DEPTH = 3;
+// How far off a cart's top, as a fraction of the rider's height, a domino still counts as riding it.
+const RIDING_TOLERANCE = 0.3;
 // In drawing units, twice the clean drawing's pivot triangle; the fulcrum's tip is the pivot point.
 export const FULCRUM_SIZE = { width: 56, height: 48 };
 export const PHYSICS_BACKGROUND = 'bg-tabletop';
@@ -27,15 +41,16 @@ type Size = { width: number; height: number };
 const STRETCH: PictureFit = { mode: 'stretch', anchor: 'centre' };
 const CENTRED: PictureFit = { mode: 'contain', anchor: 'centre' };
 // The plank is stretched along its ramp or lever by design, and dominoes and blocks fill their whole body, since
-// the class watches whether that body tips. Every other picture keeps its own shape: a weight hangs from its hook,
-// a fulcrum's tip is the pivot, and a cart stands on its wheels.
+// the class watches whether that body tips, and a cart's body fills its chassis with its wheels drawn apart. Every other
+// picture keeps its own shape: a weight hangs from its hook, a fulcrum's tip is the pivot, and a figure stands on its feet.
 const FITS: Record<string, PictureFit> = {
   plank: STRETCH,
   domino: STRETCH,
   'wooden-block': STRETCH,
   weight: { mode: 'contain', anchor: 'top' },
   fulcrum: { mode: 'contain', anchor: 'top' },
-  cart: { mode: 'contain', anchor: 'bottom' },
+  cart: STRETCH,
+  'peg-figure': { mode: 'contain', anchor: 'bottom' },
 };
 
 const SKIN_ORDER: readonly PhysicsSkin[] = ['pictures', 'photo', 'clean'];
@@ -58,6 +73,17 @@ const hangs = (item: Extract<SceneItem, { kind: 'ball' | 'block' }>, scene: Scen
   });
 };
 
+// Measured in the cart's own frame, so a passenger still counts on a cart drawn tilted on its ramp.
+const ridesCart = (rider: Extract<SceneItem, { kind: 'domino' }>, scene: Scene): boolean =>
+  scene.items.some((cart) => {
+    if (cart.kind !== 'cart') return false;
+    const [dx, dy] = [rider.x - cart.x, rider.y - cart.y];
+    const [cos, sin] = [Math.cos(cart.angle), Math.sin(cart.angle)];
+    const [along, above] = [dx * cos + dy * sin, dx * sin - dy * cos];
+    const standsOn = cart.height / 2 + rider.height / 2;
+    return Math.abs(along) <= cart.width / 2 && Math.abs(above - standsOn) <= rider.height * RIDING_TOLERANCE;
+  });
+
 export const physicsSubject = (item: SceneItem, scene: Scene): string | null => {
   switch (item.kind) {
     case 'ball':
@@ -65,7 +91,7 @@ export const physicsSubject = (item: SceneItem, scene: Scene): string | null => 
     case 'block':
       return hangs(item, scene) ? 'weight' : 'wooden-block';
     case 'domino':
-      return 'domino';
+      return ridesCart(item, scene) ? 'peg-figure' : 'domino';
     case 'ramp':
     case 'lever':
       return 'plank';
@@ -108,20 +134,40 @@ export const spriteBox = (item: SceneItem, body: BodySnapshot | undefined): Spri
   }
   if (!body) return null;
   if (item.kind === 'ball') return { cx: body.x, cy: body.y, width: item.radius * 2, height: item.radius * 2, angle: body.angle };
-  if (item.kind === 'cart') {
-    // The picture includes the wheels, which hang a wheel radius below the body's bottom edge.
-    const drop = item.wheelRadius / 2;
-    return {
-      cx: body.x - drop * Math.sin(body.angle),
-      cy: body.y + drop * Math.cos(body.angle),
-      width: item.width,
-      height: item.height + item.wheelRadius,
-      angle: body.angle,
-    };
-  }
   const height = item.kind === 'lever' ? item.height * PLANK_THICKNESS_FACTOR : item.height;
   return { cx: body.x, cy: body.y, width: item.width, height, angle: body.angle };
 };
+
+export const figureBox = (box: SpriteBox): SpriteBox => ({ ...box, width: box.width * FIGURE_WIDTH_FACTOR });
+
+// The planks a ramp stands on, reaching down to the table: the high end always, the low end when it is raised too.
+export const rampSupports = (ramp: Extract<SceneItem, { kind: 'ramp' }>, floorY: number): SpriteBox[] => {
+  const [high, low] = ramp.y1 <= ramp.y2 ? [{ x: ramp.x1, y: ramp.y1 }, { x: ramp.x2, y: ramp.y2 }] : [{ x: ramp.x2, y: ramp.y2 }, { x: ramp.x1, y: ramp.y1 }];
+  const legAt = (end: { x: number; y: number }, other: { x: number; y: number }): SpriteBox[] => {
+    if (floorY - end.y < LEG_MIN_LENGTH) return [];
+    const [x, y] = [end.x + LEG_INSET * (other.x - end.x), end.y + LEG_INSET * (other.y - end.y)];
+    const length = floorY - y;
+    return [{ cx: x, cy: (y + floorY) / 2, width: length, height: ramp.thickness * PLANK_THICKNESS_FACTOR, angle: Math.PI / 2 }];
+  };
+  return [...legAt(high, low), ...legAt(low, high)];
+};
+
+export type ContactShadow = { cx: number; cy: number; rx: number; ry: number; alpha: number };
+
+// The soft shadow a thing casts straight down on the table: tight and dark on it, wider and fainter as it rises.
+export const contactShadow = (box: SpriteBox, floorY: number): ContactShadow | null => {
+  const [cos, sin] = [Math.abs(Math.cos(box.angle)), Math.abs(Math.sin(box.angle))];
+  const halfAcross = (box.width * cos + box.height * sin) / 2;
+  const halfDown = (box.width * sin + box.height * cos) / 2;
+  const gap = Math.max(0, floorY - (box.cy + halfDown));
+  if (gap > CONTACT_SHADOW_REACH) return null;
+  const height = gap / CONTACT_SHADOW_REACH;
+  const rx = halfAcross * (1 + SHADOW_SPREAD * height);
+  return { cx: box.cx, cy: floorY, rx, ry: Math.max(SHADOW_MIN_DEPTH, rx * SHADOW_FLATNESS), alpha: SHADOW_DARKEST * (1 - height) };
+};
+
+// How far a cart's wheels have turned, in radians, rolling without slipping from where the cart was drawn.
+export const wheelTurn = (cart: Extract<SceneItem, { kind: 'cart' }>, body: BodySnapshot): number => (body.x - cart.x) / cart.wheelRadius;
 
 export const pictureFit = (subject: string): PictureFit => FITS[subject] ?? CENTRED;
 

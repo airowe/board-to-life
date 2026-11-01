@@ -6,16 +6,22 @@ import {
   backgroundPlacement,
   boardFloorY,
   brickTileSize,
+  contactShadow,
+  figureBox,
   needsFloorBand,
   physicsSubject,
   PHYSICS_BACKGROUND,
   pictureFit,
   pictureRect,
+  rampSupports,
   spriteBox,
+  wheelTurn,
+  type ContactShadow,
   type PhysicsSkin,
   type SpriteBox,
 } from '../living/physicsPictures';
 import type { View } from '../present/view';
+import { cartWheels } from '../scene/cart';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { createPlaceImages, type PlaceImages } from './placeView';
 
@@ -100,6 +106,29 @@ const drawPicture = (ctx: CanvasRenderingContext2D, pictures: PhysicsPictures, s
   ctx.restore();
 };
 
+const drawShadow = (ctx: CanvasRenderingContext2D, { cx, cy, rx, ry, alpha }: ContactShadow): void => {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(rx, ry);
+  const fade = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  fade.addColorStop(0, `rgba(40, 24, 10, ${alpha})`);
+  fade.addColorStop(1, 'rgba(40, 24, 10, 0)');
+  ctx.fillStyle = fade;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+};
+
+const drawWheels = (ctx: CanvasRenderingContext2D, pictures: PhysicsPictures, cart: Extract<SceneItem, { kind: 'cart' }>, body: BodySnapshot | undefined): void => {
+  const image = pictureOf(pictures, 'cart-wheel');
+  if (!image || !body) return;
+  const size = cart.wheelRadius * 2;
+  for (const wheel of cartWheels({ ...cart, x: body.x, y: body.y, angle: body.angle })) {
+    drawPicture(ctx, pictures, 'cart-wheel', image, { cx: wheel.x, cy: wheel.y, width: size, height: size, angle: wheelTurn(cart, body) });
+  }
+};
+
 const drawFloorBand = (ctx: CanvasRenderingContext2D, screen: { width: number; height: number }, floorOnCanvas: number): void => {
   ctx.save();
   ctx.fillStyle = TABLE_WOOD;
@@ -133,7 +162,15 @@ export const drawPictureItems = (
   backdrop: boolean,
   drawPlain: (item: SceneItem, ink?: string) => void,
 ): void => {
-  for (const item of framedFor(pictures, scene).ordered) {
+  const { ordered, floorY } = framedFor(pictures, scene);
+  const plank = pictureOf(pictures, 'plank');
+  if (plank) for (const item of ordered) if (item.kind === 'ramp') for (const leg of rampSupports(item, floorY)) drawPicture(ctx, pictures, 'plank', plank, leg);
+  for (const item of ordered) {
+    const box = item.kind === 'ramp' || item.kind === 'pulley' || item.kind === 'floor' ? null : spriteBox(item, bodies.get(item.id));
+    const shadow = box ? contactShadow(box, floorY) : null;
+    if (shadow) drawShadow(ctx, shadow);
+  }
+  for (const item of ordered) {
     if (item.kind === 'rope' || item.kind === 'spring') {
       drawPlain(item, item.kind === 'rope' ? ROPE_INK : SPRING_INK);
       continue;
@@ -143,6 +180,9 @@ export const drawPictureItems = (
     const image = subject ? pictureOf(pictures, subject) : null;
     const box = spriteBox(item, bodies.get(item.id));
     if (!subject || !image || !box) drawPlain(item);
-    else drawPicture(ctx, pictures, subject, image, box);
+    else {
+      if (item.kind === 'cart') drawWheels(ctx, pictures, item, bodies.get(item.id));
+      drawPicture(ctx, pictures, subject, image, subject === 'peg-figure' ? figureBox(box) : box);
+    }
   }
 };

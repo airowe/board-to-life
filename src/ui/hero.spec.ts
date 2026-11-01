@@ -9,4 +9,12 @@ describe('HEROES', () => {
     expect(SAMPLE_PICKS[subject]).toContainEqual({ url: hero.board, title: hero.title });
     expect(hero.scene).toBe(`/hero/${subject}.webp`);
   });
+
+  it.each([
+    ['physics', 'The cart stops; the passenger flies'],
+    ['ecosystem', 'Kelp forest'],
+    ['geometry', 'Angles in a triangle'],
+  ] as const)('shows %s with the %s sample', (subject, title) => {
+    expect(HEROES[subject].title).toBe(title);
+  });
 });

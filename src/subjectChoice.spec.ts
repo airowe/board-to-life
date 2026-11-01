@@ -22,18 +22,19 @@ describe('subject choice', () => {
   it.each([
     ['ecosystem', 'ecosystem'],
     ['physics', 'physics'],
-    ['chemistry', 'physics'],
-    ['', 'physics'],
+    ['geometry', 'geometry'],
+    ['chemistry', 'ecosystem'],
+    ['', 'ecosystem'],
   ])('loads stored %j as %s', (stored, expected) => {
     expect(loadSubject(memoryStorage({ [SUBJECT_STORAGE_KEY]: stored }))).toBe(expected);
   });
 
-  it('defaults to physics when nothing is stored', () => {
-    expect(loadSubject(memoryStorage())).toBe('physics');
+  it('opens new visitors on the ecosystem subject', () => {
+    expect(loadSubject(memoryStorage())).toBe('ecosystem');
   });
 
-  it('defaults to physics when storage throws', () => {
-    expect(loadSubject(throwingStorage)).toBe('physics');
+  it('opens on the ecosystem subject when storage throws', () => {
+    expect(loadSubject(throwingStorage)).toBe('ecosystem');
   });
 
   it('round-trips a saved subject', () => {
