@@ -6,6 +6,7 @@ import { presenterKeyAction } from '../present/keys';
 import { createRedrawGate } from '../present/redraw';
 import type { Trail } from '../present/trails';
 import { backingSize, TOUCH_REACH_PX, toDrawing, viewOf } from '../present/view';
+import { itemName } from '../scene/itemName';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { cartWheels } from '../scene/cart';
 import { changedFixedItems, gripPoint, moveGrip, pickGrip, rampHandles, type Grip } from '../scene/edit';
@@ -437,7 +438,7 @@ export const renderPresent = (
       case 'done':
         caption.replaceChildren(
           ...phase.results.flatMap(({ question, happened }) => [
-            h('p', { class: 'question-text' }, describeResult(happened, question.observe.item)),
+            h('p', { class: 'question-text' }, describeResult(happened, itemName(lesson.scene, question.observe.item))),
             h('p', { class: 'explanation-text' }, question.explanation),
           ]),
         );
