@@ -7,6 +7,11 @@ export const STYLE =
   'no outlines, no fine texture, no text, no labels';
 
 const OBJECT = `isolated on a plain pure white background, centered, whole subject visible with margin around it, no shadow, no ground, ${STYLE}`;
+// Physics props are real objects on a real table, so they keep their materials rather than the animals' soft look.
+const REAL =
+  'photorealistic studio product photograph of a real physical object, true materials and fine surface detail, ' +
+  'soft even studio light, no text, no labels';
+const REAL_OBJECT = `isolated on a plain pure white background, centered, whole subject visible with margin around it, no shadow, no ground, ${REAL}`;
 const SIDE_RIGHT = 'seen from the side, facing right';
 
 // Where each subject lives and the band of the scene it keeps to. A subject has one habitat
@@ -55,6 +60,11 @@ const still = (id, aliases, look, group = 'organism', size = '1024x1024', holes 
   ...tagsFor(id, group),
   size,
   prompt: `${look}, ${OBJECT}`,
+});
+
+const prop = (id, aliases, look, size = '1024x1024', holes = false) => ({
+  ...still(id, aliases, look, 'prop', size, holes),
+  prompt: `${look}, ${REAL_OBJECT}`,
 });
 
 const backdrop = (id, aliases, look) => ({
@@ -121,17 +131,19 @@ export const SUBJECTS = [
   still('sun', ['sunlight', 'the sun', 'energy'], 'A warm glowing yellow-orange sun with soft rays'),
 
   // Physics props
-  still('steel-ball', ['ball', 'marble', 'metal ball'], 'A single shiny steel ball', 'prop'),
-  still('rubber-ball', ['bouncy ball'], 'A single glossy red rubber ball', 'prop'),
-  still('wooden-block', ['block', 'box', 'crate', 'brick'], 'A single plain solid wooden block, a cube with rounded edges, seen from the front', 'prop'),
-  still('domino', ['dominoes', 'dominos'], 'A single plain tall thin cream-coloured domino standing upright, seen from the front, completely blank with no dots and no markings', 'prop'),
-  still('plank', ['ramp', 'board', 'lever', 'seesaw'], 'A single thick long flat wooden plank lying horizontally, seen from the side, clearly thick and solid', 'prop', '1536x1024'),
-  still('brick-wall', ['wall'], 'A single short sturdy wall of flat rectangular red bricks with thin grey mortar lines, seen straight from the front, flat face, no perspective', 'prop'),
-  still('cart', ['carts', 'trolley', 'car'], 'A single low physics lab dynamics cart: a flat red rectangular body sitting on four small black wheels, no handle, nothing on top, seen exactly from the side', 'prop', '1536x1024'),
-  still('pulley', ['pulley wheel'], 'A single metal pulley wheel with a grooved rim and a small mounting bracket, seen straight from the front', 'prop', '1024x1024', true),
-  still('weight', ['mass', 'masses', 'kilogram', 'weight'], 'A single dark iron lab mass weight with a hook on top, seen from the front', 'prop'),
-  still('fulcrum', ['pivot', 'wedge'], 'A single solid wooden fulcrum shaped like an equal-sided triangle with its point at the top, standing on its flat base, seen exactly from the side', 'prop'),
-  still('pendulum-bob', ['bob', 'pendulum'], 'A single shiny brass pendulum bob, a round weight with a small loop on top', 'prop'),
+  prop('steel-ball', ['ball', 'marble', 'metal ball'], 'A single polished chrome steel ball bearing with realistic reflections'),
+  prop('rubber-ball', ['bouncy ball'], 'A single glossy red rubber ball'),
+  prop('wooden-block', ['block', 'box', 'crate', 'brick'], 'A single solid oak cube with visible wood grain, one square face seen straight on, flat, no perspective'),
+  prop('domino', ['dominoes', 'dominos'], 'A single tall thin deep blue lacquered wooden domino standing upright, one flat rectangular face seen straight on, no perspective, no dots, no markings'),
+  prop('plank', ['ramp', 'board', 'lever', 'seesaw'], 'A single long straight pine plank with visible wood grain, seen exactly side-on and perfectly horizontal, a flat rectangle with no perspective', '1536x1024'),
+  prop('brick-wall', ['wall'], 'A flat section of real red clay brick wall, exactly five courses of bricks with grey mortar lines, seen straight from the front, no perspective'),
+  prop('cart', ['carts', 'trolley', 'car'], 'The body of a physics lab dynamics cart: a flat red anodised aluminium chassis with small bolts, no wheels at all, nothing on top, seen exactly from the side, a flat rectangle with no perspective', '1536x1024'),
+  prop('cart-wheel', ['wheel'], 'A single small black rubber wheel with a silver spoked metal hub, seen straight on, perfectly circular'),
+  prop('peg-figure', ['passenger', 'rider'], 'A single wooden peg doll: a tall narrow turned-wood figure of a person with a round head and a simple painted face and painted blue shirt, standing upright, seen from the front'),
+  prop('pulley', ['pulley wheel'], 'A single machined steel pulley wheel with a grooved rim and a small mounting bracket, seen straight from the front', '1024x1024', true),
+  prop('weight', ['mass', 'masses', 'kilogram', 'weight'], 'A single dark cast iron laboratory hooked mass with a hook on top, seen from the front'),
+  prop('fulcrum', ['pivot', 'wedge'], 'A single solid filled block of oak cut into an equal-sided triangle with its point at the top, one solid piece of wood with no hole and no opening, standing on its flat base, seen exactly from the side, no perspective'),
+  prop('pendulum-bob', ['bob', 'pendulum'], 'A single polished brass pendulum bob, a round weight with a small loop on top'),
 
   // Backgrounds
   backdrop('bg-kelp-forest', ['ocean', 'sea', 'kelp forest', 'marine'], 'An empty underwater scene: sunlit blue water with light rays from the surface along the top edge, a flat sandy sea floor along the bottom fifth, no plants, no rocks'),
@@ -139,6 +151,12 @@ export const SUBJECTS = [
   backdrop('bg-woodland', ['forest', 'woodland', 'woods'], 'An empty woodland clearing: a flat mossy forest floor along the bottom fifth, tree trunks only at the far left and right edges, soft dappled light'),
   backdrop('bg-pond', ['pond', 'lake', 'wetland', 'freshwater'], 'An empty pond cut-away view: the top third shows sky and a grassy bank, the middle shows clear green-blue pond water seen through the side, a muddy pond bottom along the bottom fifth'),
   backdrop('bg-desert', ['desert'], 'An empty desert: flat sandy ground along the bottom fifth, distant red rock mesas, a clear warm sky'),
-  backdrop('bg-tabletop', ['table', 'tabletop', 'room', 'physics'], 'An empty tabletop: a flat warm wooden table surface along the bottom fifth, a softly lit plain pale wall behind'),
+  {
+    ...backdrop('bg-tabletop', ['table', 'tabletop', 'room', 'physics'], ''),
+    prompt:
+      'Photograph of an empty classroom seen straight on: a flat warm oak table with visible grain filling exactly the bottom seventh of the picture, ' +
+      'and behind it, softly out of focus, a clean green chalkboard in a wooden frame on a pale painted wall, soft daylight from the left, ' +
+      'wide open empty space in the middle, nothing on the table, no writing, no people, no text, no labels',
+  },
   backdrop('bg-lab', ['lab', 'laboratory', 'classroom'], 'An empty science lab bench: a flat light grey bench top along the bottom fifth, a soft blue-grey wall behind with a faint window glow'),
 ];

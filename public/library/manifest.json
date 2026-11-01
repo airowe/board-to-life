@@ -981,7 +981,7 @@
       "habitat": null,
       "zone": null,
       "file": "steel-ball.webp",
-      "width": 504,
+      "width": 505,
       "height": 512
     },
     {
@@ -995,7 +995,7 @@
       "habitat": null,
       "zone": null,
       "file": "rubber-ball.webp",
-      "width": 506,
+      "width": 507,
       "height": 512
     },
     {
@@ -1012,7 +1012,7 @@
       "habitat": null,
       "zone": null,
       "file": "wooden-block.webp",
-      "width": 504,
+      "width": 505,
       "height": 512
     },
     {
@@ -1027,7 +1027,7 @@
       "habitat": null,
       "zone": null,
       "file": "domino.webp",
-      "width": 217,
+      "width": 165,
       "height": 512
     },
     {
@@ -1045,7 +1045,7 @@
       "zone": null,
       "file": "plank.webp",
       "width": 512,
-      "height": 119
+      "height": 26
     },
     {
       "id": "brick-wall",
@@ -1058,8 +1058,8 @@
       "habitat": null,
       "zone": null,
       "file": "brick-wall.webp",
-      "width": 512,
-      "height": 477
+      "width": 461,
+      "height": 512
     },
     {
       "id": "cart",
@@ -1075,7 +1075,36 @@
       "zone": null,
       "file": "cart.webp",
       "width": 512,
-      "height": 141
+      "height": 78
+    },
+    {
+      "id": "cart-wheel",
+      "subject": "cart-wheel",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "wheel"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "cart-wheel.webp",
+      "width": 511,
+      "height": 512
+    },
+    {
+      "id": "peg-figure",
+      "subject": "peg-figure",
+      "pose": "still",
+      "group": "prop",
+      "aliases": [
+        "passenger",
+        "rider"
+      ],
+      "habitat": null,
+      "zone": null,
+      "file": "peg-figure.webp",
+      "width": 127,
+      "height": 512
     },
     {
       "id": "pulley",
@@ -1088,7 +1117,7 @@
       "habitat": null,
       "zone": null,
       "file": "pulley.webp",
-      "width": 394,
+      "width": 417,
       "height": 512
     },
     {
@@ -1105,7 +1134,7 @@
       "habitat": null,
       "zone": null,
       "file": "weight.webp",
-      "width": 324,
+      "width": 258,
       "height": 512
     },
     {
@@ -1135,7 +1164,7 @@
       "habitat": null,
       "zone": null,
       "file": "pendulum-bob.webp",
-      "width": 398,
+      "width": 389,
       "height": 512
     },
     {

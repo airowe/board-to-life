@@ -16,9 +16,16 @@ import {
   BRICK_COURSE_HEIGHT,
   BRICK_COURSES_IN_PICTURE,
   brickTileSize,
+  CONTACT_SHADOW_REACH,
+  contactShadow,
+  figureBox,
+  FIGURE_WIDTH_FACTOR,
+  LEG_INSET,
   pictureFit,
   pictureRect,
+  rampSupports,
   spriteBox,
+  wheelTurn,
   type PhysicsSkin,
   type PictureFit,
   type SpriteBox,
@@ -145,13 +152,9 @@ describe('spriteBox', () => {
     expect(spriteBox(lever, { id: 'lever', x: 600, y: 572, angle: 0.1 })).toEqual({ cx: 600, cy: 572, width: 680, height: 16 * PLANK_THICKNESS_FACTOR, angle: 0.1 });
   });
 
-  it('includes the wheels in a cart, dropped along its turned body', () => {
+  it('gives a cart only its body, since the wheels are drawn on their own and turn', () => {
     const cart: SceneItem = { id: 'cart', kind: 'cart', x: 0, y: 0, width: 140, height: 60, wheelRadius: 20, angle: 0, confidence: CONFIDENCE };
-    const box = spriteBox(cart, { id: 'cart', x: 200, y: 300, angle: Math.PI / 2 });
-    if (!box) throw new Error('expected a box for the cart');
-    near(box.cx, 190);
-    near(box.cy, 300);
-    expect([box.width, box.height]).toEqual([140, 80]);
+    expect(spriteBox(cart, { id: 'cart', x: 200, y: 300, angle: Math.PI / 2 })).toEqual({ cx: 200, cy: 300, width: 140, height: 60, angle: Math.PI / 2 });
   });
 
   it.each<[string, SceneItem]>([
@@ -284,7 +287,8 @@ describe('pictureFit', () => {
     ['weight', { mode: 'contain', anchor: 'top' }],
     ['pendulum-bob', { mode: 'contain', anchor: 'centre' }],
     ['fulcrum', { mode: 'contain', anchor: 'top' }],
-    ['cart', { mode: 'contain', anchor: 'bottom' }],
+    ['cart', { mode: 'stretch', anchor: 'centre' }],
+    ['peg-figure', { mode: 'contain', anchor: 'bottom' }],
     ['pulley', { mode: 'contain', anchor: 'centre' }],
     ['steel-ball', { mode: 'contain', anchor: 'centre' }],
     ['wooden-block', { mode: 'stretch', anchor: 'centre' }],
@@ -329,7 +333,7 @@ describe('pictureRect', () => {
   });
 
   it('sits a wide picture on the bottom of a tall box', () => {
-    const rect = pictureRect({ ...square, width: 140, height: 80 }, { width: 512, height: 141 }, pictureFit('cart'));
+    const rect = pictureRect({ ...square, width: 140, height: 80 }, { width: 512, height: 141 }, pictureFit('peg-figure'));
     near(rect.width, 140);
     near(rect.height, (140 * 141) / 512);
     near(rect.y + rect.height, 40);
@@ -376,5 +380,115 @@ describe('needsFloorBand', () => {
     ['sits below the board floor', FLOOR_TOLERANCE_PX + 1, true],
   ])('when the table line %s (%s px) draws a band: %s', (_, error, band) => {
     expect(needsFloorBand(placementMissingBy(error))).toBe(band);
+  });
+});
+
+describe('a passenger on a cart', () => {
+  const cart = (angle: number): SceneItem => ({ id: 'cart', kind: 'cart', x: 300, y: 500, width: 150, height: 36, wheelRadius: 18, angle, confidence: CONFIDENCE });
+  const domino = (x: number, y: number): SceneItem => ({ id: 'rider', kind: 'domino', x, y, width: 20, height: 120, angle: 0, confidence: CONFIDENCE });
+  const CART_TOP_TO_RIDER_CENTRE = 18 + 60;
+  const TILT = Math.PI / 6;
+
+  it('draws a domino standing on a level cart as a figure', () => {
+    expect(subjectIn([cart(0), domino(310, 500 - CART_TOP_TO_RIDER_CENTRE)], 'rider')).toBe('peg-figure');
+  });
+
+  it('draws a domino standing on a tilted cart as a figure', () => {
+    const [x, y] = [300 + CART_TOP_TO_RIDER_CENTRE * Math.sin(TILT), 500 - CART_TOP_TO_RIDER_CENTRE * Math.cos(TILT)];
+    expect(subjectIn([cart(TILT), domino(x, y)], 'rider')).toBe('peg-figure');
+  });
+
+  it.each([
+    ['beyond the end of the cart', 500, 500 - CART_TOP_TO_RIDER_CENTRE],
+    ['on the table below the cart', 310, 700],
+    ['well above the cart', 310, 200],
+  ])('keeps a domino %s as a domino', (_where, x, y) => {
+    expect(subjectIn([cart(0), domino(x, y)], 'rider')).toBe('domino');
+  });
+
+  it('keeps every domino as a domino when there is no cart', () => {
+    expect(subjectIn([domino(310, 400)], 'rider')).toBe('domino');
+  });
+
+  it('widens the figure box about its centre, since a domino is thinner than a person', () => {
+    const box = { cx: 100, cy: 200, width: 20, height: 120, angle: 0.3 };
+    expect(figureBox(box)).toEqual({ ...box, width: 20 * FIGURE_WIDTH_FACTOR });
+  });
+});
+
+describe('rampSupports', () => {
+  const THICKNESS = 16;
+  const rampOf = (x1: number, y1: number, x2: number, y2: number) =>
+    ({ id: 'ramp', kind: 'ramp', x1, y1, x2, y2, thickness: THICKNESS, confidence: CONFIDENCE }) as const;
+
+  it('stands a ramp resting on the floor on one leg under its high end', () => {
+    const legs = rampSupports(rampOf(100, 340, 500, 738), FLOOR_TOP);
+    expect(legs).toHaveLength(1);
+    const [leg] = legs as [SpriteBox];
+    const [x, y] = [100 + LEG_INSET * 400, 340 + LEG_INSET * 398];
+    near(leg.cx, x);
+    near(leg.cy, (y + FLOOR_TOP) / 2);
+    near(leg.width, FLOOR_TOP - y);
+    expect(leg.height).toBe(THICKNESS * PLANK_THICKNESS_FACTOR);
+    expect(leg.angle).toBe(Math.PI / 2);
+  });
+
+  it('stands a raised shelf on two legs', () => {
+    expect(rampSupports(rampOf(100, 300, 500, 300), FLOOR_TOP)).toHaveLength(2);
+  });
+
+  it('gives no legs to a ramp lying on the floor', () => {
+    expect(rampSupports(rampOf(100, 735, 500, 738), FLOOR_TOP)).toEqual([]);
+  });
+
+  it('does not depend on which end was drawn first', () => {
+    const [one] = rampSupports(rampOf(100, 340, 500, 738), FLOOR_TOP);
+    const [other] = rampSupports(rampOf(500, 738, 100, 340), FLOOR_TOP);
+    expect(other).toEqual(one);
+  });
+});
+
+describe('contactShadow', () => {
+  const standing = { cx: 300, cy: FLOOR_TOP - 55, width: 20, height: 110, angle: 0 };
+
+  it('is darkest and tightest for something on the table', () => {
+    const shadow = contactShadow(standing, FLOOR_TOP);
+    if (!shadow) throw new Error('expected a shadow');
+    expect(shadow.cx).toBe(300);
+    expect(shadow.cy).toBe(FLOOR_TOP);
+    near(shadow.rx, 10);
+    expect(shadow.alpha).toBeGreaterThan(0.2);
+  });
+
+  it('fades and spreads as the thing rises', () => {
+    const near_ = contactShadow(standing, FLOOR_TOP);
+    const high = contactShadow({ ...standing, cy: standing.cy - CONTACT_SHADOW_REACH / 2 }, FLOOR_TOP);
+    if (!near_ || !high) throw new Error('expected shadows');
+    expect(high.alpha).toBeLessThan(near_.alpha);
+    expect(high.rx).toBeGreaterThan(near_.rx);
+  });
+
+  it('is gone beyond its reach', () => {
+    expect(contactShadow({ ...standing, cy: standing.cy - CONTACT_SHADOW_REACH - 1 }, FLOOR_TOP)).toBeNull();
+  });
+
+  it('widens when a thing topples, as its shadow lies along its length', () => {
+    const fallen = contactShadow({ ...standing, cy: FLOOR_TOP - 10, angle: Math.PI / 2 }, FLOOR_TOP);
+    if (!fallen) throw new Error('expected a shadow');
+    near(fallen.rx, 55);
+  });
+});
+
+describe('wheelTurn', () => {
+  const cart: SceneItem = { id: 'cart', kind: 'cart', x: 200, y: 500, width: 150, height: 36, wheelRadius: 20, angle: 0, confidence: CONFIDENCE };
+  const at = (x: number): BodySnapshot => ({ id: 'cart', x, y: 500, angle: 0 });
+
+  it.each([
+    ['still at the start', 200, 0],
+    ['rolled forward one radius', 220, 1],
+    ['rolled back one radius', 180, -1],
+  ])('is %s', (_name, x, turn) => {
+    if (cart.kind !== 'cart') throw new Error('expected a cart');
+    near(wheelTurn(cart, at(x)), turn);
   });
 });
