@@ -6,6 +6,7 @@ import { NO_FIGURE_FOCUS, polygonName, type GeometryQuestion } from '../geometry
 import type { Figure, Focus, Mark, Polygon, Transformation } from '../geometry/schema';
 import type { ApprovedGeometryLesson, ApprovedLesson, Draft, GeometryDraft, Session } from '../session/store';
 import { linkHighlights, LOW_CONFIDENCE, percent } from './check';
+import { checkLayout, fittedFrame } from './checkLayout';
 import { h, s } from './dom';
 import { questionCard, questionsPlaceholder, type CheckScreen, type QuestionsStatus } from './questionCards';
 
@@ -316,7 +317,8 @@ export const renderFigureCheck = (root: HTMLElement, session: Session, photoUrl:
   const refreshApproval = (): void => {
     const approved = geometryOnly(session.presentable());
     const ready = questionsStatus.kind === 'ready';
-    draftSlot.replaceChildren(...(ready ? lessonQuestions(geometryOnly(session.draft())) : [placeholderFor(questionsStatus)]));
+    // Once approved, its card replaces the draft's rather than repeating it.
+    draftSlot.replaceChildren(...(approved ? [] : ready ? lessonQuestions(geometryOnly(session.draft())) : [placeholderFor(questionsStatus)]));
     approvedSlot.replaceChildren(...lessonQuestions(approved));
     presentButton.disabled = approved === null;
     approveButton.disabled = approved !== null || !ready;
@@ -328,24 +330,10 @@ export const renderFigureCheck = (root: HTMLElement, session: Session, photoUrl:
   });
 
   const warnings = warningsFor(figure);
-  const questionsSection = choices.predictable
-    ? [
-        focusSelect(choices, handlers.onFocus),
-        h('h2', {}, 'Predict questions'),
-        draftSlot,
-        approvedSlot,
-        h('div', { class: 'panel-actions' }, approveButton, presentButton),
-      ]
-    : [h('p', { class: 'inline-note', role: 'status' }, NOTHING_TO_PREDICT_FIGURE)];
-
   root.replaceChildren(
-    h(
-      'section',
-      { class: 'check' },
-      h('div', { class: 'photo-frame' }, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), draggablePoints(overlay(figure), figure, handlers.onMovePoint)),
-      h(
-        'aside',
-        { class: 'panel' },
+    checkLayout({
+      board: fittedFrame(figure.drawing, h('img', { src: photoUrl, alt: 'Photo of the board drawing' }), draggablePoints(overlay(figure), figure, handlers.onMovePoint)),
+      facts: [
         h('h1', {}, 'Check the reading'),
         h('p', { class: 'note' }, note),
         warnings.length > 0 ? h('ul', { class: 'warnings' }, ...warnings) : null,
@@ -355,10 +343,16 @@ export const renderFigureCheck = (root: HTMLElement, session: Session, photoUrl:
         figure.unknownMarks.length > 0
           ? h('ul', { class: 'items' }, ...figure.unknownMarks.map((mark) => row({ id: mark.id, text: mark.note, confidence: mark.confidence })))
           : null,
-        ...questionsSection,
+        choices.predictable ? focusSelect(choices, handlers.onFocus) : null,
+      ],
+      questions: choices.predictable
+        ? [h('h2', {}, 'Predict questions'), draftSlot, approvedSlot]
+        : [h('p', { class: 'inline-note', role: 'status' }, NOTHING_TO_PREDICT_FIGURE)],
+      actions: [
         h('button', { class: 'quiet', onclick: handlers.onRestart }, 'Start over with a new photo'),
-      ),
-    ),
+        ...(choices.predictable ? [approveButton, presentButton] : []),
+      ],
+    }),
   );
   linkHighlights(root);
   refreshApproval();
