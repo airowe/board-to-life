@@ -5,7 +5,7 @@ import { HABITATS, parseFallback, parseLibrary } from './manifest';
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 const LIBRARY_PATH = 'public/library/manifest.json';
 const FALLBACK_PATH = 'public/library/fallback/manifest.json';
-const LIBRARY_SIZE = 83;
+const LIBRARY_SIZE = 84;
 const FALLBACK_SIZE = 156;
 
 const library = () => parseLibrary(readJson(LIBRARY_PATH));

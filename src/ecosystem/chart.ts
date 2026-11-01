@@ -1,5 +1,5 @@
 import type { Box } from '../present/onPhoto';
-import type { Point } from '../present/view';
+import { viewOf, type Point, type View } from '../present/view';
 import { feedsAlong, type Series } from './model';
 import type { Web } from './schema';
 
@@ -37,6 +37,29 @@ export const ringRadius = (value: number, start: number): number => {
   if (start <= 0) return RING_MAX;
   const fraction = Math.min(1, Math.sqrt(value / (start * RING_FULL_AT_STARTS)));
   return RING_MIN + (RING_MAX - RING_MIN) * fraction;
+};
+
+// The drawing as large as fits with every ring at its largest still on screen, so a species near an edge is not cut off.
+export const fitWebToScreen = (screen: { width: number; height: number }, web: Pick<Web, 'drawing' | 'species'>): View => {
+  const { width, height } = web.drawing;
+  const margin = Math.max(
+    0,
+    ...web.species.map((entry) => {
+      const reach = Math.max(entry.width, entry.height) / 2 + RING_MAX;
+      return Math.max(reach - entry.x, reach - entry.y, entry.x + reach - width, entry.y + reach - height);
+    }),
+  );
+  const view = viewOf(screen, { width: width + 2 * margin, height: height + 2 * margin });
+  return { ...view, offsetX: view.offsetX + margin * view.scale, offsetY: view.offsetY + margin * view.scale };
+};
+
+// An arrow between two discs, stopping at each edge so its head stays in view.
+export const shortenedArrow = (from: Point, to: Point, fromRadius: number, toRadius: number): { from: Point; to: Point } | null => {
+  const [dx, dy] = [to.x - from.x, to.y - from.y];
+  const length = Math.hypot(dx, dy);
+  if (length <= fromRadius + toRadius) return null;
+  const [ux, uy] = [dx / length, dy / length];
+  return { from: { x: from.x + ux * fromRadius, y: from.y + uy * fromRadius }, to: { x: to.x - ux * toRadius, y: to.y - uy * toRadius } };
 };
 
 export type FeedingDot = { fromId: string; toId: string; from: Point; to: Point; t: number };

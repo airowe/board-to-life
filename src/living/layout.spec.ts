@@ -193,7 +193,7 @@ describe('layoutPlace', () => {
     expect(otter).toMatchObject({ zone: 'surface', baseY: KELP_SURFACE_Y * STAGE.height });
   });
 
-  it.each([['duck'], ['algae']])('pond surface group %s sits at the pond waterline', (speciesId) => {
+  it.each([['duck'], ['algae'], ['heron']])('pond surface group %s sits at the pond waterline', (speciesId) => {
     const group = groupOf(layoutPlace(sampleWeb('pond'), library).groups, speciesId);
     expect(group).toMatchObject({ zone: 'surface', baseY: SURFACE_Y_BY_HABITAT.pond * STAGE.height });
     expect(group.baseY).toBeGreaterThanOrEqual(POND_WATER_BAND[0] * STAGE.height);
@@ -253,8 +253,8 @@ describe('layoutPlace', () => {
 
   it('gives floor and water crowds some depth, and surface crowds none', () => {
     const { groups } = layoutPlace(sampleWeb('pond'), library);
-    expect(groupOf(groups, 'heron').depth).toBeGreaterThan(0);
     expect(groupOf(groups, 'minnow').depth).toBeGreaterThan(0);
+    expect(groupOf(groups, 'heron').depth).toBe(0);
     expect(groupOf(groups, 'duck').depth).toBe(0);
   });
 
@@ -275,7 +275,7 @@ describe('layoutPlace', () => {
     ['grassland', 'hawk', SMALL_HEIGHT],
     ['pond', 'minnow', SMALL_HEIGHT],
     ['ocean', 'otter', SURFACE_HEIGHT],
-    ['pond', 'algae', PRODUCER_HEIGHT],
+    ['pond', 'algae', SURFACE_HEIGHT],
   ])('sizes the %s sample %s at %i px', (id, speciesId, size) => {
     expect(groupOf(layoutPlace(sampleWeb(id), library).groups, speciesId).size).toBe(size);
   });

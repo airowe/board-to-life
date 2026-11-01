@@ -27,7 +27,7 @@ const TAGS = {
   songbird: ['woodland', 'sky'], owl: ['woodland', 'sky'],
   algae: ['pond', 'surface'], 'water-flea': ['pond', 'water'], tadpole: ['pond', 'water'], frog: ['pond', 'floor'],
   'dragonfly-larva': ['pond', 'floor'], cattails: ['pond', 'floor'], snail: ['pond', 'floor'], dragonfly: ['pond', 'sky'],
-  duck: ['pond', 'surface'], heron: ['pond', 'floor'],
+  duck: ['pond', 'surface'], heron: ['pond', 'surface'],
   sun: [null, 'sky'],
 };
 
@@ -142,7 +142,7 @@ export const SUBJECTS = [
   prop('peg-figure', ['passenger', 'rider'], 'A single wooden peg doll: a tall narrow turned-wood figure of a person with a round head and a simple painted face and painted blue shirt, standing upright, seen from the front'),
   prop('pulley', ['pulley wheel'], 'A single machined steel pulley wheel with a grooved rim and a small mounting bracket, seen straight from the front', '1024x1024', true),
   prop('weight', ['mass', 'masses', 'kilogram', 'weight'], 'A single dark cast iron laboratory hooked mass with a hook on top, seen from the front'),
-  prop('fulcrum', ['pivot', 'wedge'], 'A single solid filled block of oak cut into an equal-sided triangle with its point at the top, one solid piece of wood with no hole and no opening, standing on its flat base, seen exactly from the side, no perspective'),
+  prop('fulcrum', ['pivot', 'wedge'], 'A single solid filled block of dark cast iron cut into an equal-sided triangle with its point at the top, one solid piece with no hole and no opening, standing on its flat base, seen exactly from the side, no perspective'),
   prop('pendulum-bob', ['bob', 'pendulum'], 'A single polished brass pendulum bob, a round weight with a small loop on top'),
 
   // Backgrounds
@@ -157,6 +157,13 @@ export const SUBJECTS = [
       'Photograph of an empty classroom seen straight on: a flat warm oak table with visible grain filling exactly the bottom seventh of the picture, ' +
       'and behind it, softly out of focus, a clean green chalkboard in a wooden frame on a pale painted wall, soft daylight from the left, ' +
       'wide open empty space in the middle, nothing on the table, no writing, no people, no text, no labels',
+  },
+  {
+    ...backdrop('bg-chalkboard', ['chalkboard', 'blackboard', 'geometry'], ''),
+    habitat: null,
+    prompt:
+      'Photograph of a real clean green school chalkboard filling the whole picture edge to edge, seen straight on with no perspective, ' +
+      'faint realistic chalk dust and old eraser smudges, even soft classroom light, completely blank, no frame, no writing, no text, no labels, no people',
   },
   backdrop('bg-lab', ['lab', 'laboratory', 'classroom'], 'An empty science lab bench: a flat light grey bench top along the bottom fifth, a soft blue-grey wall behind with a faint window glow'),
 ];

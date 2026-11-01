@@ -1688,3 +1688,73 @@ body.board-mode .sample:hover:not(:disabled),
 body.board-mode .hero-pair:hover .hero-scene {
   transform: none;
 }
+
+/* Geometry is worked on a real chalkboard that fills the screen; the canvas above it is transparent. */
+
+.figure-present {
+  background: #2c4f44 url('/library/bg-chalkboard.webp') center / cover no-repeat;
+  color: #f6f3e6;
+}
+
+.figure-present .explanation-text,
+.figure-present .choices-text {
+  color: rgb(246 243 230 / 0.82);
+}
+
+.figure-present .exit {
+  background: var(--board);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .figure-present canvas {
+    animation: chalk-in 900ms ease-out both;
+  }
+}
+
+@keyframes chalk-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0);
+  }
+}
+
+/* A physics scene is a photo-real room, so what is written over it sits on a card of its own. */
+
+.present:not(.web-present, .figure-present) .caption {
+  top: 10px;
+  padding: 8px 20px;
+  width: fit-content;
+  max-width: 62vw;
+  border-radius: 16px;
+  background: rgb(252 253 253 / 0.9);
+  box-shadow: 0 8px 24px rgb(23 32 46 / 0.16);
+}
+
+.present:not(.web-present, .figure-present) .caption:not(:has(*:not(:empty))) {
+  display: none;
+}
+
+.present:not(.web-present, .figure-present) .question-text {
+  font-size: clamp(1.1rem, 2.1vw, 1.8rem);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.present:not(.web-present, .figure-present) .choices-text,
+.present:not(.web-present, .figure-present) .explanation-text {
+  margin-top: 6px;
+}
+
+.present:not(.web-present, .figure-present) .exit,
+.present:not(.web-present, .figure-present) .photo-toggle {
+  background: var(--board);
+  color: var(--ink);
+}
+
+body.board-mode .present:not(.web-present, .figure-present) .caption {
+  top: 1rem;
+}

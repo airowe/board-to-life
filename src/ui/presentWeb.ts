@@ -1,4 +1,4 @@
-import { chartPaths, feedingDots, ringRadius } from '../ecosystem/chart';
+import { chartPaths, feedingDots, fitWebToScreen, ringRadius, shortenedArrow } from '../ecosystem/chart';
 import { editOnRelease, emptyEdits, pickSpecies, setStart, startMax, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, MODEL_STEPS, STEPS_PER_SECOND_SHOWN, startingPopulations, type Series } from '../ecosystem/model';
 import { isGoneAt } from '../ecosystem/outcomes';
@@ -8,11 +8,14 @@ import type { Species, Web } from '../ecosystem/schema';
 import { sketchWeb } from '../ecosystem/sketch';
 import type { Box } from '../present/onPhoto';
 import { createRedrawGate } from '../present/redraw';
-import { TOUCH_REACH_PX, viewOf } from '../present/view';
+import { libraryFile } from '../library/match';
+import { pictureSource } from '../library/source';
+import { TOUCH_REACH_PX } from '../present/view';
 import type { EcosystemLesson } from '../session/store';
 import { sizeCanvas } from './canvasSize';
 import { h } from './dom';
 import { createPlaceScene, type PlaceScene, type ScenePictures } from './placeScene';
+import { createPlaceImages, FALLBACK_FOLDER } from './placeView';
 import { WEB_VIEW_LABELS, availableViews, editHintFor, initialView, type WebView } from './webViews';
 
 const STEP_MS = 1000 / STEPS_PER_SECOND_SHOWN;
@@ -33,6 +36,13 @@ const LABEL_PAD = 8;
 const LABEL_HEIGHT = 42;
 const LABEL_GAP = 14;
 const PRECISE_BELOW = 10;
+const PORTRAIT_FILL = 1.75;
+const PORTRAIT_DISC = '#fcfdfd';
+const FOOD_ARROW = '#c0392b';
+const FOOD_ARROW_WIDTH = 7;
+const FOOD_ARROW_GAP = 22;
+const FOOD_ARROW_HEAD = 20;
+const FOOD_ARROW_SPREAD = (Math.PI * 5) / 6;
 
 const CHART_PAD = { left: 8, right: 8, top: 8, bottom: 8 };
 const CHART_LINE_WIDTH = 3;
@@ -64,6 +74,7 @@ type StageState = {
   edits: WebEdits;
   drag: Drag | null;
   colours: Map<string, string>;
+  portrait: ((name: string) => CanvasImageSource | null) | null;
 };
 
 const valueAt = (state: StageState, id: string): number =>
@@ -96,6 +107,71 @@ const drawRing = (ctx: CanvasRenderingContext2D, state: StageState, entry: Speci
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.stroke();
+  ctx.restore();
+};
+
+const pictureSize = (picture: CanvasImageSource): { width: number; height: number } | null => {
+  if (picture instanceof HTMLImageElement) return { width: picture.naturalWidth, height: picture.naturalHeight };
+  return picture instanceof HTMLCanvasElement || picture instanceof ImageBitmap ? { width: picture.width, height: picture.height } : null;
+};
+
+// Wide enough to cover the corners of the species' box on the board.
+const discRadius = (entry: Species): number => Math.hypot(entry.width, entry.height) / 2;
+
+// Who eats whom, drawn over the board's arrows since the discs cover their heads.
+const drawFoodArrows = (ctx: CanvasRenderingContext2D, web: Web): void => {
+  const byId = new Map(web.species.map((entry) => [entry.id, entry]));
+  ctx.save();
+  ctx.strokeStyle = FOOD_ARROW;
+  ctx.fillStyle = FOOD_ARROW;
+  ctx.lineWidth = FOOD_ARROW_WIDTH;
+  ctx.lineCap = 'round';
+  for (const link of web.eats) {
+    const [from, to] = [byId.get(link.from), byId.get(link.to)];
+    const arrow = from && to ? shortenedArrow(from, to, discRadius(from), discRadius(to) + FOOD_ARROW_GAP) : null;
+    if (!arrow) continue;
+    const angle = Math.atan2(arrow.to.y - arrow.from.y, arrow.to.x - arrow.from.x);
+    ctx.beginPath();
+    ctx.moveTo(arrow.from.x, arrow.from.y);
+    ctx.lineTo(arrow.to.x, arrow.to.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(arrow.to.x + Math.cos(angle) * FOOD_ARROW_HEAD, arrow.to.y + Math.sin(angle) * FOOD_ARROW_HEAD);
+    ctx.lineTo(arrow.to.x + Math.cos(angle + FOOD_ARROW_SPREAD) * FOOD_ARROW_HEAD, arrow.to.y + Math.sin(angle + FOOD_ARROW_SPREAD) * FOOD_ARROW_HEAD);
+    ctx.lineTo(arrow.to.x + Math.cos(angle - FOOD_ARROW_SPREAD) * FOOD_ARROW_HEAD, arrow.to.y + Math.sin(angle - FOOD_ARROW_SPREAD) * FOOD_ARROW_HEAD);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+};
+
+// The species' own picture on a disc over its box on the board, with its name under it.
+const drawPortrait = (ctx: CanvasRenderingContext2D, state: StageState, entry: Species): void => {
+  if (!state.portrait) return;
+  const picture = state.portrait(entry.name);
+  const size = picture ? pictureSize(picture) : null;
+  const radius = discRadius(entry);
+  ctx.save();
+  ctx.fillStyle = PORTRAIT_DISC;
+  ctx.beginPath();
+  ctx.arc(entry.x, entry.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  if (picture && size) {
+    const scale = (radius * PORTRAIT_FILL) / Math.max(size.width, size.height);
+    const [pictureWidth, pictureHeight] = [size.width * scale, size.height * scale];
+    ctx.drawImage(picture, entry.x - pictureWidth / 2, entry.y - pictureHeight / 2, pictureWidth, pictureHeight);
+  }
+  ctx.font = LABEL_FONT;
+  const width = ctx.measureText(entry.name).width + LABEL_PAD * 2;
+  const top = entry.y + radius - LABEL_HEIGHT / 2;
+  ctx.fillStyle = state.colours.get(entry.id) ?? INK.black;
+  ctx.beginPath();
+  ctx.roundRect(entry.x - width / 2, top, width, LABEL_HEIGHT, LABEL_HEIGHT / 2);
+  ctx.fill();
+  ctx.fillStyle = INK.label;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(entry.name, entry.x, top + LABEL_HEIGHT / 2);
   ctx.restore();
 };
 
@@ -134,14 +210,17 @@ const drawStage = (canvas: HTMLCanvasElement, state: StageState, showStarts: boo
   if (!sized) return;
   const { ctx, width, height } = sized;
   const { drawing } = state.web;
-  const view = viewOf({ width, height }, drawing);
+  const view = fitWebToScreen({ width, height }, state.web);
   ctx.fillStyle = INK.board;
   ctx.fillRect(0, 0, width, height);
   ctx.translate(view.offsetX, view.offsetY);
   ctx.scale(view.scale, view.scale);
-  if (state.image) ctx.drawImage(state.image, 0, 0, drawing.width, drawing.height);
+  // With pictures the web is drawn clean; the sketch's own boxes and arrows would show around them.
+  if (state.image && !state.portrait) ctx.drawImage(state.image, 0, 0, drawing.width, drawing.height);
   for (const entry of state.web.species) drawRing(ctx, state, entry);
   drawDots(ctx, state);
+  for (const entry of state.web.species) drawPortrait(ctx, state, entry);
+  if (state.portrait) drawFoodArrows(ctx, state.web);
   for (const entry of state.web.species) {
     if (state.edits.removed.has(entry.id)) drawCross(ctx, entry);
     const edited = state.edits.start[entry.id];
@@ -392,6 +471,7 @@ export const renderWebPresent = (
         edits,
         drag,
         colours,
+        portrait,
       };
       if (view === 'place') scene?.draw(placeCanvas, seconds, reducedMotion());
       if (view === 'chart') drawStage(canvas, state, playback.phase().kind === 'ready');
@@ -403,12 +483,24 @@ export const renderWebPresent = (
     frame = requestAnimationFrame(loop);
   };
 
+  const portraitImages = createPlaceImages(() => redraw.invalidate());
+  const portrait = pictures
+    ? (name: string): CanvasImageSource | null => {
+        const source = pictureSource(name, pictures.library, pictures.fallback, pictures.live.state);
+        if (source.kind === 'live') return pictures.live.image(source.key);
+        if (source.kind === 'emoji') return portraitImages.get(`${FALLBACK_FOLDER}${source.file}`);
+        if (source.kind !== 'library') return null;
+        const file = libraryFile(pictures.library, source.subject, 'rest');
+        return file ? portraitImages.get(file) : null;
+      }
+    : null;
+
   const startOf = (id: string): number => edits.start[id] ?? steady[id] ?? 0;
 
   const onPointerDown = (event: PointerEvent): void => {
     if (drag || !editable()) return;
     const rect = canvas.getBoundingClientRect();
-    const view = viewOf({ width: rect.width, height: rect.height }, web.drawing);
+    const view = fitWebToScreen({ width: rect.width, height: rect.height }, web);
     const id = pickSpecies(web, view, { x: event.clientX - rect.left, y: event.clientY - rect.top }, TOUCH_REACH_PX);
     if (id === null) return;
     event.preventDefault();

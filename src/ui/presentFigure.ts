@@ -24,8 +24,9 @@ const MAX_FRAME_SECONDS = 0.1;
 const MS_PER_SECOND = 1000;
 const SKETCH_SEED = 7;
 
-const INK = { board: '#f7f7f3', ink: '#1d2433', image: '#1f4fbf', ghost: '#6b7280', readout: '#ffffff' };
-export const PHOTO_ALPHA = 0.35;
+// Chalk on the board behind the whole screen (.figure-present).
+const INK = { ink: '#f6f3e6', image: '#ffd166', ghost: '#c9d8d2', readout: '#17202e' };
+const CHALK_SOFTNESS = { colour: 'rgba(255, 252, 235, 0.4)', blur: 3 };
 export const GHOST_ALPHA = 0.4;
 export const PREVIOUS_ALPHA = 0.25;
 const SHAPE_FILL_ALPHA = 0.12;
@@ -37,7 +38,7 @@ const ARC_RADIUS = 34;
 const RIGHT_MARK_SIZE = 26;
 const ARROW_HEAD = 26;
 const ARROW_SPREAD = Math.PI / 7;
-const LABEL_FONT = '700 34px system-ui, sans-serif';
+const LABEL_FONT = "700 34px 'Bricolage Grotesque Variable', system-ui, sans-serif";
 const READOUT_FONT = '700 30px system-ui, sans-serif';
 const READOUT_PAD = 8;
 const READOUT_HEIGHT = 42;
@@ -386,18 +387,10 @@ const drawStage = (canvas: HTMLCanvasElement, state: StageState): void => {
   const { ctx, width, height } = sized;
   const { figure, focus, positions, phase } = state;
   const view = viewOf({ width, height }, figure.drawing);
-  ctx.fillStyle = INK.board;
-  ctx.fillRect(0, 0, width, height);
   ctx.translate(view.offsetX, view.offsetY);
   ctx.scale(view.scale, view.scale);
-  ctx.beginPath();
-  ctx.rect(0, 0, figure.drawing.width, figure.drawing.height);
-  ctx.clip();
-  if (state.image) {
-    ctx.globalAlpha = PHOTO_ALPHA;
-    ctx.drawImage(state.image, 0, 0, figure.drawing.width, figure.drawing.height);
-    ctx.globalAlpha = 1;
-  }
+  ctx.shadowColor = CHALK_SOFTNESS.colour;
+  ctx.shadowBlur = CHALK_SOFTNESS.blur;
 
   const moving = movingPolygon(figure, focus);
   const image = moving && imagePolygon(moving);

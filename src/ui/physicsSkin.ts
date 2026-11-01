@@ -8,26 +8,36 @@ import {
   brickTileSize,
   contactShadow,
   figureBox,
+  MOUNT,
+  mountFrame,
   needsFloorBand,
   physicsSubject,
   PHYSICS_BACKGROUND,
   pictureFit,
   pictureRect,
   rampSupports,
+  shelfSupports,
+  springCoil,
   spriteBox,
   wheelTurn,
   type ContactShadow,
   type PhysicsSkin,
   type SpriteBox,
 } from '../living/physicsPictures';
-import type { View } from '../present/view';
+import type { Point, View } from '../present/view';
 import { cartWheels } from '../scene/cart';
+import { linkPoints } from '../scene/linkPoints';
 import { isLink, type Scene, type SceneItem } from '../scene/schema';
 import { createPlaceImages, type PlaceImages } from './placeView';
 
 // Tunable by eye: ropes drawn as twine and springs as steel over the pictures.
 export const ROPE_INK = '#8a6236';
-export const SPRING_INK = '#6f7a86';
+export const SPRING_INK = '#4d5660';
+const SPRING_SHINE = '#d7dee5';
+const SPRING_WIDTH = 6;
+const ROPE_TWIST = '#c9a877';
+const ROPE_WIDTH = 6;
+const ROPE_TWIST_DASH = [5, 6];
 // The floor band drawn when the backdrop's own table line cannot reach the board's floor: a wooden tabletop.
 export const TABLE_WOOD = '#b07a45';
 export const TABLE_EDGE = '#7a4f2a';
@@ -120,6 +130,50 @@ const drawShadow = (ctx: CanvasRenderingContext2D, { cx, cy, rx, ry, alpha }: Co
   ctx.restore();
 };
 
+const supportsOf = (item: SceneItem, scene: Scene, floorY: number): SpriteBox[] => {
+  if (item.kind === 'ramp') return rampSupports(item, floorY);
+  if (item.kind === 'wall') return shelfSupports(item, floorY);
+  return item.kind === 'pivot' || item.kind === 'pulley' ? mountFrame(item, scene, floorY) : [];
+};
+
+const tracePath = (ctx: CanvasRenderingContext2D, points: Point[]): void => {
+  ctx.beginPath();
+  points.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)));
+};
+
+// Twine: a dark core with a lighter twist laid over it.
+const drawRope = (ctx: CanvasRenderingContext2D, points: Point[]): void => {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  tracePath(ctx, points);
+  ctx.strokeStyle = ROPE_INK;
+  ctx.lineWidth = ROPE_WIDTH;
+  ctx.stroke();
+  ctx.strokeStyle = ROPE_TWIST;
+  ctx.lineWidth = ROPE_WIDTH / 2;
+  ctx.setLineDash(ROPE_TWIST_DASH);
+  ctx.stroke();
+  ctx.restore();
+};
+
+// Steel wire: a dark edge with a bright highlight along it.
+const drawSpring = (ctx: CanvasRenderingContext2D, points: Point[]): void => {
+  const [first, last] = [points[0], points.at(-1)];
+  if (!first || !last) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  tracePath(ctx, springCoil(first, last));
+  ctx.strokeStyle = SPRING_INK;
+  ctx.lineWidth = SPRING_WIDTH;
+  ctx.stroke();
+  ctx.strokeStyle = SPRING_SHINE;
+  ctx.lineWidth = SPRING_WIDTH / 3;
+  ctx.stroke();
+  ctx.restore();
+};
+
 const drawWheels = (ctx: CanvasRenderingContext2D, pictures: PhysicsPictures, cart: Extract<SceneItem, { kind: 'cart' }>, body: BodySnapshot | undefined): void => {
   const image = pictureOf(pictures, 'cart-wheel');
   if (!image || !body) return;
@@ -164,7 +218,7 @@ export const drawPictureItems = (
 ): void => {
   const { ordered, floorY } = framedFor(pictures, scene);
   const plank = pictureOf(pictures, 'plank');
-  if (plank) for (const item of ordered) if (item.kind === 'ramp') for (const leg of rampSupports(item, floorY)) drawPicture(ctx, pictures, 'plank', plank, leg);
+  if (plank) for (const item of ordered) for (const part of supportsOf(item, scene, floorY)) drawPicture(ctx, pictures, 'plank', plank, part);
   for (const item of ordered) {
     const box = item.kind === 'ramp' || item.kind === 'pulley' || item.kind === 'floor' ? null : spriteBox(item, bodies.get(item.id));
     const shadow = box ? contactShadow(box, floorY) : null;
@@ -172,11 +226,13 @@ export const drawPictureItems = (
   }
   for (const item of ordered) {
     if (item.kind === 'rope' || item.kind === 'spring') {
-      drawPlain(item, item.kind === 'rope' ? ROPE_INK : SPRING_INK);
+      const points = linkPoints(item, (id) => bodies.get(id) ?? null);
+      if (points.length > 0) (item.kind === 'rope' ? drawRope : drawSpring)(ctx, points);
       continue;
     }
     if (item.kind === 'floor' && backdrop) continue;
     const subject = pictures.subjects.get(item.id) ?? null;
+    if (subject === MOUNT) continue;
     const image = subject ? pictureOf(pictures, subject) : null;
     const box = spriteBox(item, bodies.get(item.id));
     if (!subject || !image || !box) drawPlain(item);
