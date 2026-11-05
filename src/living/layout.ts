@@ -36,6 +36,9 @@ export const PRODUCER_HEIGHT = 220;
 export const FLOOR_ANIMAL_HEIGHT = 150;
 export const SMALL_HEIGHT = 110;
 export const SURFACE_HEIGHT = 130;
+// Plants that grow far taller than what lives around them, by library subject. Kelp rises well above the urchins
+// grazing at its foot, so its fronds stay in view and can be tapped on their own.
+export const TALL_PLANT_HEIGHT: Readonly<Record<string, number>> = { kelp: 560 };
 
 const STAGE_MARGIN = 48;
 // A group's crowd fills this share of its slot, leaving a gap to its neighbours.
@@ -106,7 +109,10 @@ const zoneOf = (library: Library, species: Species): Zone => libraryEntryFor(lib
 export const isRooted = (role: Role, zone: Zone): boolean => role !== 'consumer' && zone === 'floor';
 
 // Rooted plants stand tall; a mat floating on the water or a bloom in it is the size of what lives around it.
-const sizeOf = (role: Role, zone: Zone): number => (isRooted(role, zone) || (role === 'producer' && zone === 'sky') ? PRODUCER_HEIGHT : ANIMAL_HEIGHT[zone]);
+const sizeOf = (role: Role, zone: Zone, subject: string | null): number => {
+  if (!isRooted(role, zone) && !(role === 'producer' && zone === 'sky')) return ANIMAL_HEIGHT[zone];
+  return (subject === null ? undefined : TALL_PLANT_HEIGHT[subject]) ?? PRODUCER_HEIGHT;
+};
 
 const lineOf = (habitat: Habitat, zone: Zone): number => {
   if (zone === 'surface') return SURFACE_Y_BY_HABITAT[habitat] * STAGE.height;
@@ -141,7 +147,7 @@ export const layoutPlace = (web: Web, library: Library): PlaceLayout => {
     .sort((a, b) => a.x - b.x)
     .map((species) => {
       const zone = zoneOf(library, species);
-      const size = sizeOf(species.role, zone);
+      const size = sizeOf(species.role, zone, findLibrarySubject(library, species.name));
       const width = size * aspectOf(library, species.name, zone);
       return { species, zone, size, width, row: rowOf({ zone, role: species.role }) };
     });
