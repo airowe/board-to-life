@@ -16,6 +16,7 @@ import { checkFigureGrounding } from './geometry/questions';
 import { validateFigure, type Figure } from './geometry/schema';
 import { checkGrounding } from './scene/questions';
 import { validateScene } from './scene/schema';
+import { demoBoardFor } from './samples/demoBoards';
 import { createEditQueue, samePoints } from './session/edits';
 import { createSession, type DraftContent } from './session/store';
 import { loadSubject, saveSubject } from './subjectChoice';
@@ -299,6 +300,30 @@ const describeSetup = async (text: string, describeSubject: Subject): Promise<vo
   void draftQuestions(draftId, validated.content);
 };
 
+const DEMO_NOTE: Record<Subject, string> = {
+  physics: 'Sample drawing: its scene and questions were prepared with it, so no AI was called. Photograph your own board for a live reading.',
+  ecosystem: 'Sample drawing: its food web and question were prepared with it, so no AI was called. Photograph your own board for a live reading.',
+  geometry: 'Sample drawing: its figure and question were prepared with it, so no AI was called. Photograph your own board for a live reading.',
+};
+
+// Sample drawings open at once: their reading and questions come with them instead of from two model calls.
+const receiveSample = (photo: Blob, url: string, sampleSubject: Subject): void => {
+  const board = demoBoardFor(url, sampleSubject);
+  if (!board) return void receivePhoto(photo, sampleSubject);
+  photoSequence += 1;
+  activeDraftRequest?.abort();
+  activeDraftRequest = null;
+  const draftId = session.startDraft(board.content);
+  session.setDraftQuestions(draftId, board.questions);
+  requestLivePictures(board.content);
+  activeDraftId = draftId;
+  if (photoUrl) URL.revokeObjectURL(photoUrl);
+  photoUrl = URL.createObjectURL(photo);
+  photoIsSketch = false;
+  photoNote = DEMO_NOTE[sampleSubject];
+  showCheck();
+};
+
 const INVERTED_NOTE = 'Light ink on a dark or see-through background: the image was flipped to dark ink on white so it reads like a whiteboard. ';
 
 const receivePhoto = async (photo: Blob, photoSubject: Subject): Promise<void> => {
@@ -416,6 +441,7 @@ function showCapture(): void {
       saveSubject(storage, picked);
     },
     onPhoto: (photo, photoSubject) => void receivePhoto(photo, photoSubject),
+    onSample: receiveSample,
     onDescribe: (text, describeSubject) => void describeSetup(text, describeSubject),
     description: lastDescription,
   });

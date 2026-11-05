@@ -37,11 +37,20 @@ const pluralName = (name: string): string => {
 
 const capitalised = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
-const eventLabel = (web: Web, event: WebEvent): PinnedLabel => {
-  if (event.kind === 'drought') return { speciesId: null, text: 'A drought hits.', since: EVENT_STEP };
-  const name = web.species.find((entry) => entry.id === event.species)?.name ?? event.species;
-  return { speciesId: event.species, text: `The ${pluralName(name)} are removed.`, since: EVENT_STEP };
+const removedLabel = (web: Web, speciesId: string): PinnedLabel => {
+  const name = web.species.find((entry) => entry.id === speciesId)?.name ?? speciesId;
+  return { speciesId, text: `The ${pluralName(name)} are removed.`, since: EVENT_STEP };
 };
+
+// What happens at the predict point: the lesson's event, or the species the teacher removed in its place.
+const eventLabels = (web: Web, event: WebEvent, removals: string[] | null): PinnedLabel[] => {
+  if (removals !== null) return removals.map((id) => removedLabel(web, id));
+  if (event.kind === 'drought') return [{ speciesId: null, text: 'A drought hits.', since: EVENT_STEP }];
+  return [removedLabel(web, event.species)];
+};
+
+const removedAtEvent = (event: WebEvent, removals: string[] | null): string[] =>
+  removals ?? (event.kind === 'remove' ? [event.species] : []);
 
 // The way the species ends up, as the reveal reports it (directionsAfter), dated from the first step it crosses the
 // threshold that way; no label for a species that ends steady. While the species is gone it is "dying out" instead,
@@ -66,18 +75,19 @@ const changeLabel = (species: Species, values: number[], step: number, direction
 };
 
 // Every species' change label at `step`, before the newest few are picked; the removed species gets none.
-export const changeLabelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
+// `removals` are the species the teacher removed in place of the lesson's event (see removalsReplacingEvent), if any.
+export const changeLabelsAt = (web: Web, event: WebEvent, series: Series, step: number, removals: string[] | null = null): PinnedLabel[] => {
   if (step < EVENT_STEP) return [];
-  const removed = event.kind === 'remove' ? event.species : null;
+  const removed = new Set(removedAtEvent(event, removals));
   const directions = directionsAfter(series, EVENT_STEP);
   return web.species
-    .filter((species) => species.id !== removed)
+    .filter((species) => !removed.has(species.id))
     .map((species) => changeLabel(species, series.values[species.id] ?? [], step, directions[species.id]))
     .filter((label): label is PinnedLabel => label !== null);
 };
 
-export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number): PinnedLabel[] => {
+export const labelsAt = (web: Web, event: WebEvent, series: Series, step: number, removals: string[] | null = null): PinnedLabel[] => {
   if (step < EVENT_STEP) return [];
-  const newestLast = [eventLabel(web, event), ...changeLabelsAt(web, event, series, step)].sort((a, b) => a.since - b.since);
+  const newestLast = [...eventLabels(web, event, removals), ...changeLabelsAt(web, event, series, step, removals)].sort((a, b) => a.since - b.since);
   return newestLast.slice(-MAX_LABELS);
 };

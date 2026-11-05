@@ -88,8 +88,23 @@ describe('dragPoint', () => {
     return playback;
   };
 
-  it('is ignored until exploring', () => {
+  it('moves a point before Play, so the figure can be set up first', () => {
     const playback = createFigurePlayback(lessonOf(sample('triangle')));
+    playback.dragPoint('C', { x: 10, y: 10 });
+    expect(playback.positions().C).toEqual({ x: 10, y: 10 });
+  });
+
+  it('keeps the moved point when Play is pressed', () => {
+    const playback = createFigurePlayback(lessonOf(sample('triangle')));
+    playback.dragPoint('C', { x: 400, y: 300 });
+    playback.play();
+    expect(playback.positions().C).toEqual({ x: 400, y: 300 });
+  });
+
+  it('is ignored while the class is answering', () => {
+    const playback = createFigurePlayback(lessonOf(sample('triangle')));
+    playback.play();
+    expect(playback.phase().kind).toBe('predict');
     playback.dragPoint('C', { x: 10, y: 10 });
     expect(playback.positions().C).toEqual({ x: 585, y: 255 });
   });

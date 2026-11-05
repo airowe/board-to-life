@@ -1,3 +1,4 @@
+import type { PredictQuestion } from "../scene/questions";
 import { validateScene, type Scene } from "../scene/schema";
 
 // Sample drawings a teacher or judge can try without a whiteboard. Each is drawn from its scene
@@ -8,6 +9,8 @@ export type Sample = {
   scene: Scene;
   // What the class should see happen, checked against the simulation.
   outcome: Outcome;
+  // Written with the scene, so trying the sample needs no model call to draft them.
+  questions: PredictQuestion[];
 };
 
 export type Outcome = { falls: string[]; stays: string[]; sinks: string[] };
@@ -340,6 +343,23 @@ const growing = sceneOf({
   ],
 });
 
+const yesNo = (
+  prompt: string,
+  item: string,
+  explanation: string,
+  cites: string[],
+): PredictQuestion[] => [
+  {
+    id: "q-1",
+    predictPointId: "pp-1",
+    prompt,
+    choices: ["Yes", "No"],
+    observe: { kind: "fallen", item },
+    explanation,
+    cites,
+  },
+];
+
 const ids = (prefix: string, from: number, to: number): string[] =>
   Array.from({ length: to - from + 1 }, (_, i) => `${prefix}-${from + i}`);
 
@@ -349,29 +369,59 @@ export const SAMPLES: readonly Sample[] = [
     title: "Down the board and back",
     scene: checked("zigzag", zigzag),
     outcome: outcome({ falls: ids("domino", 1, 13) }),
+    questions: yesNo(
+      "Does the last domino fall?",
+      "domino-13",
+      "Each row of dominoes knocks a ball off the end of its shelf, and that ball rolls down to the next row, so the push is passed all the way down the board.",
+      ["ball-1", "ball-3", "domino-13"],
+    ),
   },
   {
     id: "long-ride",
     title: "The long ride",
     scene: checked("long-ride", longRide),
     outcome: outcome({ falls: ids("domino", 1, 7) }),
+    questions: yesNo(
+      "Does the last domino fall?",
+      "domino-7",
+      "The dominoes on the shelf shove the cart off the edge. It rolls down the long ramp and across the floor, still moving fast enough to knock the last row over.",
+      ["cart", "ramp", "domino-7"],
+    ),
   },
   {
     id: "passenger",
     title: "The cart stops; the passenger flies",
     scene: checked("passenger", passenger),
     outcome: outcome({ falls: ["passenger", ...ids("domino", 1, 4)] }),
+    questions: yesNo(
+      "Does the passenger knock over the last domino?",
+      "domino-4",
+      "The kerb stops the cart, but nothing holds the passenger on, so it keeps moving forward, flies off and tips into the row.",
+      ["cart", "passenger", "kerb", "domino-4"],
+    ),
   },
   {
     id: "race",
     title: "Block against cart",
     scene: checked("race", race),
     outcome: outcome({ falls: ids("domino", 1, 3), stays: ["domino-4"] }),
+    questions: yesNo(
+      "Does the domino on the block's side fall?",
+      "domino-4",
+      "The cart rolls on its wheels and knocks its row over against the divider. The block slides instead of rolling, and friction stops it before it reaches its domino.",
+      ["cart", "block", "domino-4"],
+    ),
   },
   {
     id: "growing",
     title: "A tiny domino and a giant",
     scene: checked("growing", growing),
     outcome: outcome({ falls: ids("domino", 1, 8) }),
+    questions: yesNo(
+      "Can the tiny domino knock over the giant?",
+      "domino-8",
+      "Each domino falls from higher up than the last, so it hits the next one harder than it needs to tip it. The push grows along the row until even the giant falls.",
+      ["domino-1", "domino-8"],
+    ),
   },
 ];

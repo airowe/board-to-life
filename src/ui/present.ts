@@ -400,7 +400,7 @@ export const renderPresent = (
     redraw.invalidate();
   };
   const replay = (): void => restart();
-  const editable = (): boolean => ghost !== null && playback.phase().kind === 'ready';
+  const editable = (): boolean => playback.phase().kind === 'ready';
   const edited = (): boolean => JSON.stringify(playback.scene()) !== JSON.stringify(lesson.scene);
   const putBack = (): void => {
     note = '';
@@ -413,14 +413,17 @@ export const renderPresent = (
     const firstQuestion = lesson.questions[0];
     switch (phase.kind) {
       case 'ready':
-        if (ghost) {
+        if (ghost || edited()) {
           caption.replaceChildren(
             h('p', { class: 'question-text' }, 'Drag a piece to change the setup, then press Play.'),
-            h('p', { class: 'explanation-text' }, note || 'The faint marks show what happened last time.'),
+            h('p', { class: 'explanation-text' }, note || (ghost ? 'The faint marks show what happened last time.' : 'Press Play to see what happens.')),
           );
           controls.replaceChildren(button('Play', playback.play, true), ...(edited() ? [button('Put pieces back', putBack)] : []));
         } else {
-          caption.replaceChildren(h('p', { class: 'question-text' }, firstQuestion ? `Watch closely. ${firstQuestion.prompt}` : 'Watch closely.'));
+          caption.replaceChildren(
+            h('p', { class: 'question-text' }, firstQuestion ? `Watch closely. ${firstQuestion.prompt}` : 'Watch closely.'),
+            ...(note ? [h('p', { class: 'explanation-text' }, note)] : []),
+          );
           controls.replaceChildren(button('Play', playback.play, true));
         }
         break;

@@ -12,6 +12,8 @@ export type Run = {
   event: WebEvent | null;
   eventStep: number;
   removed: ReadonlySet<string>;
+  // The step the species in `removed` disappear at; from the start when not given.
+  removedFrom?: number;
   start?: Record<string, number>;
 };
 
@@ -143,7 +145,8 @@ export const startingPopulations = (web: Web): Record<string, number> => {
 
 const isGoneAt = (run: Run, step: number): ((id: string) => boolean) => {
   const removedByEvent = run.event?.kind === 'remove' && step >= run.eventStep ? run.event.species : null;
-  return (id) => run.removed.has(id) || id === removedByEvent;
+  const removedNow = step >= (run.removedFrom ?? 0);
+  return (id) => (removedNow && run.removed.has(id)) || id === removedByEvent;
 };
 
 // `settled` is the web's steady start; pass it when running the same web repeatedly so it is warmed up once.
