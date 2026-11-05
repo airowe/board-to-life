@@ -1,5 +1,6 @@
 import type { WebEdits } from '../ecosystem/edits';
 import type { Series } from '../ecosystem/model';
+import { removalsReplacingEvent } from '../ecosystem/playback';
 import { eventOf } from '../ecosystem/questions';
 import type { Role, Web } from '../ecosystem/schema';
 import type { LivePictures } from '../library/live';
@@ -112,7 +113,7 @@ export const createPlaceScene = (
     if (!seen || seen.series !== series || seen.step !== step || seen.edits !== edits) {
       seen = { series, step, edits };
       changedAt = seconds;
-      labels = labelsAt(web, event, series, step);
+      labels = labelsAt(web, event, series, step, removalsReplacingEvent(web, event, edits));
       vigour = vigourAt(series, step);
       const next = crowdTargets(series, step, settled, roles, edits);
       if (!targets) send(next, seconds, true);

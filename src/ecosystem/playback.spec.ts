@@ -4,6 +4,7 @@ import { grasslandWeb } from './fixtures';
 import { EVENT_STEP, MODEL_STEPS, simulate } from './model';
 import { directionsAfter } from './outcomes';
 import { createWebPlayback } from './playback';
+import { WEB_SAMPLES } from './samples';
 import { WEB_CHOICES, templateQuestion, type WebQuestion } from './questions';
 import type { Web, WebEvent } from './schema';
 import { suggestedEvent } from './trophic';
@@ -138,10 +139,10 @@ describe('createWebPlayback replay', () => {
     const observed = paused.question.observe.species;
     expect(['grass', 'fox', 'hawk']).toContain(observed);
     expect(observed).not.toBe('rabbit');
-    expect(observed).not.toBe('fox');
     expect(paused.question.id).toBe('q-1');
     expect(paused.question.choices).toEqual([...WEB_CHOICES]);
-    expect(playback.series().values.rabbit?.every((value) => value === 0)).toBe(true);
+    expect(paused.question.prompt).toMatch(/^Remove the rabbit\. /);
+    expect(playback.series().values.rabbit?.slice(EVENT_STEP).every((value) => value === 0)).toBe(true);
   });
 
   it('picks the first species, in species order, whose direction is not steady', () => {
@@ -166,7 +167,7 @@ describe('createWebPlayback replay', () => {
     expect(playback.series().values.fox?.[EVENT_STEP + 1]).toBe(0);
   });
 
-  it('with every species removed completes at once with no question and an empty series', () => {
+  it('with every species removed asks nothing, and every species is gone from the predict point', () => {
     const playback = createWebPlayback(grassland());
     finish(playback);
     const everything = grasslandWeb().species.reduce((edits, { id }) => toggleRemoved(edits, id), emptyEdits());
@@ -175,7 +176,7 @@ describe('createWebPlayback replay', () => {
     playback.tick(BIG_TICK);
     expect(playback.phase()).toEqual({ kind: 'done', result: null });
     expect(playback.step()).toBe(MODEL_STEPS);
-    for (const values of Object.values(playback.series().values)) expect(values.every((value) => value === 0)).toBe(true);
+    for (const values of Object.values(playback.series().values)) expect(values.slice(EVENT_STEP).every((value) => value === 0)).toBe(true);
   });
 
   it('explains the edited run, so the explanation agrees with the result and not the unedited run', () => {
@@ -201,5 +202,60 @@ describe('createWebPlayback replay', () => {
     playback.replay();
     expect(playback.previous()).toBe(first);
     expect(playback.series().values.grass).toEqual(first.values.grass);
+  });
+});
+
+describe('createWebPlayback when the teacher removes a species', () => {
+  const kelpForest = (): EcosystemLesson => {
+    const found = WEB_SAMPLES.find((entry) => entry.id === 'ocean');
+    if (!found) throw new Error('missing the kelp forest sample');
+    return lessonOf(found.web, []);
+  };
+
+  it.each(['kelp', 'urchin'])('does not also remove the otters when the %s is removed', (id) => {
+    const lesson = kelpForest();
+    const playback = createWebPlayback(lesson);
+    const settledOtters = playback.series().values.otter?.[EVENT_STEP - 1] ?? 0;
+    playback.replay(toggleRemoved(emptyEdits(), id));
+    const otters = playback.series().values.otter ?? [];
+    expect(otters[EVENT_STEP - 1]).toBeCloseTo(settledOtters, 6);
+    expect(otters[EVENT_STEP + 1]).toBeGreaterThan(0);
+    expect(playback.series().values[id]?.[EVENT_STEP - 1]).toBeGreaterThan(0);
+    expect(playback.series().values[id]?.[EVENT_STEP]).toBe(0);
+  });
+
+  it('makes the removal the event the class predicts about', () => {
+    const playback = createWebPlayback(kelpForest());
+    expect(playback.change()).toBe('Remove the sea otter.');
+    playback.replay(toggleRemoved(emptyEdits(), 'urchin'));
+    expect(playback.change()).toBe('Remove the urchin.');
+    expect(playback.changeLabel()).toBe('urchin removed');
+    playback.play();
+    playback.tick(BIG_TICK);
+    const paused = playback.phase();
+    if (paused.kind !== 'predict') throw new Error('expected a predict pause');
+    expect(paused.question.prompt).toMatch(/^Remove the urchin\. What happens to the /);
+    expect(paused.question.cites).toContain('urchin');
+  });
+
+  it('names every removed species, in the order the web lists them', () => {
+    const playback = createWebPlayback(grassland());
+    playback.replay(toggleRemoved(toggleRemoved(emptyEdits(), 'hawk'), 'rabbit'));
+    expect(playback.change()).toBe('Remove the rabbit and the hawk.');
+  });
+
+  it('goes back to the lesson event once everything is put back', () => {
+    const playback = createWebPlayback(kelpForest());
+    playback.replay(toggleRemoved(emptyEdits(), 'urchin'));
+    playback.replay(emptyEdits());
+    expect(playback.change()).toBe('Remove the sea otter.');
+    expect(playback.series().values.otter?.[EVENT_STEP]).toBe(0);
+  });
+
+  it('still removes a species from the start when the lesson is a drought', () => {
+    const playback = createWebPlayback(lessonOf({ ...grasslandWeb(), event: { kind: 'drought' } }, []));
+    playback.replay(toggleRemoved(emptyEdits(), 'hawk'));
+    expect(playback.series().values.hawk?.every((value) => value === 0)).toBe(true);
+    expect(playback.change()).toBe('A drought hits.');
   });
 });

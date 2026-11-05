@@ -52,7 +52,7 @@ export const crowdTargets = (
       const value = values[Math.min(step, values.length - 1)] ?? 0;
       const steady = settled[id] ?? 0;
       const base = roles[id] === 'producer' ? BASE_PRODUCERS : BASE_ANIMALS;
-      if (edits.removed.has(id) || isGoneAt(value, values, step, steady, EVENT_STEP)) return [id, 0];
+      if ((edits.removed.has(id) && value === 0) || isGoneAt(value, values, step, steady, EVENT_STEP)) return [id, 0];
       const count = steady > 0 ? Math.round((base * value) / steady) : base;
       return [id, Math.min(Math.max(count, 1), MAX_PER_GROUP)];
     }),

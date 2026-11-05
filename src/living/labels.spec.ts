@@ -257,3 +257,15 @@ describe('labels agree with the outcome the reveal shows', () => {
     }
   });
 });
+
+describe('labelsAt with the teacher removing species in place of the lesson event', () => {
+  it('names the removed species instead of the lesson event', () => {
+    const web = sampleWeb('ocean');
+    const event: WebEvent = { kind: 'remove', species: 'otter' };
+    const series = simulate(web, { steps: MODEL_STEPS, event: null, eventStep: EVENT_STEP, removed: new Set(['urchin']), removedFrom: EVENT_STEP });
+    const texts = labelsAt(web, event, series, MODEL_STEPS, ['urchin']).map((label) => label.text);
+    expect(texts).toContain('The urchins are removed.');
+    expect(texts).not.toContain('The sea otters are removed.');
+    expect(texts.some((text) => text.startsWith('Urchins '))).toBe(false);
+  });
+});

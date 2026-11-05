@@ -16,8 +16,8 @@ export const LENGTH_READOUT_OFFSET = 36;
 export const LABEL_DISTANCE = 34;
 
 const READY_HEADLINE = 'Look at the figure.';
-const READY_LINE = 'Press Play for the question.';
-const READY_AGAIN_LINE = 'Press Play to ask again. The faint shape is where it landed last time.';
+const READY_LINE = 'Drag any point to change the figure, then press Play for the question.';
+const READY_AGAIN_LINE = 'Press Play to ask again. The faint shape is where it landed last time. Drag any point to change the figure first.';
 const CHOOSE_LINE = 'What do you predict?';
 export const LANDED_HEADLINE = 'Here is where it lands.';
 const MAX_FRAME_SECONDS = 0.1;
@@ -497,7 +497,7 @@ export const renderFigurePresent = (root: HTMLElement, lesson: GeometryLesson, p
     );
   };
 
-  const editable = (): boolean => ['guessing', 'exploring'].includes(playback.phase().kind);
+  const editable = (): boolean => ['ready', 'guessing', 'exploring'].includes(playback.phase().kind);
 
   const loop = (now: number): void => {
     const elapsed = Math.min((now - last) / MS_PER_SECOND, MAX_FRAME_SECONDS);
@@ -541,7 +541,7 @@ export const renderFigurePresent = (root: HTMLElement, lesson: GeometryLesson, p
     const at = drawingPoint(event);
     let target: Drag['target'] | null = null;
     if (kind === 'guessing' && ghostShape && insidePolygon(playback.positions(), ghostShape, at)) target = { kind: 'ghost', last: at };
-    if (kind === 'exploring') {
+    if (kind === 'ready' || kind === 'exploring') {
       const { view, rect } = viewNow();
       const id = pickPoint(figure, playback.positions(), view, { x: event.clientX - rect.left, y: event.clientY - rect.top }, TOUCH_REACH_PX);
       if (id !== null) target = { kind: 'point', id };

@@ -45,8 +45,12 @@ describe('crowdTargets', () => {
     expect(crowdTargets(seriesOf(fox, grass), 0, SETTLED, ROLES, emptyEdits())).toEqual({ fox: foxCount, grass: grassCount });
   });
 
-  it('a removed species gives 0', () => {
-    expect(crowdTargets(seriesOf(100, 1000), 0, SETTLED, ROLES, removing('fox'))).toEqual({ fox: 0, grass: BASE_PRODUCERS });
+  it('a removed species gives 0 once the run has taken it away', () => {
+    expect(crowdTargets(seriesOf(0, 1000), 0, SETTLED, ROLES, removing('fox'))).toEqual({ fox: 0, grass: BASE_PRODUCERS });
+  });
+
+  it('a removed species still shows until the run takes it away at the predict point', () => {
+    expect(crowdTargets(seriesOf(100, 1000), 0, SETTLED, ROLES, removing('fox')).fox).toBeGreaterThan(0);
   });
 
   it('reads the value at the given step, holding the last value past the end', () => {

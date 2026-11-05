@@ -1,10 +1,10 @@
-import { chartPaths, eventLabel, feedingDots, fitWebToScreen, percentOfStart, percentScale, ringRadius, shortenedArrow, spreadLabels } from '../ecosystem/chart';
+import { chartPaths, feedingDots, fitWebToScreen, percentOfStart, percentScale, ringRadius, shortenedArrow, spreadLabels } from '../ecosystem/chart';
 import { speciesColours } from '../ecosystem/colours';
 import { editOnRelease, emptyEdits, pickSpecies, setStart, startMax, type WebEdits } from '../ecosystem/edits';
 import { EVENT_STEP, MODEL_STEPS, STEPS_PER_SECOND_SHOWN, startingPopulations, type Series } from '../ecosystem/model';
 import { isGoneAt } from '../ecosystem/outcomes';
 import { createWebPlayback, type WebPhase } from '../ecosystem/playback';
-import { CHOICE_FOR, WEB_CHOICES, describeEvent, eventOf } from '../ecosystem/questions';
+import { CHOICE_FOR, WEB_CHOICES } from '../ecosystem/questions';
 import type { Species, Web } from '../ecosystem/schema';
 import { sketchWeb } from '../ecosystem/sketch';
 import type { Box } from '../present/onPhoto';
@@ -81,8 +81,11 @@ type StageState = {
 const valueAt = (state: StageState, id: string): number =>
   state.drag?.moved && state.drag.id === id && !state.edits.removed.has(id) ? state.drag.value : (state.series.values[id]?.[state.step] ?? 0);
 
+// A species the teacher removed is gone once the run has taken it away, which may be at the predict point.
+const removedNow = (state: StageState, id: string): boolean => state.edits.removed.has(id) && (state.series.values[id]?.[state.step] ?? 0) === 0;
+
 const isGone = (state: StageState, id: string): boolean =>
-  state.edits.removed.has(id) || isGoneAt(valueAt(state, id), state.series.values[id] ?? [], state.step, state.steady[id] ?? 0, EVENT_STEP);
+  removedNow(state, id) || isGoneAt(valueAt(state, id), state.series.values[id] ?? [], state.step, state.steady[id] ?? 0, EVENT_STEP);
 
 const drawDots = (ctx: CanvasRenderingContext2D, state: StageState): void => {
   const dots = feedingDots(state.web, state.dotStep).filter((dot) => !isGone(state, dot.fromId) && !isGone(state, dot.toId));
@@ -95,7 +98,7 @@ const drawDots = (ctx: CanvasRenderingContext2D, state: StageState): void => {
 };
 
 const drawRing = (ctx: CanvasRenderingContext2D, state: StageState, entry: Species): void => {
-  if (state.edits.removed.has(entry.id)) return;
+  if (removedNow(state, entry.id)) return;
   const colour = state.colours.get(entry.id) ?? INK.black;
   const radius = Math.max(entry.width, entry.height) / 2 + ringRadius(valueAt(state, entry.id), state.steady[entry.id] ?? 0);
   ctx.save();
@@ -236,11 +239,11 @@ const sharedPaths = (series: Series, ghost: Series | null, box: Box, upTo: numbe
   before: ghost ? chartPaths(ghost, box, MODEL_STEPS, max) : {},
 });
 
-type ChartLook = { web: Web; colours: Map<string, string>; portrait: ((name: string) => CanvasImageSource | null) | null };
+type ChartLook = { web: Web; changeLabel: string; colours: Map<string, string>; portrait: ((name: string) => CanvasImageSource | null) | null };
 
 const highestOf = (series: Series): number => Math.max(CHART_START_LEVEL, ...series.ids.flatMap((id) => series.values[id] ?? []));
 
-const drawChart = (canvas: HTMLCanvasElement, raw: Series, rawGhost: Series | null, step: number, { web, colours, portrait }: ChartLook): void => {
+const drawChart = (canvas: HTMLCanvasElement, raw: Series, rawGhost: Series | null, step: number, { web, changeLabel, colours, portrait }: ChartLook): void => {
   const sized = sizeCanvas(canvas);
   if (!sized) return;
   const { ctx, width, height } = sized;
@@ -293,7 +296,7 @@ const drawChart = (canvas: HTMLCanvasElement, raw: Series, rawGhost: Series | nu
   ctx.fillStyle = INK.black;
   ctx.font = font(700);
   ctx.textAlign = 'left';
-  ctx.fillText(eventLabel({ species: web.species, event: eventOf(web) }), eventX + 4 * unit, box.y - (CHART_PAD.top * unit) / 2);
+  ctx.fillText(changeLabel, eventX + 4 * unit, box.y - (CHART_PAD.top * unit) / 2);
 
   const { now, before } = sharedPaths(series, ghost, box, step, max);
   ctx.lineWidth = CHART_LINE_WIDTH;
@@ -339,7 +342,6 @@ export const renderWebPresent = (
 ): (() => void) => {
   const { web } = lesson;
   const playback = createWebPlayback(lesson);
-  const eventText = describeEvent(web, eventOf(web));
   const steady = startingPopulations(web);
   const maxStart = new Map(web.species.map((entry) => [entry.id, startMax(steady, entry.id)]));
 
@@ -446,15 +448,15 @@ export const renderWebPresent = (
     switch (phase.kind) {
       case 'ready':
         if (ghost || edited()) {
-          caption.replaceChildren(line('question-text', eventText), line('explanation-text', ghost ? `${editHint()} The faint lines show the last run.` : editHint()));
+          caption.replaceChildren(line('question-text', playback.change()), line('explanation-text', ghost ? `${editHint()} The faint lines show the last run.` : editHint()));
           controls.replaceChildren(button('Play', playback.play, true), ...(edited() ? [button('Put everything back', resetEdits)] : []));
         } else {
-          caption.replaceChildren(line('question-text', eventText), line('explanation-text', `Press Play. The populations settle first, then we stop to predict. ${editHint()}`));
+          caption.replaceChildren(line('question-text', playback.change()), line('explanation-text', `Press Play. The populations settle first, then we stop to predict. ${editHint()}`));
           controls.replaceChildren(button('Play', playback.play, true));
         }
         break;
       case 'steady':
-        caption.replaceChildren(line('question-text', eventText), line('explanation-text', 'Watch the populations settle.'));
+        caption.replaceChildren(line('question-text', playback.change()), line('explanation-text', 'Watch the populations settle.'));
         controls.replaceChildren();
         break;
       case 'predict':
@@ -468,7 +470,7 @@ export const renderWebPresent = (
         );
         break;
       case 'playing':
-        caption.replaceChildren(line('question-text', eventText), ...(chosen ? [line('choices-text', `You predicted: ${chosen}.`)] : []));
+        caption.replaceChildren(line('question-text', playback.change()), ...(chosen ? [line('choices-text', `You predicted: ${chosen}.`)] : []));
         controls.replaceChildren();
         break;
       case 'done':
@@ -512,7 +514,7 @@ export const renderWebPresent = (
       };
       if (view === 'place') scene?.draw(placeCanvas, seconds, reducedMotion());
       if (view === 'chart') drawStage(canvas, state, playback.phase().kind === 'ready');
-      if (view !== 'place') drawChart(chartCanvas, playback.series(), ghost, step, { web, colours, portrait });
+      if (view !== 'place') drawChart(chartCanvas, playback.series(), ghost, step, { web, changeLabel: playback.changeLabel(), colours, portrait });
     }
     showPhase(playback.phase());
     for (const each of [canvas, placeCanvas]) {

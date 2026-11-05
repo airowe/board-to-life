@@ -98,7 +98,8 @@ export const createFigurePlayback = (lesson: GeometryLesson): FigurePlayback => 
       phase = t >= 1 ? { kind: 'exploring' } : { kind: 'playing', t };
     },
     dragPoint: (id, to) => {
-      if (phase.kind !== 'exploring' || base[id] === undefined) return;
+      // Points can be dragged before Play, to set the figure up, and after the answer, to test it.
+      if ((phase.kind !== 'ready' && phase.kind !== 'exploring') || base[id] === undefined) return;
       const moved = { ...base, [id]: clampToDrawing(figure, to) };
       base = focus?.kind === 'equal-angles' ? followCrossings(moved, figure, focus.marks) : moved;
     },

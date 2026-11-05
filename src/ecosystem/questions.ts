@@ -53,11 +53,22 @@ export const changingSpecies = (web: Web, event: WebEvent, directions = directio
 
 const nameOf = (web: Web, speciesId: string): string => (web.species.find((entry) => entry.id === speciesId)?.name ?? speciesId).toLowerCase();
 
+const listOfNames = (web: Web, speciesIds: string[]): string => {
+  const names = speciesIds.map((id) => `the ${nameOf(web, id)}`);
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+};
+
+// What the teacher's own removals do when they replace a "remove" event: those species go at the predict point.
+export const describeRemoval = (web: Web, speciesIds: string[]): string => `Remove ${listOfNames(web, speciesIds)}.`;
+
+const describeRemovalPast = (web: Web, speciesIds: string[]): string =>
+  `${listOfNames(web, speciesIds)} ${speciesIds.length === 1 ? 'was' : 'were'} removed`;
+
 export const describeEvent = (web: Web, event: WebEvent): string =>
-  event.kind === 'remove' ? `Remove the ${nameOf(web, event.species)}.` : 'A drought hits.';
+  event.kind === 'remove' ? describeRemoval(web, [event.species]) : 'A drought hits.';
 
 const describeEventPast = (web: Web, event: WebEvent): string =>
-  event.kind === 'remove' ? `the ${nameOf(web, event.species)} was removed` : 'the drought';
+  event.kind === 'remove' ? describeRemovalPast(web, [event.species]) : 'the drought';
 
 const neighboursOf = (web: Web, speciesId: string): Set<string> =>
   new Set(web.eats.flatMap((arrow) => (arrow.from === speciesId ? [arrow.to] : arrow.to === speciesId ? [arrow.from] : [])));
@@ -68,24 +79,36 @@ export const twoLinksFrom = (web: Web, speciesId: string): string[] => {
   return web.species.map((entry) => entry.id).filter((id) => reached.has(id) && !near.has(id) && id !== speciesId);
 };
 
+const questionAbout = (
+  web: Web,
+  change: { now: string; past: string; removed: string[] },
+  observe: string,
+  directions: Record<string, Direction>,
+): WebQuestion => {
+  const direction = directions[observe] ?? 'steady';
+  const observed = nameOf(web, observe);
+  return {
+    id: 'q-1',
+    prompt: `${change.now} What happens to the ${observed}?`,
+    choices: [...WEB_CHOICES],
+    observe: { kind: 'direction', species: observe },
+    explanation: `In the model, the ${observed} ${PAST_TENSE_FOR[direction]} after ${change.past}.`,
+    cites: [observe, ...change.removed.filter((id) => id !== observe)],
+  };
+};
+
 export const templateQuestion = (
   web: Web,
   event: WebEvent,
   observe: string,
   directions: Record<string, Direction> = directionsForEvent(web, event),
 ): WebQuestion => {
-  const direction = directions[observe] ?? 'steady';
-  const observed = nameOf(web, observe);
   const removed = removedSpecies(event);
-  return {
-    id: 'q-1',
-    prompt: `${describeEvent(web, event)} What happens to the ${observed}?`,
-    choices: [...WEB_CHOICES],
-    observe: { kind: 'direction', species: observe },
-    explanation: `In the model, the ${observed} ${PAST_TENSE_FOR[direction]} after ${describeEventPast(web, event)}.`,
-    cites: removed === null || removed === observe ? [observe] : [observe, removed],
-  };
+  return questionAbout(web, { now: describeEvent(web, event), past: describeEventPast(web, event), removed: removed === null ? [] : [removed] }, observe, directions);
 };
+
+export const removalQuestion = (web: Web, removed: string[], observe: string, directions: Record<string, Direction>): WebQuestion =>
+  questionAbout(web, { now: describeRemoval(web, removed), past: describeRemovalPast(web, removed), removed }, observe, directions);
 
 const groundingErrors = (question: WebQuestion, web: Web): string[] => {
   const speciesIds = new Set(web.species.map((entry) => entry.id));
