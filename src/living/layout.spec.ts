@@ -17,6 +17,7 @@ import {
   STAGE,
   SURFACE_HEIGHT,
   SURFACE_Y_BY_HABITAT,
+  TALL_PLANT_HEIGHT,
   WATER_Y_BY_HABITAT,
   habitatFor,
   isRooted,
@@ -311,5 +312,29 @@ describe('poseFileFor', () => {
     ['surface', false, 'rest'],
   ])('a %s subject that is moving: %s uses its %s picture', (zone, moving, expected) => {
     expect(poseFileFor(zone, moving)).toBe(expected);
+  });
+});
+
+describe('layoutPlace tall plants', () => {
+  const ocean = WEB_SAMPLES.find((entry) => entry.id === 'ocean')?.web as Web;
+  const groupOf = (id: string) => layoutPlace(ocean, library).groups.find((group) => group.speciesId === id);
+
+  it('stands kelp well above the urchins at its foot, so its fronds can be tapped on their own', () => {
+    const kelp = groupOf('kelp');
+    const urchin = groupOf('urchin');
+    expect(kelp?.size).toBe(TALL_PLANT_HEIGHT.kelp);
+    expect((kelp?.size ?? 0) - (urchin?.size ?? 0)).toBeGreaterThan(urchin?.size ?? 0);
+  });
+
+  it('keeps the kelp tops below the otters at the surface', () => {
+    const kelp = groupOf('kelp');
+    const otter = groupOf('otter');
+    if (!kelp || !otter) throw new Error('missing a group');
+    expect(kelp.baseY - kelp.size).toBeGreaterThan(otter.baseY + otter.size / 2);
+  });
+
+  it('leaves other plants at the usual height', () => {
+    const grassland = WEB_SAMPLES.find((entry) => entry.id === 'grassland')?.web as Web;
+    expect(layoutPlace(grassland, library).groups.find((group) => group.speciesId === 'grass')?.size).toBe(PRODUCER_HEIGHT);
   });
 });

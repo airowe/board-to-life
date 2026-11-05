@@ -9,6 +9,7 @@ import { libraryFile } from '../library/match';
 import { pictureSource, type PictureSource } from '../library/source';
 import { ENTER_SECONDS, LEAVE_SECONDS, STAGGER_FRACTION, createCrowdTracker, crowdTargets, type CrowdTracker } from '../living/crowd';
 import { labelsAt, type PinnedLabel } from '../living/labels';
+import { huntPairs, withHunts } from './hunts';
 import { layoutPlace } from '../living/layout';
 import { toDrawing } from '../present/view';
 import { createPlaceImages, drawPlace, FALLBACK_FOLDER, LIBRARY_ROOT, pickPlaceSpecies, stageView, type PlaceFrame } from './placeView';
@@ -65,6 +66,7 @@ export const createPlaceScene = (
 ): PlaceScene => {
   const { library, fallback, live } = pictures;
   const layout = layoutPlace(web, library);
+  const hunts = huntPairs(web, layout);
   const event = eventOf(web);
   const roles: Record<string, Role> = Object.fromEntries(web.species.map((entry) => [entry.id, entry.role]));
   const producers = web.species.filter((entry) => entry.role === 'producer').map((entry) => entry.id);
@@ -137,7 +139,7 @@ export const createPlaceScene = (
   };
 
   const draw = (canvas: HTMLCanvasElement, seconds: number, reducedMotion: boolean): void => {
-    frame.poses = tracker.poses(layout.groups, seconds, reducedMotion);
+    frame.poses = withHunts(hunts, layout, tracker.poses(layout.groups, seconds, reducedMotion), seconds, reducedMotion);
     frame.labels = labels;
     frame.sources = sources;
     frame.colours = colours();

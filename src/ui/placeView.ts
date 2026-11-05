@@ -107,6 +107,9 @@ const anchorOf = (group: Group, habitat: Habitat): Anchor => {
   return group.zone === 'floor' ? 'foot' : 'middle';
 };
 
+// How much of a group's picture sits above each member's y.
+export const aboveShareOf = (group: Group, habitat: Habitat): number => ABOVE_SHARE[anchorOf(group, habitat)];
+
 // Pictures are wider than tall by varying amounts, so a tap counts within this much of the height either side.
 const TAP_HALF_WIDTH_PER_HEIGHT = 0.75;
 
