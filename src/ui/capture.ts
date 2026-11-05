@@ -23,6 +23,8 @@ type CaptureHandlers = {
   subject: Subject;
   onSubject: (subject: Subject) => void;
   onPhoto: (photo: Blob, subject: Subject) => void;
+  // A sample drawing, given with its URL so a known board can skip the reader; without it, samples go to onPhoto.
+  onSample?: (photo: Blob, url: string, subject: Subject) => void;
   onDescribe: (text: string, subject: Subject) => void;
   description?: string;
 };
@@ -76,7 +78,7 @@ const grabFrame = (video: HTMLVideoElement): Promise<Blob | null> => {
 
 export const renderCapture = (
   root: HTMLElement,
-  { subject: initialSubject, onSubject, onPhoto: submitPhoto, onDescribe: submitText, description = '' }: CaptureHandlers,
+  { subject: initialSubject, onSubject, onPhoto: submitPhoto, onSample: submitSample, onDescribe: submitText, description = '' }: CaptureHandlers,
 ): (() => void) => {
   let subject = initialSubject;
   const onPhoto = (photo: Blob): void => submitPhoto(photo, subject);
@@ -171,8 +173,9 @@ export const renderCapture = (
 
   const useSample = async (url: string): Promise<void> => {
     const sample = await fetchSample(url);
-    if (sample) onPhoto(sample);
-    else status.textContent = SAMPLE_UNAVAILABLE;
+    if (!sample) status.textContent = SAMPLE_UNAVAILABLE;
+    else if (submitSample) submitSample(sample, url, subject);
+    else onPhoto(sample);
   };
 
   const descriptionBox = h('textarea', {

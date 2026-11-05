@@ -1,5 +1,5 @@
 import { checkDescription } from '../src/capture/description';
-import { NOTHING_TO_PREDICT, changingSpecies, checkWebGrounding, eventOf, removedSpecies, templateQuestion, twoLinksFrom } from '../src/ecosystem/questions';
+import { NOTHING_TO_PREDICT, checkWebGrounding, suggestedWebQuestion } from '../src/ecosystem/questions';
 import { WEB_SAMPLES } from '../src/ecosystem/samples';
 import { validateWeb, type Web } from '../src/ecosystem/schema';
 import { flipArrow } from '../src/ecosystem/trophic';
@@ -129,24 +129,16 @@ export const handleDescribeWeb = (request: DescribeRequest): Promise<StubRespons
 
 const GHOST_SPECIES = 'ghost';
 
-const stubObservation = (web: Web, changing: string[]): string => {
-  const removed = removedSpecies(eventOf(web));
-  const twoLinks = removed === null ? [] : twoLinksFrom(web, removed);
-  return twoLinks.find((id) => changing.includes(id)) ?? (changing[0] as string);
-};
-
 export const handleDraftWebQuestions = async (request: DraftWebQuestionsRequest): Promise<StubResponse> => {
   const validated = validateWeb(request.web);
   if (!validated.ok) return failure(400, 'The web sent for drafting failed validation.', validated.errors);
   const web = validated.web;
-  const event = eventOf(web);
-  const changing = changingSpecies(web, event);
-  if (changing.length === 0) return failure(422, NOTHING_TO_PREDICT);
+  const question = suggestedWebQuestion(web);
+  if (question === null) return failure(422, NOTHING_TO_PREDICT);
   await wait(request.delayMs);
   const simulated = simulatedFailure(request.mode, WEB_READER);
   if (simulated) return simulated;
 
-  const question = templateQuestion(web, event, stubObservation(web, changing));
   const drafted = request.mode === 'ungrounded' ? [{ ...question, cites: [...question.cites, GHOST_SPECIES] }] : [question];
   const grounded = checkWebGrounding(drafted, web);
   if (!grounded.ok) return failure(422, 'A drafted question cited something not in the web.', grounded.errors);

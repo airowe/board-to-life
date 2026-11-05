@@ -110,6 +110,22 @@ export const templateQuestion = (
 export const removalQuestion = (web: Web, removed: string[], observe: string, directions: Record<string, Direction>): WebQuestion =>
   questionAbout(web, { now: describeRemoval(web, removed), past: describeRemovalPast(web, removed), removed }, observe, directions);
 
+// The species a template question asks about: one two links from a removed species if any of those change, as that is
+// the less obvious knock-on effect, otherwise the first that changes.
+const observedSpecies = (web: Web, event: WebEvent, changing: string[]): string | undefined => {
+  const removed = removedSpecies(event);
+  const twoLinks = removed === null ? [] : twoLinksFrom(web, removed);
+  return twoLinks.find((id) => changing.includes(id)) ?? changing[0];
+};
+
+// A question written without a model, for a web whose event changes something; null when nothing changes.
+export const suggestedWebQuestion = (web: Web): WebQuestion | null => {
+  const event = eventOf(web);
+  const changing = changingSpecies(web, event);
+  const observe = observedSpecies(web, event, changing);
+  return observe === undefined ? null : templateQuestion(web, event, observe);
+};
+
 const groundingErrors = (question: WebQuestion, web: Web): string[] => {
   const speciesIds = new Set(web.species.map((entry) => entry.id));
   const removed = removedSpecies(eventOf(web));
